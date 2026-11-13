@@ -5,3 +5,4 @@ target
 uploads
 .pnpm-store
 build.log
+.bundles
