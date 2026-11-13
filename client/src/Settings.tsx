@@ -24,6 +24,7 @@ import {
   primaryButton,
 } from "./Modal";
 import {
+  P,
   PERMISSION_GROUPS,
   colorToCss,
   hasPerm,
@@ -45,11 +46,22 @@ export function ServerSettingsDialog({
   server: Server;
   onClose: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("roles");
+  const [tab, setTab] = useState<Tab>(
+    hasPerm(server.myPermissions, P.MANAGE_ROLES)
+      ? "roles"
+      : hasPerm(server.myPermissions, P.MANAGE_CHANNELS)
+        ? "categories"
+        : "audit",
+  );
+  const tabs: Tab[] = [];
+  if (hasPerm(server.myPermissions, P.MANAGE_ROLES)) tabs.push("roles");
+  if (hasPerm(server.myPermissions, P.MANAGE_CHANNELS))
+    tabs.push("categories");
+  if (hasPerm(server.myPermissions, P.VIEW_AUDIT_LOG)) tabs.push("audit");
   return (
     <Modal title={`Настройки «${server.name}»`} onClose={onClose}>
       <div role="tablist" className="flex gap-1 border-b border-zinc-700 pb-2">
-        {(Object.keys(tabLabel) as Tab[]).map((key) => (
+        {tabs.map((key) => (
           <button
             key={key}
             role="tab"

@@ -17,7 +17,7 @@ import type { DmChannel } from "./generated/DmChannel";
 import type { Channel } from "./generated/Channel";
 import type { Server } from "./generated/Server";
 import {
-  canManage,
+  can,
   clearUnread,
   deleteChannel,
   formatBadge,
@@ -26,6 +26,7 @@ import {
   loadServers,
   useGuilds,
 } from "./guilds";
+import { P } from "./permissions";
 import { errorMessage } from "./Modal";
 import { ServerSettingsDialog } from "./Settings";
 import { presenceView } from "./presence";
@@ -183,7 +184,7 @@ export function AppLayout() {
           <ChatView
             key={channel.id}
             channel={{ id: channel.id, label: `#${channel.name}` }}
-            canModerate={canManage(server)}
+            canModerate={can(server, P.MANAGE_MESSAGES)}
             onRead={() => clearUnread(server.id, channel.id)}
           />
         ) : dm ? (
@@ -429,7 +430,9 @@ function ChannelList({
   onDialog: (d: Dialog) => void;
 }) {
   const navigate = useNavigate();
-  const manage = canManage(server);
+  const manage = can(server, P.MANAGE_CHANNELS);
+  const canSettings =
+    can(server, P.MANAGE_ROLES) || can(server, P.VIEW_AUDIT_LOG) || manage;
   const categories = useGuilds((s) => s.categories[server.id]) ?? [];
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const iconButton =
@@ -465,7 +468,7 @@ function ChannelList({
     <>
       <header className="flex h-12 items-center gap-1 border-b border-zinc-950 px-3">
         <h2 className="flex-1 truncate font-semibold">{server.name}</h2>
-        {manage && (
+        {canSettings && (
           <button
             className={iconButton}
             title="Настройки сервера"

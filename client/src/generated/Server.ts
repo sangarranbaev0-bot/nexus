@@ -6,6 +6,10 @@ import type { Role } from "./Role";
  */
 export type Server = { id: number, name: string, ownerId: number, myRole: Role, 
 /**
- * Сумма непрочитанных по каналам (каждый канал считается максимум до 100).
+ * Итоговые права участника на сервере (битовая маска, как в `permissions.rs`).
+ */
+myPermissions: number, 
+/**
+ * Сумма непрочитанных по каналам (больше ста почти не бывает, считаем максимум 100).
  */
 unreadCount: number, };

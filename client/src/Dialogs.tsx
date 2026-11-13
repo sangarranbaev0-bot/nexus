@@ -5,7 +5,7 @@ import type { Member } from "./generated/Member";
 import type { Server } from "./generated/Server";
 import {
   assignRoles,
-  canManage,
+  can,
   createChannel,
   createInvite,
   createServer,
@@ -15,7 +15,7 @@ import {
   setMemberRole,
   useGuilds,
 } from "./guilds";
-import { colorToCss } from "./permissions";
+import { P, colorToCss } from "./permissions";
 import { openDm } from "./dms";
 import {
   Modal,
@@ -243,7 +243,7 @@ export function MembersDialog({
   const [members, setMembers] = useState<Member[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const isOwner = server.myRole === "owner";
-  const manageRoles = canManage(server);
+  const manageRoles = can(server, P.MANAGE_ROLES);
   const roles = useGuilds((s) => s.roles[server.id]);
   const [rolesFor, setRolesFor] = useState<number | null>(null);
   const [selected, setSelected] = useState<number[]>([]);

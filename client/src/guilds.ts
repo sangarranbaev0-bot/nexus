@@ -16,6 +16,8 @@ import type { UpdateChannelRequest } from './generated/UpdateChannelRequest';
 import type { UpdateRoleRequest } from './generated/UpdateRoleRequest';
 import type { UpsertOverwriteRequest } from './generated/UpsertOverwriteRequest';
 
+import { P, hasPerm } from './permissions';
+
 interface GuildsState {
   /** `null` — ещё не загружено. */
   servers: Server[] | null;
@@ -33,6 +35,8 @@ export const useGuilds = create<GuildsState>(() => ({
 
 const rank: Record<Role, number> = { member: 0, admin: 1, owner: 2 };
 export const canManage = (server: Server | undefined) => !!server && rank[server.myRole] >= rank.admin;
+export const can = (server: Server | undefined, permission: number) =>
+  !!server && hasPerm(server.myPermissions, permission);
 
 export async function loadServers() {
   useGuilds.setState({ servers: await api<Server[]>('/api/servers') });

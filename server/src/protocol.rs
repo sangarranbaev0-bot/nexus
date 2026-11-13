@@ -272,8 +272,11 @@ pub struct Server {
     pub name: String,
     #[ts(type = "number")]
     pub owner_id: i64,
-    pub my_role: Role,
-    /// Сумма непрочитанных по каналам (каждый канал считается максимум до 100).
+pub my_role: Role,
+    /// Итоговые права участника на сервере (битовая маска, как в `permissions.rs`).
+    #[ts(type = "number")]
+    pub my_permissions: i64,
+    /// Сумма непрочитанных по каналам (больше ста почти не бывает, считаем максимум 100).
     pub unread_count: i32,
 }
 

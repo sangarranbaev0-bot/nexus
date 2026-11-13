@@ -110,18 +110,22 @@ pub async fn servers_with_unread(
     .bind::<BigInt, _>(user_id)
     .load(conn)
     .await?;
-    Ok(rows
-        .into_iter()
-        .filter_map(|r| {
-            Some(Server {
-                id: r.id,
-                name: r.name,
-                owner_id: r.owner_id,
-                my_role: Role::parse(&r.role)?,
-                unread_count: r.unread_count,
-            })
-        })
-        .collect())
+    let mut servers = Vec::with_capacity(rows.len());
+    for r in rows {
+        let Some(my_role) = Role::parse(&r.role) else {
+            continue;
+        };
+        let my_permissions = permissions::member_perms(conn, r.id, user_id).await?.bits;
+        servers.push(Server {
+            id: r.id,
+            name: r.name,
+            owner_id: r.owner_id,
+            my_role,
+            my_permissions,
+            unread_count: r.unread_count,
+        });
+    }
+    Ok(servers)
 }
 
 pub fn routes() -> Router<AppState> {

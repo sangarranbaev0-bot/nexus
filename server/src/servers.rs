@@ -228,6 +228,7 @@ async fn create_server(
                 name,
                 owner_id: user_id,
                 my_role: Role::Owner,
+                my_permissions: permissions::ALL,
                 unread_count: 0,
             })
         })
@@ -516,11 +517,15 @@ async fn join_by_invite(
         .first(&mut conn)
         .await?;
     let my_role = role_in(&mut conn, server_id, user_id).await?;
+    let my_permissions = permissions::member_perms(&mut conn, server_id, user_id)
+        .await?
+        .bits;
     Ok(Json(Server {
         id: server_id,
         name,
         owner_id,
         my_role,
+        my_permissions,
         // Вступивший не получает историю как непрочитанную.
         unread_count: 0,
     }))
