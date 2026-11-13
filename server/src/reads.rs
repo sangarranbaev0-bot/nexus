@@ -41,6 +41,8 @@ struct ChannelRow {
     position: i32,
     #[diesel(sql_type = Text)]
     kind: String,
+    #[diesel(sql_type = diesel::sql_types::Nullable<BigInt>)]
+    category_id: Option<i64>,
     #[diesel(sql_type = Int4)]
     unread_count: i32,
 }
@@ -51,7 +53,7 @@ pub async fn channels_with_unread(
     server_id: i64,
 ) -> AppResult<Vec<Channel>> {
     let rows: Vec<ChannelRow> = diesel::sql_query(format!(
-        "SELECT c.id, c.server_id, c.name, c.position, c.kind, {UNREAD} AS unread_count
+        "SELECT c.id, c.server_id, c.name, c.position, c.kind, c.category_id, {UNREAD} AS unread_count
          FROM channels c
          JOIN members mem ON mem.server_id = c.server_id AND mem.user_id = $1
          LEFT JOIN read_states rs ON rs.channel_id = c.id AND rs.user_id = $1
@@ -70,6 +72,7 @@ pub async fn channels_with_unread(
             name: r.name,
             position: r.position,
             kind: ChannelKind::parse(&r.kind),
+            category_id: r.category_id,
             unread_count: r.unread_count,
         })
         .collect())

@@ -13,13 +13,14 @@ use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
     events::{Notice, notify},
+    permissions,
     presence::STATUS_SQL,
     protocol::{
         Channel, ChannelKind, CreateChannelRequest, CreateInviteRequest, CreateServerRequest,
         Invite, Member, Presence, Role, Server, UpdateMemberRequest,
     },
     reads,
-    schema::{channels, dm_participants, invites, members, servers},
+    schema::{channels, dm_participants, invites, members, roles, servers},
 };
 
 const DEFAULT_CHANNEL: &str = "общий";
@@ -146,7 +147,7 @@ fn validate_server_name(name: &str) -> AppResult<String> {
 }
 
 /// Как в Discord: нижний регистр, пробелы → дефисы, только буквы, цифры, `-` и `_`.
-fn normalize_channel_name(name: &str) -> AppResult<String> {
+pub fn normalize_channel_name(name: &str) -> AppResult<String> {
     let name: String = name
         .trim()
         .to_lowercase()
@@ -192,6 +193,16 @@ async fn create_server(
                     members::server_id.eq(id),
                     members::user_id.eq(user_id),
                     members::role.eq(Role::Owner.as_str()),
+                ))
+                .execute(conn)
+                .await?;
+            diesel::insert_into(roles::table)
+                .values((
+                    roles::server_id.eq(id),
+                    roles::name.eq("@everyone"),
+                    roles::permissions.eq(0i64),
+                    roles::position.eq(0),
+                    roles::is_default.eq(true),
                 ))
                 .execute(conn)
                 .await?;
@@ -252,7 +263,7 @@ async fn create_channel(
 ) -> AppResult<(StatusCode, Json<Channel>)> {
     let name = normalize_channel_name(&req.name)?;
     let mut conn = state.pool.get().await?;
-    require_role(&mut conn, server_id, user_id, Role::Admin).await?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::MANAGE_CHANNELS).await?;
 
     // shortcut: позиция = max + 1 без блокировки, при одновременном создании возможен дубль
     // позиции (порядок тогда решает id); заменить, когда появится перетаскивание каналов.
@@ -280,6 +291,7 @@ async fn create_channel(
         name,
         position,
         kind,
+        category_id: None,
         unread_count: 0,
     };
     Ok((StatusCode::CREATED, Json(channel)))
@@ -293,7 +305,7 @@ async fn delete_channel(
     let mut conn = state.pool.get().await?;
     let server_id = channel_server(&mut conn, channel_id).await?;
     // Посторонний получает 404 и для канала: role_in отвечает так же, как на несуществующий.
-    require_role(&mut conn, server_id, user_id, Role::Admin).await?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::MANAGE_CHANNELS).await?;
     diesel::delete(channels::table.find(channel_id))
         .execute(&mut conn)
         .await?;
@@ -309,6 +321,8 @@ struct MemberRow {
     username: String,
     #[diesel(sql_type = diesel::sql_types::Text)]
     role: String,
+    #[diesel(sql_type = diesel::sql_types::Array<diesel::sql_types::BigInt>)]
+    role_ids: Vec<i64>,
     #[diesel(sql_type = diesel::sql_types::Text)]
     status: String,
 }
@@ -321,7 +335,13 @@ async fn list_members(
     let mut conn = state.pool.get().await?;
     role_in(&mut conn, server_id, user_id).await?;
     let rows: Vec<MemberRow> = diesel::sql_query(format!(
-        "SELECT u.id AS user_id, u.username, mem.role, {STATUS_SQL} AS status
+        "SELECT u.id AS user_id, u.username, mem.role,
+                COALESCE((
+                    SELECT array_agg(mr.role_id ORDER BY r.position DESC, r.id)
+                    FROM member_roles mr JOIN roles r ON r.id = mr.role_id
+                    WHERE mr.server_id = mem.server_id AND mr.user_id = mem.user_id
+                ), '{{}}') AS role_ids,
+                {STATUS_SQL} AS status
          FROM members mem JOIN users u ON u.id = mem.user_id
          WHERE mem.server_id = $1
          ORDER BY mem.joined_at"
@@ -336,6 +356,7 @@ async fn list_members(
                     user_id: r.user_id,
                     username: r.username,
                     role: Role::parse(&r.role)?,
+                    role_ids: r.role_ids,
                     status: Presence::parse(&r.status),
                 })
             })
@@ -396,8 +417,9 @@ async fn create_invite(
         return Err(AppError::bad_request("expiresInHours must be 1-720"));
     }
     let mut conn = state.pool.get().await?;
-    // Приглашать может любой участник, как в Discord по умолчанию.
-    role_in(&mut conn, server_id, user_id).await?;
+    // По умолчанию приглашать может любой участник (право есть в MEMBER_BASE).
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::CREATE_INVITE)
+        .await?;
 
     let expires_at = req
         .expires_in_hours

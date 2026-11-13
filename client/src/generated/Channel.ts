@@ -3,6 +3,10 @@ import type { ChannelKind } from "./ChannelKind";
 
 export type Channel = { id: number, serverId: number, name: string, position: number, kind: ChannelKind, 
 /**
+ * Категория канала; `null` — без категории.
+ */
+categoryId: number | null, 
+/**
  * Непрочитанные чужие сообщения, максимум 100 (клиент покажет «99+»).
  */
 unreadCount: number, };

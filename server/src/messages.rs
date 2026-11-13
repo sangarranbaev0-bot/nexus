@@ -16,7 +16,8 @@ use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
     events::{Notice, notify},
-    protocol::{Attachment, ChannelKind, Message, MessageContent, Role},
+    permissions,
+    protocol::{Attachment, ChannelKind, Message, MessageContent},
     schema::{messages, users},
     servers::{ChannelAccess, channel_access},
 };
@@ -133,7 +134,17 @@ async fn list(
 ) -> AppResult<Json<Vec<Message>>> {
     let limit = page.limit.unwrap_or(DEFAULT_PAGE).clamp(1, MAX_PAGE);
     let mut conn = state.pool.get().await?;
-    channel_access(&mut conn, channel_id, user_id).await?;
+    let access = channel_access(&mut conn, channel_id, user_id).await?;
+    if let Some(server_id) = access.server_id {
+        permissions::require_channel_permission(
+            &mut conn,
+            server_id,
+            user_id,
+            channel_id,
+            permissions::VIEW_CHANNEL,
+        )
+        .await?;
+    }
 
     let mut query = messages::table
         .inner_join(users::table)
@@ -171,6 +182,26 @@ async fn create(
         return Err(AppError::bad_request("voice channels have no messages"));
     }
     let server_id = access.server_id;
+    if let Some(server_id) = server_id {
+        permissions::require_channel_permission(
+            &mut conn,
+            server_id,
+            user_id,
+            channel_id,
+            permissions::SEND_MESSAGES,
+        )
+        .await?;
+        if !files.is_empty() {
+            permissions::require_channel_permission(
+                &mut conn,
+                server_id,
+                user_id,
+                channel_id,
+                permissions::ATTACH_FILES,
+            )
+            .await?;
+        }
+    }
 
     // Сообщение и привязка файлов — одна транзакция: чужой или уже занятый файл откатывает всё.
     let id = conn
@@ -268,9 +299,23 @@ async fn remove(
 ) -> AppResult<StatusCode> {
     let mut conn = state.pool.get().await?;
     let (channel_id, author_id, access) = locate(&mut conn, message_id, user_id).await?;
-    // Чужое сообщение удаляет только admin+ сервера; в ЛС — никто.
-    if author_id != user_id && !access.role.is_some_and(|r| r >= Role::Admin) {
-        return Err(AppError::forbidden());
+    // Чужое сообщение удаляет участник с правом MANAGE_MESSAGES; в ЛС — никто.
+    if author_id != user_id {
+        let allowed = match access.server_id {
+            Some(server_id) => permissions::require_channel_permission(
+                &mut conn,
+                server_id,
+                user_id,
+                channel_id,
+                permissions::MANAGE_MESSAGES,
+            )
+            .await
+            .is_ok(),
+            None => false,
+        };
+        if !allowed {
+            return Err(AppError::forbidden());
+        }
     }
     let server_id = access.server_id;
     let keys = conn

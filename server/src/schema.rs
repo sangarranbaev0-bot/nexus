@@ -35,6 +35,11 @@ diesel::allow_tables_to_appear_in_same_query!(
     attachments,
     voice_states,
     voice_signals,
+    roles,
+    member_roles,
+    categories,
+    channel_overwrites,
+    audit_log,
 );
 
 diesel::table! {
@@ -64,6 +69,7 @@ diesel::table! {
         created_at -> Timestamptz,
         dm_key -> Nullable<Text>,
         kind -> Text,
+        category_id -> Nullable<Int8>,
     }
 }
 
@@ -158,3 +164,68 @@ diesel::table! {
         created_at -> Timestamptz,
     }
 }
+
+diesel::table! {
+    roles (id) {
+        id -> Int8,
+        server_id -> Int8,
+        name -> Text,
+        color -> Nullable<Int4>,
+        permissions -> Int8,
+        position -> Int4,
+        hoist -> Bool,
+        mentionable -> Bool,
+        is_default -> Bool,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    member_roles (server_id, user_id, role_id) {
+        server_id -> Int8,
+        user_id -> Int8,
+        role_id -> Int8,
+    }
+}
+
+diesel::table! {
+    categories (id) {
+        id -> Int8,
+        server_id -> Int8,
+        name -> Text,
+        position -> Int4,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    channel_overwrites (id) {
+        id -> Int8,
+        channel_id -> Int8,
+        role_id -> Nullable<Int8>,
+        user_id -> Nullable<Int8>,
+        allow -> Int8,
+        deny -> Int8,
+    }
+}
+
+diesel::table! {
+    audit_log (id) {
+        id -> Int8,
+        server_id -> Int8,
+        actor_id -> Int8,
+        action -> Text,
+        target -> Nullable<Text>,
+        metadata -> Nullable<Jsonb>,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::joinable!(roles -> servers (server_id));
+diesel::joinable!(member_roles -> roles (role_id));
+diesel::joinable!(categories -> servers (server_id));
+diesel::joinable!(channel_overwrites -> channels (channel_id));
+diesel::joinable!(channel_overwrites -> roles (role_id));
+diesel::joinable!(channel_overwrites -> users (user_id));
+diesel::joinable!(audit_log -> servers (server_id));
+diesel::joinable!(audit_log -> users (actor_id));

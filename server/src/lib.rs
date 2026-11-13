@@ -4,9 +4,11 @@ mod dms;
 pub mod error;
 pub mod events;
 mod messages;
+pub mod permissions;
 pub mod presence;
 pub mod protocol;
 mod reads;
+mod roles;
 pub mod schema;
 pub mod servers;
 pub mod voice;
@@ -90,6 +92,7 @@ pub fn app(state: AppState) -> Router {
         .route("/ws", get(ws::handler))
         .merge(auth::routes())
         .merge(servers::routes())
+        .merge(roles::routes())
         .merge(messages::routes())
         .merge(reads::routes())
         .merge(dms::routes())

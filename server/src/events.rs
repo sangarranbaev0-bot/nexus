@@ -57,6 +57,9 @@ pub enum Notice {
     ChannelsChanged {
         server_id: i64,
     },
+    RolesChanged {
+        server_id: i64,
+    },
     MemberJoined {
         server_id: i64,
         user_id: i64,
@@ -260,6 +263,16 @@ async fn handle(state: &AppState, payload: &str) {
                 Event::ToServer {
                     server_id,
                     json: to_json(&ServerMessage::ChannelsChanged { server_id }),
+                },
+            );
+            Ok(())
+        }
+        Notice::RolesChanged { server_id } => {
+            send(
+                state,
+                Event::ToServer {
+                    server_id,
+                    json: to_json(&ServerMessage::RolesChanged { server_id }),
                 },
             );
             Ok(())

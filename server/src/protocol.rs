@@ -145,6 +145,11 @@ pub enum ServerMessage {
         #[ts(type = "number")]
         server_id: i64,
     },
+    /// Роли сервера или назначения изменились: клиент перезагружает роли и участников.
+    RolesChanged {
+        #[ts(type = "number")]
+        server_id: i64,
+    },
     /// Вошёл в голос или изменил флаги (микрофон, камера, экран).
     VoiceState {
         participant: VoiceParticipant,
@@ -283,6 +288,9 @@ pub struct Channel {
     pub name: String,
     pub position: i32,
     pub kind: ChannelKind,
+    /// Категория канала; `null` — без категории.
+    #[ts(type = "number | null")]
+    pub category_id: Option<i64>,
     /// Непрочитанные чужие сообщения, максимум 100 (клиент покажет «99+»).
     pub unread_count: i32,
 }
@@ -347,6 +355,9 @@ pub struct Member {
     pub user_id: i64,
     pub username: String,
     pub role: Role,
+    /// Назначенные пользовательские роли (без `@everyone`).
+    #[ts(type = "Array<number>")]
+    pub role_ids: Vec<i64>,
     pub status: Presence,
 }
 
@@ -421,6 +432,170 @@ pub struct CreateInviteRequest {
 #[ts(export)]
 pub struct UpdateMemberRequest {
     pub role: Role,
+}
+
+/// Пользовательская роль сервера. `position` больше — старше.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RoleInfo {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub server_id: i64,
+    pub name: String,
+    /// Цвет в 0xRRGGBB; `null` — без цвета.
+    #[ts(type = "number | null")]
+    pub color: Option<i32>,
+    /// Битовая маска прав; биты описаны в серверном `permissions.rs`.
+    #[ts(type = "number")]
+    pub permissions: i64,
+    pub position: i32,
+    pub hoist: bool,
+    pub mentionable: bool,
+    /// `@everyone`: существует на каждом сервере, удалять и переименовывать нельзя.
+    pub is_default: bool,
+}
+
+#[derive(Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateRoleRequest {
+    pub name: String,
+    #[serde(default)]
+    pub color: Option<i32>,
+    #[serde(default)]
+    #[ts(type = "number")]
+    pub permissions: Option<i64>,
+    #[serde(default)]
+    pub hoist: Option<bool>,
+    #[serde(default)]
+    pub mentionable: Option<bool>,
+}
+
+/// Частичное обновление роли. `color: -1` очищает цвет.
+#[derive(Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateRoleRequest {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub color: Option<i32>,
+    #[serde(default)]
+    #[ts(type = "number")]
+    pub permissions: Option<i64>,
+    #[serde(default)]
+    pub hoist: Option<bool>,
+    #[serde(default)]
+    pub mentionable: Option<bool>,
+    #[serde(default)]
+    pub position: Option<i32>,
+}
+
+/// Полная замена пользовательских ролей участника (без `@everyone`).
+#[derive(Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AssignRolesRequest {
+    #[ts(type = "Array<number>")]
+    pub role_ids: Vec<i64>,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Category {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub server_id: i64,
+    pub name: String,
+    pub position: i32,
+}
+
+#[derive(Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateCategoryRequest {
+    pub name: String,
+}
+
+#[derive(Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateCategoryRequest {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub position: Option<i32>,
+}
+
+/// Частичное обновление канала. `categoryId: 0` убирает канал из категории.
+#[derive(Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateChannelRequest {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    #[ts(type = "number")]
+    pub category_id: Option<i64>,
+    #[serde(default)]
+    pub position: Option<i32>,
+}
+
+/// Переопределение прав канала для роли или участника.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Overwrite {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub channel_id: i64,
+    #[ts(type = "number | null")]
+    pub role_id: Option<i64>,
+    #[ts(type = "number | null")]
+    pub user_id: Option<i64>,
+    #[ts(type = "number")]
+    pub allow: i64,
+    #[ts(type = "number")]
+    pub deny: i64,
+}
+
+/// Создать или заменить переопределение. Ровно одно из `roleId`/`userId`.
+#[derive(Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpsertOverwriteRequest {
+    #[serde(default)]
+    #[ts(type = "number")]
+    pub role_id: Option<i64>,
+    #[serde(default)]
+    #[ts(type = "number")]
+    pub user_id: Option<i64>,
+    #[ts(type = "number")]
+    pub allow: i64,
+    #[ts(type = "number")]
+    pub deny: i64,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AuditEntry {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub server_id: i64,
+    #[ts(type = "number")]
+    pub actor_id: i64,
+    pub action: String,
+    #[ts(type = "string | null")]
+    pub target: Option<String>,
+    #[ts(type = "number")]
+    pub created_at: i64,
 }
 
 /// Диалог в личных сообщениях. `id` — id канала: лента и отметки прочтения общие с серверными.

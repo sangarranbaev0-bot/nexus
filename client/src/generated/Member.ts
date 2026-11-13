@@ -2,4 +2,8 @@
 import type { Presence } from "./Presence";
 import type { Role } from "./Role";
 
-export type Member = { userId: number, username: string, role: Role, status: Presence, };
+export type Member = { userId: number, username: string, role: Role, 
+/**
+ * Назначенные пользовательские роли (без `@everyone`).
+ */
+roleIds: Array<number>, status: Presence, };
