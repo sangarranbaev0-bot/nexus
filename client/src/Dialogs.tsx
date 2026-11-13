@@ -4,13 +4,18 @@ import type { Invite } from "./generated/Invite";
 import type { Member } from "./generated/Member";
 import type { Server } from "./generated/Server";
 import {
+  assignRoles,
+  canManage,
   createChannel,
   createInvite,
   createServer,
   joinInvite,
   listMembers,
+  loadRoles,
   setMemberRole,
+  useGuilds,
 } from "./guilds";
+import { colorToCss } from "./permissions";
 import { openDm } from "./dms";
 import {
   Modal,
@@ -238,6 +243,11 @@ export function MembersDialog({
   const [members, setMembers] = useState<Member[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const isOwner = server.myRole === "owner";
+  const manageRoles = canManage(server);
+  const roles = useGuilds((s) => s.roles[server.id]);
+  const [rolesFor, setRolesFor] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [savingRoles, setSavingRoles] = useState(false);
 
   const reload = () =>
     listMembers(server.id).then(
@@ -249,7 +259,30 @@ export function MembersDialog({
     );
   useEffect(() => {
     void reload();
+    void loadRoles(server.id).catch(() => {});
   }, [server.id]);
+
+  const openRoles = (m: Member) => {
+    const assignable = new Set(
+      (roles ?? []).filter((r) => !r.isDefault).map((r) => r.id),
+    );
+    setSelected(m.roleIds.filter((id) => assignable.has(id)));
+    setRolesFor(m.userId);
+  };
+
+  const saveRoles = async (member: Member) => {
+    setSavingRoles(true);
+    setError(null);
+    try {
+      await assignRoles(server.id, member.userId, selected);
+      setRolesFor(null);
+      await reload();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setSavingRoles(false);
+    }
+  };
 
   const navigate = useNavigate();
   const message = async (m: Member) => {
@@ -280,30 +313,106 @@ export function MembersDialog({
     <Modal title="Участники" onClose={onClose}>
       <ul className="max-h-80 divide-y divide-zinc-700 overflow-y-auto">
         {members?.map((m) => (
-          <li key={m.userId} className="flex items-center gap-3 py-2">
-            <StatusDot userId={m.userId} fallback={m.status} />
-            <span className="flex-1 truncate">
-              {m.username}
-              {m.userId === me?.id && (
-                <span className="text-zinc-500"> (вы)</span>
+          <li key={m.userId} className="py-2">
+            <div className="flex items-center gap-3">
+              <StatusDot userId={m.userId} fallback={m.status} />
+              <span className="flex-1 truncate">
+                {m.username}
+                {m.userId === me?.id && (
+                  <span className="text-zinc-500"> (вы)</span>
+                )}
+              </span>
+              <span className="text-sm text-zinc-400">
+                {roleLabel[m.role]}
+              </span>
+              {manageRoles && (m.role !== "owner" || isOwner) && (
+                <button
+                  onClick={() => openRoles(m)}
+                  className="text-sm text-indigo-400 hover:underline"
+                >
+                  Роли
+                </button>
               )}
-            </span>
-            <span className="text-sm text-zinc-400">{roleLabel[m.role]}</span>
-            {m.userId !== me?.id && (
-              <button
-                onClick={() => message(m)}
-                className="text-sm text-indigo-400 hover:underline"
-              >
-                Написать
-              </button>
+              {m.userId !== me?.id && (
+                <button
+                  onClick={() => message(m)}
+                  className="text-sm text-indigo-400 hover:underline"
+                >
+                  Написать
+                </button>
+              )}
+              {isOwner && m.role !== "owner" && (
+                <button
+                  onClick={() => toggle(m)}
+                  className="text-sm text-indigo-400 hover:underline"
+                >
+                  {m.role === "admin" ? "Снять админа" : "Сделать админом"}
+                </button>
+              )}
+            </div>
+            {m.roleIds.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1 pl-6">
+                {m.roleIds
+                  .map((id) => roles?.find((r) => r.id === id))
+                  .filter((r) => r !== undefined)
+                  .map((r) => (
+                    <span
+                      key={r.id}
+                      style={{ color: colorToCss(r.color) }}
+                      className="rounded bg-zinc-700/70 px-1.5 py-0.5 text-xs"
+                    >
+                      {r.name}
+                    </span>
+                  ))}
+              </div>
             )}
-            {isOwner && m.role !== "owner" && (
-              <button
-                onClick={() => toggle(m)}
-                className="text-sm text-indigo-400 hover:underline"
-              >
-                {m.role === "admin" ? "Снять админа" : "Сделать админом"}
-              </button>
+            {rolesFor === m.userId && (
+              <div className="mt-2 ml-6 space-y-1 rounded bg-zinc-900 p-2">
+                {(roles ?? []).filter((r) => !r.isDefault).length === 0 && (
+                  <p className="text-sm text-zinc-500">
+                    Сначала создайте роль в настройках сервера.
+                  </p>
+                )}
+                {(roles ?? [])
+                  .filter((r) => !r.isDefault)
+                  .sort((a, b) => b.position - a.position || a.id - b.id)
+                  .map((r) => (
+                    <label
+                      key={r.id}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(r.id)}
+                        onChange={(e) =>
+                          setSelected((sel) =>
+                            e.target.checked
+                              ? [...sel, r.id]
+                              : sel.filter((id) => id !== r.id),
+                          )
+                        }
+                      />
+                      <span style={{ color: colorToCss(r.color) }}>
+                        {r.name}
+                      </span>
+                    </label>
+                  ))}
+                <div className="flex justify-end gap-3 pt-1">
+                  <button
+                    onClick={() => setRolesFor(null)}
+                    className="text-sm text-zinc-300 hover:underline"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={() => void saveRoles(m)}
+                    disabled={savingRoles}
+                    className="text-sm text-indigo-400 hover:underline disabled:opacity-60"
+                  >
+                    Сохранить
+                  </button>
+                </div>
+              </div>
             )}
           </li>
         ))}

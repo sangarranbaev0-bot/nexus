@@ -4,7 +4,14 @@ import type { ClientMessage } from './generated/ClientMessage';
 import type { ServerMessage } from './generated/ServerMessage';
 import { bumpDm, clearDmUnread, isDm, reloadDmsSoon } from './dms';
 import type { Message } from './generated/Message';
-import { bumpUnread, clearUnread, loadChannels, serverOfChannel } from './guilds';
+import {
+  bumpUnread,
+  clearUnread,
+  loadCategories,
+  loadChannels,
+  loadRoles,
+  serverOfChannel,
+} from './guilds';
 import { applyCreated, applyDeleted, applyTyping, applyUpdated, isViewing, resetMessages } from './messages';
 import { applyPresence, watchIdle } from './presence';
 import { signOutLocal, useSession } from './session';
@@ -112,9 +119,13 @@ export function connectSocket(): () => void {
           applyTyping(msg.channelId, msg.userId, msg.username);
           break;
         case 'channelsChanged':
+          void loadCategories(msg.serverId).catch(() => {});
           void loadChannels(msg.serverId)
             .then((list) => onChannelsReloaded(msg.serverId, list.map((c) => c.id)))
             .catch(() => {});
+          break;
+        case 'rolesChanged':
+          void loadRoles(msg.serverId).catch(() => {});
           break;
         case 'voiceState':
           onVoiceState(msg.participant);

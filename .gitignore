@@ -3,4 +3,5 @@ dist
 target
 .env
 uploads
+.pnpm-store
 build.log

@@ -869,6 +869,8 @@ struct AuditRow {
     #[diesel(sql_type = diesel::sql_types::BigInt)]
     actor_id: i64,
     #[diesel(sql_type = diesel::sql_types::Text)]
+    actor_username: String,
+    #[diesel(sql_type = diesel::sql_types::Text)]
     action: String,
     #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
     target: Option<String>,
@@ -884,8 +886,10 @@ async fn list_audit(
     let mut conn = state.pool.get().await?;
     permissions::require_permission(&mut conn, server_id, user_id, VIEW_AUDIT_LOG).await?;
     let rows: Vec<AuditRow> = diesel::sql_query(
-        "SELECT id, server_id, actor_id, action, target, created_at
-         FROM audit_log WHERE server_id = $1 ORDER BY id DESC LIMIT 50",
+        "SELECT a.id, a.server_id, a.actor_id, u.username AS actor_username,
+                a.action, a.target, a.created_at
+         FROM audit_log a JOIN users u ON u.id = a.actor_id
+         WHERE a.server_id = $1 ORDER BY a.id DESC LIMIT 50",
     )
     .bind::<diesel::sql_types::BigInt, _>(server_id)
     .load(&mut conn)
@@ -896,6 +900,7 @@ async fn list_audit(
                 id: r.id,
                 server_id: r.server_id,
                 actor_id: r.actor_id,
+                actor_username: r.actor_username,
                 action: r.action,
                 target: r.target,
                 created_at: r.created_at.timestamp_millis(),

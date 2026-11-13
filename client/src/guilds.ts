@@ -1,20 +1,33 @@
 import { create } from 'zustand';
 import { api } from './api';
+import type { AuditEntry } from './generated/AuditEntry';
+import type { Category } from './generated/Category';
 import type { Channel } from './generated/Channel';
 import type { ChannelKind } from './generated/ChannelKind';
 import type { CreateInviteRequest } from './generated/CreateInviteRequest';
+import type { CreateRoleRequest } from './generated/CreateRoleRequest';
 import type { Invite } from './generated/Invite';
 import type { Member } from './generated/Member';
 import type { Role } from './generated/Role';
+import type { RoleInfo } from './generated/RoleInfo';
 import type { Server } from './generated/Server';
+import type { UpdateChannelRequest } from './generated/UpdateChannelRequest';
+import type { UpdateRoleRequest } from './generated/UpdateRoleRequest';
 
 interface GuildsState {
   /** `null` — ещё не загружено. */
   servers: Server[] | null;
   channels: Record<number, Channel[] | undefined>;
+  categories: Record<number, Category[] | undefined>;
+  roles: Record<number, RoleInfo[] | undefined>;
 }
 
-export const useGuilds = create<GuildsState>(() => ({ servers: null, channels: {} }));
+export const useGuilds = create<GuildsState>(() => ({
+  servers: null,
+  channels: {},
+  categories: {},
+  roles: {},
+}));
 
 const rank: Record<Role, number> = { member: 0, admin: 1, owner: 2 };
 export const canManage = (server: Server | undefined) => !!server && rank[server.myRole] >= rank.admin;
@@ -28,6 +41,77 @@ export async function loadChannels(serverId: number) {
   useGuilds.setState((s) => ({ channels: { ...s.channels, [serverId]: list } }));
   return list;
 }
+
+export async function loadCategories(serverId: number) {
+  const list = await api<Category[]>(`/api/servers/${serverId}/categories`);
+  useGuilds.setState((s) => ({ categories: { ...s.categories, [serverId]: list } }));
+  return list;
+}
+
+export async function loadRoles(serverId: number) {
+  const list = await api<RoleInfo[]>(`/api/servers/${serverId}/roles`);
+  useGuilds.setState((s) => ({ roles: { ...s.roles, [serverId]: list } }));
+  return list;
+}
+
+export async function createRole(serverId: number, req: CreateRoleRequest) {
+  const role = await api<RoleInfo>(`/api/servers/${serverId}/roles`, { method: 'POST', body: req });
+  await loadRoles(serverId);
+  return role;
+}
+
+export async function updateRole(serverId: number, roleId: number, req: UpdateRoleRequest) {
+  const role = await api<RoleInfo>(`/api/servers/${serverId}/roles/${roleId}`, {
+    method: 'PATCH',
+    body: req,
+  });
+  await loadRoles(serverId);
+  return role;
+}
+
+export async function deleteRole(serverId: number, roleId: number) {
+  await api(`/api/servers/${serverId}/roles/${roleId}`, { method: 'DELETE' });
+  await loadRoles(serverId);
+}
+
+export async function assignRoles(serverId: number, userId: number, roleIds: number[]) {
+  await api(`/api/servers/${serverId}/members/${userId}/roles`, {
+    method: 'PUT',
+    body: { roleIds },
+  });
+}
+
+export async function createCategory(serverId: number, name: string) {
+  const category = await api<Category>(`/api/servers/${serverId}/categories`, {
+    method: 'POST',
+    body: { name },
+  });
+  await loadCategories(serverId);
+  return category;
+}
+
+export async function updateCategory(serverId: number, categoryId: number, name: string | null, position: number | null) {
+  await api(`/api/servers/${serverId}/categories/${categoryId}`, {
+    method: 'PATCH',
+    body: { name, position },
+  });
+  await loadCategories(serverId);
+}
+
+export async function deleteCategory(serverId: number, categoryId: number) {
+  await api(`/api/servers/${serverId}/categories/${categoryId}`, { method: 'DELETE' });
+  await loadCategories(serverId);
+  await loadChannels(serverId);
+}
+
+export async function updateChannel(channelId: number, req: UpdateChannelRequest) {
+  await api(`/api/channels/${channelId}`, { method: 'PATCH', body: req });
+  const serverId = serverOfChannel(channelId);
+  if (serverId !== undefined) await loadChannels(serverId);
+}
+
+export const listAudit = (serverId: number) =>
+  api<AuditEntry[]>(`/api/servers/${serverId}/audit`);
 
 const addServer = (server: Server) =>
   useGuilds.setState((s) => ({

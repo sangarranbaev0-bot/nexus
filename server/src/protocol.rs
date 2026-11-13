@@ -591,6 +591,7 @@ pub struct AuditEntry {
     pub server_id: i64,
     #[ts(type = "number")]
     pub actor_id: i64,
+    pub actor_username: String,
     pub action: String,
     #[ts(type = "string | null")]
     pub target: Option<String>,

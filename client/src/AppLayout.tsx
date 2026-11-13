@@ -20,17 +20,25 @@ import {
   clearUnread,
   deleteChannel,
   formatBadge,
+  loadCategories,
   loadChannels,
   loadServers,
   useGuilds,
 } from "./guilds";
 import { errorMessage } from "./Modal";
+import { ServerSettingsDialog } from "./Settings";
 import { presenceView } from "./presence";
 import { logout, useSession } from "./session";
 import { connectSocket, useSocket } from "./socket";
 
 type Dialog =
-  "addServer" | "createChannel" | "invite" | "members" | "newDm" | null;
+  | "addServer"
+  | "createChannel"
+  | "invite"
+  | "members"
+  | "newDm"
+  | "settings"
+  | null;
 
 export function AppLayout() {
   const params = useParams();
@@ -62,6 +70,7 @@ export function AppLayout() {
   useEffect(() => {
     if (serverId && servers?.some((s) => s.id === serverId)) {
       loadChannels(serverId).catch((e) => setLoadError(errorMessage(e)));
+      loadCategories(serverId).catch((e) => setLoadError(errorMessage(e)));
     }
   }, [serverId, servers]);
 
@@ -211,6 +220,9 @@ export function AppLayout() {
       )}
       {server && dialog === "members" && (
         <MembersDialog server={server} onClose={() => setDialog(null)} />
+      )}
+      {server && dialog === "settings" && (
+        <ServerSettingsDialog server={server} onClose={() => setDialog(null)} />
       )}
     </div>
   );
@@ -417,6 +429,7 @@ function ChannelList({
 }) {
   const navigate = useNavigate();
   const manage = canManage(server);
+  const categories = useGuilds((s) => s.categories[server.id]) ?? [];
   const iconButton =
     "rounded px-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100";
 
@@ -430,10 +443,36 @@ function ChannelList({
     }
   };
 
+  const sortedCategories = [...categories].sort(
+    (a, b) => a.position - b.position || a.id - b.id,
+  );
+  const byCategory = new Map<number | null, Channel[]>();
+  byCategory.set(null, []);
+  for (const category of sortedCategories) byCategory.set(category.id, []);
+  for (const channel of [...channels].sort(
+    (a, b) => a.position - b.position || a.id - b.id,
+  )) {
+    const key =
+      channel.categoryId !== null && byCategory.has(channel.categoryId)
+        ? channel.categoryId
+        : null;
+    byCategory.get(key)!.push(channel);
+  }
+
   return (
     <>
       <header className="flex h-12 items-center gap-1 border-b border-zinc-950 px-3">
         <h2 className="flex-1 truncate font-semibold">{server.name}</h2>
+        {manage && (
+          <button
+            className={iconButton}
+            title="Настройки сервера"
+            aria-label="Настройки сервера"
+            onClick={() => onDialog("settings")}
+          >
+            ⚙️
+          </button>
+        )}
         <button
           className={iconButton}
           title="Участники"
@@ -451,74 +490,114 @@ function ChannelList({
           ✉️
         </button>
       </header>
-      <div className="flex items-center px-4 pt-4 pb-1 text-xs font-semibold uppercase text-zinc-400">
-        <span className="flex-1">Текстовые каналы</span>
+      <div className="flex-1 overflow-y-auto px-2 pb-3">
+        {channels.length === 0 && (
+          <p className="px-2 py-3 text-sm text-zinc-500">Каналов пока нет.</p>
+        )}
+        <div className="space-y-0.5">
+          {(byCategory.get(null) ?? []).map((channel) => (
+            <ChannelRow
+              key={channel.id}
+              serverId={server.id}
+              channel={channel}
+              manage={manage}
+              onDelete={remove}
+            />
+          ))}
+        </div>
+        {sortedCategories.map((category) => (
+          <section key={category.id} className="mt-3">
+            <h3 className="truncate px-2 pt-2 pb-1 text-xs font-semibold uppercase text-zinc-400">
+              {category.name}
+            </h3>
+            <div className="space-y-0.5">
+              {(byCategory.get(category.id) ?? []).map((channel) => (
+                <ChannelRow
+                  key={channel.id}
+                  serverId={server.id}
+                  channel={channel}
+                  manage={manage}
+                  onDelete={remove}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
         {manage && (
           <button
-            className="text-lg leading-none hover:text-zinc-100"
-            title="Создать канал"
-            aria-label="Создать канал"
             onClick={() => onDialog("createChannel")}
+            className="mt-3 w-full rounded px-2 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
           >
-            +
+            + Создать канал
           </button>
         )}
       </div>
-      <ul className="flex-1 space-y-0.5 overflow-y-auto px-2">
-        {channels.map((c) => (
-          <li key={c.id} className="group relative">
-            <NavLink
-              to={`/channels/${server.id}/${c.id}`}
-              onClick={() => {
-                if (
-                  c.kind === "voice" &&
-                  useVoice.getState().current?.channelId !== c.id
-                )
-                  void joinVoice(c.id, server.id);
-              }}
-              aria-label={
-                c.unreadCount
-                  ? `#${c.name}, непрочитанных: ${formatBadge(c.unreadCount)}`
-                  : undefined
-              }
-              className={({ isActive }) =>
-                `flex items-center rounded px-2 py-1.5 pr-7 ${
-                  isActive
-                    ? "bg-zinc-700/60 text-white"
-                    : c.unreadCount > 0
-                      ? "font-semibold text-white hover:bg-zinc-800"
-                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-                }`
-              }
-            >
-              <span className="mr-1.5 text-zinc-500">
-                {c.kind === "voice" ? "🔊" : "#"}
-              </span>
-              <span className="flex-1 truncate">{c.name}</span>
-              {c.unreadCount > 0 && (
-                <span
-                  aria-hidden
-                  className={`ml-1 rounded-full bg-red-500 px-1.5 text-xs font-bold text-white ${manage ? "group-hover:invisible" : ""}`}
-                >
-                  {formatBadge(c.unreadCount)}
-                </span>
-              )}
-            </NavLink>
-            {manage && (
-              <button
-                onClick={() => remove(c)}
-                title={`Удалить #${c.name}`}
-                aria-label={`Удалить канал ${c.name}`}
-                className="absolute top-1/2 right-1 -translate-y-1/2 rounded px-1.5 text-zinc-400 hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
-              >
-                ×
-              </button>
-            )}
-            {c.kind === "voice" && <VoiceRoster channelId={c.id} />}
-          </li>
-        ))}
-      </ul>
     </>
+  );
+}
+
+function ChannelRow({
+  serverId,
+  channel,
+  manage,
+  onDelete,
+}: {
+  serverId: number;
+  channel: Channel;
+  manage: boolean;
+  onDelete: (c: Channel) => void;
+}) {
+  return (
+    <div className="group relative">
+      <NavLink
+        to={`/channels/${serverId}/${channel.id}`}
+        onClick={() => {
+          if (
+            channel.kind === "voice" &&
+            useVoice.getState().current?.channelId !== channel.id
+          )
+            void joinVoice(channel.id, serverId);
+        }}
+        aria-label={
+          channel.unreadCount
+            ? `#${channel.name}, непрочитанных: ${formatBadge(channel.unreadCount)}`
+            : undefined
+        }
+        className={({ isActive }) =>
+          `flex items-center rounded px-2 py-1.5 pr-7 ${
+            isActive
+              ? "bg-zinc-700/60 text-white"
+              : channel.unreadCount > 0
+                ? "font-semibold text-white hover:bg-zinc-800"
+                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+          }`
+        }
+      >
+        <span className="mr-1.5 text-zinc-500">
+          {channel.kind === "voice" ? "🔊" : "#"}
+        </span>
+        <span className="flex-1 truncate">{channel.name}</span>
+        {channel.unreadCount > 0 && (
+          <span
+            aria-hidden
+            className={`ml-1 rounded-full bg-red-500 px-1.5 text-xs font-bold text-white ${manage ? "group-hover:invisible" : ""}`}
+          >
+            {formatBadge(channel.unreadCount)}
+          </span>
+        )}
+      </NavLink>
+      {manage && (
+        <button
+          onClick={() => onDelete(channel)}
+          title={`Удалить #${channel.name}`}
+          aria-label={`Удалить канал ${channel.name}`}
+          className="absolute top-1/2 right-1 -translate-y-1/2 rounded px-1.5 text-zinc-400 hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+        >
+          ×
+        </button>
+      )}
+      {channel.kind === "voice" && <VoiceRoster channelId={channel.id} />}
+    </div>
   );
 }
 
