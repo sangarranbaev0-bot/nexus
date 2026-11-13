@@ -1,5 +1,7 @@
 //! Пользовательские роли, категории каналов, переопределения прав и журнал аудита.
 
+use std::collections::HashSet;
+
 use axum::{
     Json, Router,
     extract::{Path, State},
@@ -497,13 +499,29 @@ async fn list_categories(
     Path(server_id): Path<i64>,
 ) -> AppResult<Json<Vec<Category>>> {
     let mut conn = state.pool.get().await?;
-    permissions::member_perms(&mut conn, server_id, user_id).await?;
-    let rows: Vec<CategoryRow> = categories::table
+    let perms = permissions::member_perms(&mut conn, server_id, user_id).await?;
+    let mut rows: Vec<CategoryRow> = categories::table
         .filter(categories::server_id.eq(server_id))
         .order((categories::position, categories::id))
         .select(category_columns())
         .load(&mut conn)
         .await?;
+    if !permissions::has(perms.bits, MANAGE_CHANNELS)
+        && let Some(visible) =
+            permissions::visible_channel_ids(&mut conn, &perms, server_id).await?
+    {
+        let pairs: Vec<(i64, Option<i64>)> = channels::table
+            .filter(channels::server_id.eq(server_id))
+            .select((channels::id, channels::category_id))
+            .load(&mut conn)
+            .await?;
+        let used: HashSet<i64> = pairs
+            .into_iter()
+            .filter(|(id, _)| visible.contains(id))
+            .filter_map(|(_, category_id)| category_id)
+            .collect();
+        rows.retain(|c| used.contains(&c.id));
+    }
     Ok(Json(rows.into_iter().map(to_category).collect()))
 }
 
@@ -733,7 +751,7 @@ async fn list_overwrites(
 ) -> AppResult<Json<Vec<Overwrite>>> {
     let mut conn = state.pool.get().await?;
     let server_id = channel_server(&mut conn, channel_id).await?;
-    permissions::member_perms(&mut conn, server_id, user_id).await?;
+    permissions::require_permission(&mut conn, server_id, user_id, MANAGE_CHANNELS).await?;
     let rows: Vec<OverwriteRow> = channel_overwrites::table
         .filter(channel_overwrites::channel_id.eq(channel_id))
         .order(channel_overwrites::id)
@@ -765,20 +783,39 @@ async fn upsert_overwrite(
 
     let mut conn = state.pool.get().await?;
     let server_id = channel_server(&mut conn, channel_id).await?;
-    permissions::require_permission(&mut conn, server_id, user_id, MANAGE_CHANNELS).await?;
+    let actor = permissions::require_permission(
+        &mut conn,
+        server_id,
+        user_id,
+        MANAGE_CHANNELS,
+    )
+    .await?;
+    let rank = actor_rank(&mut conn, server_id, &actor).await?;
+    let is_owner = actor.role == crate::protocol::Role::Owner;
 
     if let Some(target) = target_user {
-        role_in(&mut conn, server_id, target).await?;
+        let target_role = role_in(&mut conn, server_id, target).await?;
+        if target_role == crate::protocol::Role::Owner && !is_owner {
+            return Err(AppError::forbidden());
+        }
+        let target_perms = permissions::member_perms(&mut conn, server_id, target).await?;
+        if !is_owner && actor_rank(&mut conn, server_id, &target_perms).await? >= rank {
+            return Err(AppError::forbidden());
+        }
     } else {
-        let found: Option<i64> = roles::table
-            .filter(roles::id.eq(role_id))
-            .filter(roles::server_id.eq(server_id))
-            .select(roles::id)
-            .first(&mut conn)
+        let target = load_role(&mut conn, server_id, role_id)
             .await
-            .optional()?;
-        if found.is_none() {
-            return Err(AppError::bad_request("unknown role"));
+            .map_err(|_| AppError::bad_request("unknown role"))?;
+        if !target.is_default && target.position >= rank {
+            return Err(AppError::forbidden());
+        }
+    }
+
+    // Нельзя выдать или отобрать право, которого нет у самого автора на этом канале.
+    if !is_owner {
+        let own = permissions::channel_bits(&mut conn, &actor, channel_id).await?;
+        if (req.allow | req.deny) & !own != 0 {
+            return Err(AppError::forbidden());
         }
     }
 
@@ -838,15 +875,57 @@ async fn delete_overwrite(
 ) -> AppResult<StatusCode> {
     let mut conn = state.pool.get().await?;
     let server_id = channel_server(&mut conn, channel_id).await?;
-    permissions::require_permission(&mut conn, server_id, user_id, MANAGE_CHANNELS).await?;
-    let deleted = diesel::delete(channel_overwrites::table)
+    let actor = permissions::require_permission(
+        &mut conn,
+        server_id,
+        user_id,
+        MANAGE_CHANNELS,
+    )
+    .await?;
+    let row: Option<(Option<i64>, Option<i64>, i64, i64)> = channel_overwrites::table
+        .filter(channel_overwrites::id.eq(overwrite_id))
+        .filter(channel_overwrites::channel_id.eq(channel_id))
+        .select((
+            channel_overwrites::role_id,
+            channel_overwrites::user_id,
+            channel_overwrites::allow,
+            channel_overwrites::deny,
+        ))
+        .first(&mut conn)
+        .await
+        .optional()?;
+    let (role_id, target_user, allow, deny) = row.ok_or_else(|| AppError::not_found("overwrite"))?;
+    let rank = actor_rank(&mut conn, server_id, &actor).await?;
+    let is_owner = actor.role == crate::protocol::Role::Owner;
+
+    if let Some(target) = target_user {
+        let target_role = role_in(&mut conn, server_id, target).await?;
+        if target_role == crate::protocol::Role::Owner && !is_owner {
+            return Err(AppError::forbidden());
+        }
+        let target_perms = permissions::member_perms(&mut conn, server_id, target).await?;
+        if !is_owner && actor_rank(&mut conn, server_id, &target_perms).await? >= rank {
+            return Err(AppError::forbidden());
+        }
+    } else if let Some(role_id) = role_id {
+        let target = load_role(&mut conn, server_id, role_id).await?;
+        if !target.is_default && target.position >= rank {
+            return Err(AppError::forbidden());
+        }
+    }
+
+    if !is_owner {
+        let own = permissions::channel_bits(&mut conn, &actor, channel_id).await?;
+        if (allow | deny) & !own != 0 {
+            return Err(AppError::forbidden());
+        }
+    }
+
+    diesel::delete(channel_overwrites::table)
         .filter(channel_overwrites::id.eq(overwrite_id))
         .filter(channel_overwrites::channel_id.eq(channel_id))
         .execute(&mut conn)
         .await?;
-    if deleted == 0 {
-        return Err(AppError::not_found("overwrite"));
-    }
     audit(
         &mut conn,
         server_id,

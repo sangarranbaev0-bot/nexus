@@ -249,10 +249,12 @@ async fn list_channels(
     Path(server_id): Path<i64>,
 ) -> AppResult<Json<Vec<Channel>>> {
     let mut conn = state.pool.get().await?;
-    role_in(&mut conn, server_id, user_id).await?;
-    Ok(Json(
-        reads::channels_with_unread(&mut conn, user_id, server_id).await?,
-    ))
+    let perms = permissions::member_perms(&mut conn, server_id, user_id).await?;
+    let mut list = reads::channels_with_unread(&mut conn, user_id, server_id).await?;
+    if let Some(visible) = permissions::visible_channel_ids(&mut conn, &perms, server_id).await? {
+        list.retain(|c| visible.contains(&c.id));
+    }
+    Ok(Json(list))
 }
 
 async fn create_channel(

@@ -14,6 +14,7 @@ use crate::{
     auth::AuthUser,
     error::AppResult,
     events::{Notice, notify},
+    permissions::{self, VIEW_CHANNEL},
     protocol::{Channel, ChannelKind, MarkReadRequest, Role, Server},
     servers::channel_access,
 };
@@ -135,9 +136,18 @@ async fn mark_read(
     Json(req): Json<MarkReadRequest>,
 ) -> AppResult<StatusCode> {
     let mut conn = state.pool.get().await?;
-    let server_id = channel_access(&mut conn, channel_id, user_id)
-        .await?
-        .server_id;
+    let access = channel_access(&mut conn, channel_id, user_id).await?;
+    let server_id = access.server_id;
+    if let Some(server_id) = access.server_id {
+        permissions::require_channel_permission(
+            &mut conn,
+            server_id,
+            user_id,
+            channel_id,
+            VIEW_CHANNEL,
+        )
+        .await?;
+    }
     diesel::sql_query(
         "INSERT INTO read_states (user_id, channel_id, last_read_message_id) VALUES ($1, $2, $3)
          ON CONFLICT (user_id, channel_id) DO UPDATE

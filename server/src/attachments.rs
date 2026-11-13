@@ -26,6 +26,7 @@ use crate::{
     AppState,
     auth::AuthUser,
     error::{AppError, AppResult},
+    permissions::{self, ATTACH_FILES},
     protocol::Attachment,
     schema::attachments,
     servers::channel_access,
@@ -178,7 +179,17 @@ async fn upload(
     mut multipart: Multipart,
 ) -> AppResult<(StatusCode, Json<Attachment>)> {
     let mut conn = state.pool.get().await?;
-    channel_access(&mut conn, channel_id, user_id).await?;
+    let access = channel_access(&mut conn, channel_id, user_id).await?;
+    if let Some(server_id) = access.server_id {
+        permissions::require_channel_permission(
+            &mut conn,
+            server_id,
+            user_id,
+            channel_id,
+            ATTACH_FILES,
+        )
+        .await?;
+    }
     drop(conn); // не держим соединение, пока идёт загрузка
 
     let too_large = || {

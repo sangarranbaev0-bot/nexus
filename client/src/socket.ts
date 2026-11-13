@@ -126,6 +126,8 @@ export function connectSocket(): () => void {
           break;
         case 'rolesChanged':
           void loadRoles(msg.serverId).catch(() => {});
+          void loadChannels(msg.serverId).catch(() => {});
+          void loadCategories(msg.serverId).catch(() => {});
           break;
         case 'voiceState':
           onVoiceState(msg.participant);

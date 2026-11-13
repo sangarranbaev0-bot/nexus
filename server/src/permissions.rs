@@ -4,13 +4,15 @@
 //! назначаются пользовательские роли. Права = базовые права уровня ∪ права ролей,
 //! затем права канала (deny, потом allow). Владелец имеет всё и обходит проверки.
 
+use std::collections::{HashMap, HashSet};
+
 use diesel::prelude::*;
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 
 use crate::{
     error::{AppError, AppResult},
     protocol::Role,
-    schema::{channel_overwrites, member_roles, roles},
+    schema::{channel_overwrites, channels, member_roles, roles},
     servers::role_in,
 };
 
@@ -147,13 +149,87 @@ pub async fn require_channel_permission(
     channel_id: i64,
     permission: i64,
 ) -> AppResult<MemberPerms> {
+    require_channel_permissions(conn, server_id, user_id, channel_id, permission).await
+}
+
+/// Как `require_channel_permission`, но проверяет сразу набор битов (все должны быть).
+pub async fn require_channel_permissions(
+    conn: &mut AsyncPgConnection,
+    server_id: i64,
+    user_id: i64,
+    channel_id: i64,
+    permissions: i64,
+) -> AppResult<MemberPerms> {
     let perms = member_perms(conn, server_id, user_id).await?;
     let bits = channel_bits(conn, &perms, channel_id).await?;
-    if has(bits, permission) {
+    if has(bits, permissions) {
         Ok(perms)
     } else {
         Err(AppError::forbidden())
     }
+}
+
+type OverwriteTuple = (i64, Option<i64>, Option<i64>, i64, i64);
+type ChannelOverwrites = HashMap<i64, Vec<(Option<i64>, Option<i64>, i64, i64)>>;
+
+/// Каналы сервера, которые участник видит с учётом переопределений.
+/// `None` - видит все (владелец или `ADMINISTRATOR`).
+pub async fn visible_channel_ids(
+    conn: &mut AsyncPgConnection,
+    perms: &MemberPerms,
+    server_id: i64,
+) -> AppResult<Option<HashSet<i64>>> {
+    if perms.role == Role::Owner || has(perms.bits, ADMINISTRATOR) {
+        return Ok(None);
+    }
+
+    let overwrites: Vec<OverwriteTuple> = channel_overwrites::table
+        .inner_join(channels::table.on(channels::id.eq(channel_overwrites::channel_id)))
+        .filter(channels::server_id.eq(server_id))
+        .select((
+            channel_overwrites::channel_id,
+            channel_overwrites::role_id,
+            channel_overwrites::user_id,
+            channel_overwrites::allow,
+            channel_overwrites::deny,
+        ))
+        .load(conn)
+        .await?;
+    let mut by_channel: ChannelOverwrites = HashMap::new();
+    for (channel_id, role_id, user_id, allow, deny) in overwrites {
+        by_channel
+            .entry(channel_id)
+            .or_default()
+            .push((role_id, user_id, allow, deny));
+    }
+
+    let ids: Vec<i64> = channels::table
+        .filter(channels::server_id.eq(server_id))
+        .select(channels::id)
+        .load(conn)
+        .await?;
+
+    let mut visible = HashSet::with_capacity(ids.len());
+    for channel_id in ids {
+        let mut bits = perms.bits;
+        let mut personal = None;
+        for (role_id, user_id, allow, deny) in by_channel.get(&channel_id).into_iter().flatten() {
+            if let Some(target) = user_id {
+                if *target == perms.user_id {
+                    personal = Some((*allow, *deny));
+                }
+            } else if role_id.is_some_and(|id| perms.role_ids.contains(&id)) {
+                bits = (bits & !deny) | allow;
+            }
+        }
+        if let Some((allow, deny)) = personal {
+            bits = (bits & !deny) | allow;
+        }
+        if has(bits, VIEW_CHANNEL) {
+            visible.insert(channel_id);
+        }
+    }
+    Ok(Some(visible))
 }
 
 #[derive(Queryable)]
@@ -175,7 +251,7 @@ pub async fn channel_bits(
     if perms.role == Role::Owner || has(perms.bits, ADMINISTRATOR) {
         return Ok(ALL);
     }
-    let overwrites: Vec<OverwriteRow> = channel_overwrites::table
+let overwrites: Vec<OverwriteRow> = channel_overwrites::table
         .filter(channel_overwrites::channel_id.eq(channel_id))
         .select((
             channel_overwrites::role_id,

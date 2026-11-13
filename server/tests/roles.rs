@@ -7,9 +7,11 @@ use common::{call, register_user, test_app};
 use serde_json::json;
 
 // Те же биты, что в server/src/permissions.rs.
+const VIEW_CHANNEL: i64 = 1 << 0;
 const SEND_MESSAGES: i64 = 1 << 1;
 const MANAGE_MESSAGES: i64 = 1 << 6;
 const MANAGE_CHANNELS: i64 = 1 << 7;
+const ADMINISTRATOR: i64 = 1 << 25;
 
 /// Регистрирует владельца/участника/постороннего, создаёт сервер, вступление по инвайту.
 async fn setup(app: &axum::Router) -> (String, String, String, i64, i64, i64) {
@@ -500,5 +502,201 @@ async fn role_validation_and_overwrite_targets() {
     assert_eq!(r.status, StatusCode::OK, "{}", r.body);
     assert_eq!(r.body.as_array().unwrap().len(), 1);
     assert_eq!(r.body[0]["userId"], member_id);
-    assert_eq!(r.body[0]["allow"], 2);
+assert_eq!(r.body[0]["allow"], 2);
+}
+
+#[tokio::test]
+async fn hidden_channels_and_overwrite_escalation() {
+    let app = test_app().await;
+    let (owner, member, _outsider, sid, cid, member_id) = setup(&app).await;
+    let everyone = default_role_id(&app, &owner, sid).await;
+    let overwrite_url = format!("/api/channels/{cid}/overwrites");
+
+    // @everyone теряет доступ к каналу.
+    assert_eq!(
+        call(
+            &app,
+            "PUT",
+            &overwrite_url,
+            Some(json!({ "roleId": everyone, "allow": 0, "deny": VIEW_CHANNEL })),
+            Some(&owner),
+            None
+        )
+        .await
+        .status,
+        StatusCode::NO_CONTENT
+    );
+
+    let channels_url = format!("/api/servers/{sid}/channels");
+    let r = call(&app, "GET", &channels_url, None, Some(&member), None).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    assert!(
+        r.body.as_array().unwrap().iter().all(|c| c["id"] != cid),
+        "{}",
+        r.body
+    );
+    assert_eq!(
+        call(
+            &app,
+            "GET",
+            &format!("/api/channels/{cid}/messages"),
+            None,
+            Some(&member),
+            None
+        )
+        .await
+        .status,
+        StatusCode::FORBIDDEN
+    );
+    let r = call(&app, "GET", &channels_url, None, Some(&owner), None).await;
+    assert!(r.body.as_array().unwrap().iter().any(|c| c["id"] == cid));
+
+    // Категория без видимых каналов тоже скрыта.
+    let r = call(
+        &app,
+        "POST",
+        &format!("/api/servers/{sid}/categories"),
+        Some(json!({ "name": "Секреты" })),
+        Some(&owner),
+        None,
+    )
+    .await;
+    let category_id = r.body["id"].as_i64().unwrap();
+    call(
+        &app,
+        "PATCH",
+        &format!("/api/channels/{cid}"),
+        Some(json!({ "categoryId": category_id })),
+        Some(&owner),
+        None,
+    )
+    .await;
+    let cats_url = format!("/api/servers/{sid}/categories");
+    let r = call(&app, "GET", &cats_url, None, Some(&member), None).await;
+    assert!(
+        r.body.as_array().unwrap().iter().all(|c| c["id"] != category_id),
+        "{}",
+        r.body
+    );
+
+    // Роль с доступом к каналу возвращает его участнику.
+    let roles_url = format!("/api/servers/{sid}/roles");
+    let r = call(
+        &app,
+        "POST",
+        &roles_url,
+        Some(json!({ "name": "VIP", "permissions": 0 })),
+        Some(&owner),
+        None,
+    )
+    .await;
+    let vip = r.body["id"].as_i64().unwrap();
+    assert_eq!(
+        call(
+            &app,
+            "PUT",
+            &overwrite_url,
+            Some(json!({ "roleId": vip, "allow": VIEW_CHANNEL, "deny": 0 })),
+            Some(&owner),
+            None
+        )
+        .await
+        .status,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        call(
+            &app,
+            "PUT",
+            &format!("/api/servers/{sid}/members/{member_id}/roles"),
+            Some(json!({ "roleIds": [vip] })),
+            Some(&owner),
+            None
+        )
+        .await
+        .status,
+        StatusCode::NO_CONTENT
+    );
+    let r = call(&app, "GET", &channels_url, None, Some(&member), None).await;
+    assert!(
+        r.body.as_array().unwrap().iter().any(|c| c["id"] == cid),
+        "{}",
+        r.body
+    );
+
+    // Участник с MANAGE_CHANNELS не может выдать право, которого у него нет,
+    // и не может менять переопределения роли выше себя.
+    let r = call(
+        &app,
+        "POST",
+        &roles_url,
+        Some(json!({ "name": "Мод", "permissions": MANAGE_CHANNELS })),
+        Some(&owner),
+        None,
+    )
+    .await;
+    let mod_role = r.body["id"].as_i64().unwrap();
+    assert_eq!(
+        call(
+            &app,
+            "PUT",
+            &format!("/api/servers/{sid}/members/{member_id}/roles"),
+            Some(json!({ "roleIds": [vip, mod_role] })),
+            Some(&owner),
+            None
+        )
+        .await
+        .status,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        call(
+            &app,
+            "PUT",
+            &overwrite_url,
+            Some(json!({ "roleId": vip, "allow": ADMINISTRATOR, "deny": 0 })),
+            Some(&member),
+            None
+        )
+        .await
+        .status,
+        StatusCode::FORBIDDEN
+    );
+    let r = call(
+        &app,
+        "POST",
+        &roles_url,
+        Some(json!({ "name": "Высокая" })),
+        Some(&owner),
+        None,
+    )
+    .await;
+    let high_role = r.body["id"].as_i64().unwrap();
+    assert_eq!(
+        call(
+            &app,
+            "PUT",
+            &overwrite_url,
+            Some(json!({ "roleId": high_role, "allow": VIEW_CHANNEL, "deny": 0 })),
+            Some(&member),
+            None
+        )
+        .await
+        .status,
+        StatusCode::FORBIDDEN
+    );
+    // А @everyone ниже участника — можно, если биты не выше собственных.
+    assert_eq!(
+        call(
+            &app,
+            "PUT",
+            &overwrite_url,
+            Some(json!({ "roleId": everyone, "allow": SEND_MESSAGES, "deny": 0 })),
+            Some(&member),
+            None
+        )
+        .await
+        .status,
+        StatusCode::NO_CONTENT
+    );
 }

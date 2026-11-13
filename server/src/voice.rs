@@ -1,6 +1,8 @@
 //! Голосовые каналы и звонки в ЛС. Сервер хранит только, кто где, и пересылает WebRTC-сигналы;
 //! звук и видео идут напрямую между участниками (каждый с каждым).
 
+use std::collections::HashMap;
+
 use axum::{Json, Router, extract::State, routing::get};
 use diesel::{
     prelude::*,
@@ -13,8 +15,9 @@ use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
     events::{Notice, notify},
+    permissions::{self, CONNECT_VOICE, VIEW_CHANNEL},
     protocol::{ChannelKind, VoiceFlags, VoiceParticipant},
-    schema::{voice_signals, voice_states},
+    schema::{channels, voice_signals, voice_states},
     servers::channel_access,
 };
 
@@ -80,7 +83,40 @@ async fn list(
     .bind::<BigInt, _>(user_id)
     .load(&mut conn)
     .await?;
-    Ok(Json(rows.into_iter().map(Into::into).collect()))
+
+    // Скрытые каналы не должны выдавать даже присутствие участников.
+    let channel_ids: Vec<i64> = rows.iter().map(|r| r.channel_id).collect();
+    let meta: Vec<(i64, Option<i64>)> = channels::table
+        .filter(channels::id.eq_any(&channel_ids))
+        .select((channels::id, channels::server_id))
+        .load(&mut conn)
+        .await?;
+    let server_of: HashMap<i64, Option<i64>> = meta.into_iter().collect();
+    let mut perms_by_server = HashMap::new();
+    let mut visible_by_channel = HashMap::new();
+    let mut visible = Vec::with_capacity(rows.len());
+    for row in rows {
+        if let Some(Some(server_id)) = server_of.get(&row.channel_id).copied() {
+            if let std::collections::hash_map::Entry::Vacant(entry) =
+                perms_by_server.entry(server_id)
+            {
+                entry.insert(permissions::member_perms(&mut conn, server_id, user_id).await?);
+            }
+            let perms = perms_by_server.get(&server_id).expect("inserted above");
+            let allowed = match visible_by_channel.get(&row.channel_id) {
+                Some(allowed) => *allowed,
+                None => permissions::has(
+                    permissions::channel_bits(&mut conn, perms, row.channel_id).await?,
+                    VIEW_CHANNEL,
+                ),
+            };
+            visible_by_channel.insert(row.channel_id, allowed);
+        }
+        if visible_by_channel.get(&row.channel_id).copied().unwrap_or(true) {
+            visible.push(row.into());
+        }
+    }
+    Ok(Json(visible))
 }
 
 /// Канал и подключение, из которого пользователь сейчас в голосе. `None` — не в голосе.
@@ -103,6 +139,16 @@ pub async fn join(
     let access = channel_access(conn, channel_id, user_id).await?;
     if access.server_id.is_some() && access.kind != ChannelKind::Voice {
         return Err(AppError::bad_request("not a voice channel"));
+    }
+    if let Some(server_id) = access.server_id {
+        permissions::require_channel_permissions(
+            conn,
+            server_id,
+            user_id,
+            channel_id,
+            VIEW_CHANNEL | CONNECT_VOICE,
+        )
+        .await?;
     }
     if let Some((old_channel, _)) = current(conn, user_id).await?
         && old_channel != channel_id

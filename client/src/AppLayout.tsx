@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Navigate, useNavigate, useParams } from "react-router";
 import { ChatView } from "./ChatView";
+import { ChannelSettingsDialog } from "./ChannelSettings";
 import {
   AddServerDialog,
   CreateChannelDialog,
@@ -430,6 +431,7 @@ function ChannelList({
   const navigate = useNavigate();
   const manage = canManage(server);
   const categories = useGuilds((s) => s.categories[server.id]) ?? [];
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const iconButton =
     "rounded px-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100";
 
@@ -502,6 +504,7 @@ function ChannelList({
               channel={channel}
               manage={manage}
               onDelete={remove}
+              onSettings={setEditingChannel}
             />
           ))}
         </div>
@@ -518,6 +521,7 @@ function ChannelList({
                   channel={channel}
                   manage={manage}
                   onDelete={remove}
+                  onSettings={setEditingChannel}
                 />
               ))}
             </div>
@@ -532,6 +536,13 @@ function ChannelList({
           </button>
         )}
       </div>
+      {editingChannel && (
+        <ChannelSettingsDialog
+          server={server}
+          channel={editingChannel}
+          onClose={() => setEditingChannel(null)}
+        />
+      )}
     </>
   );
 }
@@ -541,11 +552,13 @@ function ChannelRow({
   channel,
   manage,
   onDelete,
+  onSettings,
 }: {
   serverId: number;
   channel: Channel;
   manage: boolean;
   onDelete: (c: Channel) => void;
+  onSettings: (c: Channel) => void;
 }) {
   return (
     <div className="group relative">
@@ -564,7 +577,7 @@ function ChannelRow({
             : undefined
         }
         className={({ isActive }) =>
-          `flex items-center rounded px-2 py-1.5 pr-7 ${
+          `flex items-center rounded px-2 py-1.5 pr-12 ${
             isActive
               ? "bg-zinc-700/60 text-white"
               : channel.unreadCount > 0
@@ -587,14 +600,24 @@ function ChannelRow({
         )}
       </NavLink>
       {manage && (
-        <button
-          onClick={() => onDelete(channel)}
-          title={`Удалить #${channel.name}`}
-          aria-label={`Удалить канал ${channel.name}`}
-          className="absolute top-1/2 right-1 -translate-y-1/2 rounded px-1.5 text-zinc-400 hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
-        >
-          ×
-        </button>
+        <>
+          <button
+            onClick={() => onSettings(channel)}
+            title={`Настройки канала ${channel.name}`}
+            aria-label={`Настройки канала ${channel.name}`}
+            className="absolute top-1/2 right-7 -translate-y-1/2 rounded px-1.5 text-zinc-400 hover:text-zinc-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+          >
+            ⚙
+          </button>
+          <button
+            onClick={() => onDelete(channel)}
+            title={`Удалить #${channel.name}`}
+            aria-label={`Удалить канал ${channel.name}`}
+            className="absolute top-1/2 right-1 -translate-y-1/2 rounded px-1.5 text-zinc-400 hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+          >
+            ×
+          </button>
+        </>
       )}
       {channel.kind === "voice" && <VoiceRoster channelId={channel.id} />}
     </div>

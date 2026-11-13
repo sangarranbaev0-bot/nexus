@@ -3,4 +3,4 @@
 /**
  * Создать или заменить переопределение. Ровно одно из `roleId`/`userId`.
  */
-export type UpsertOverwriteRequest = { roleId: number, userId: number, allow: number, deny: number, };
+export type UpsertOverwriteRequest = { roleId?: number, userId?: number, allow: number, deny: number, };

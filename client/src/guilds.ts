@@ -8,11 +8,13 @@ import type { CreateInviteRequest } from './generated/CreateInviteRequest';
 import type { CreateRoleRequest } from './generated/CreateRoleRequest';
 import type { Invite } from './generated/Invite';
 import type { Member } from './generated/Member';
+import type { Overwrite } from './generated/Overwrite';
 import type { Role } from './generated/Role';
 import type { RoleInfo } from './generated/RoleInfo';
 import type { Server } from './generated/Server';
 import type { UpdateChannelRequest } from './generated/UpdateChannelRequest';
 import type { UpdateRoleRequest } from './generated/UpdateRoleRequest';
+import type { UpsertOverwriteRequest } from './generated/UpsertOverwriteRequest';
 
 interface GuildsState {
   /** `null` — ещё не загружено. */
@@ -112,6 +114,15 @@ export async function updateChannel(channelId: number, req: UpdateChannelRequest
 
 export const listAudit = (serverId: number) =>
   api<AuditEntry[]>(`/api/servers/${serverId}/audit`);
+
+export const listOverwrites = (channelId: number) =>
+  api<Overwrite[]>(`/api/channels/${channelId}/overwrites`);
+
+export const upsertOverwrite = (channelId: number, req: UpsertOverwriteRequest) =>
+  api(`/api/channels/${channelId}/overwrites`, { method: 'PUT', body: req });
+
+export const deleteOverwrite = (channelId: number, overwriteId: number) =>
+  api(`/api/channels/${channelId}/overwrites/${overwriteId}`, { method: 'DELETE' });
 
 const addServer = (server: Server) =>
   useGuilds.setState((s) => ({

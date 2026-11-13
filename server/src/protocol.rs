@@ -570,9 +570,11 @@ pub struct Overwrite {
 #[ts(export)]
 pub struct UpsertOverwriteRequest {
     #[serde(default)]
+    #[ts(optional)]
     #[ts(type = "number")]
     pub role_id: Option<i64>,
     #[serde(default)]
+    #[ts(optional)]
     #[ts(type = "number")]
     pub user_id: Option<i64>,
     #[ts(type = "number")]
