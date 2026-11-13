@@ -1,0 +1,77 @@
+# Продакшен: NexusChat, PostgreSQL, MinIO и Caddy (HTTPS от Let's Encrypt сам).
+# Запуск из папки deploy: docker compose up -d --build
+# Наружу открыты только 80 и 443 (Caddy); база и хранилище доступны лишь внутри.
+
+services:
+  app:
+    build:
+      context: ..
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://nexus:${POSTGRES_PASSWORD}@postgres:5432/nexuschat
+      JWT_SECRET: ${JWT_SECRET}
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: nexuschat
+      S3_ACCESS_KEY: nexus
+      S3_SECRET_KEY: ${MINIO_PASSWORD}
+      RUST_LOG: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: nexuschat
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U nexus -d nexuschat']
+      interval: 5s
+      retries: 20
+
+  minio:
+    # Официальные образы MinIO удалены с Docker Hub (09.2026); это поддерживаемая сборка Chainguard.
+    image: cgr.dev/chainguard/minio:latest
+    user: '0:0' # иначе нет прав на новый том /data
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: nexus
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    volumes:
+      - miniodata:/data
+
+  # Создаёт бакет и завершается (S3 CreateBucket с подписью SigV4).
+  minio-init:
+    image: curlimages/curl
+    depends_on: [minio]
+    environment:
+      KEY: ${MINIO_PASSWORD}
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        until code=$$(curl -s -o /dev/null -w '%{http_code}' -X PUT --aws-sigv4 'aws:amz:us-east-1:s3' --user "nexus:$$KEY" http://minio:9000/nexuschat) && { [ "$$code" = 200 ] || [ "$$code" = 409 ]; }; do echo "waiting for minio ($$code)"; sleep 1; done
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [app]
+
+volumes:
+  pgdata:
+  miniodata:
+  caddydata:

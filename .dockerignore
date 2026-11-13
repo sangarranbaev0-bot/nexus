@@ -1,0 +1,7 @@
+**/node_modules
+**/target
+**/dist
+desktop
+.git
+.env
+deploy/.env

@@ -1,0 +1,91 @@
+# Сборка установщика NexusChat для Windows и публикация обновления.
+# Запуск: git tag desktop-v1.2.3 && git push origin desktop-v1.2.3
+# Нужны (Settings → Secrets and variables → Actions):
+#   secrets.TAURI_SIGNING_PRIVATE_KEY, secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD — ключ подписи обновлений
+#   vars.TAURI_UPDATER_PUBKEY — его открытая часть; vars.NEXUS_SERVER_URL — адрес сервера
+#   (https://… или http://localhost:3001, пока сервер — ваш ПК)
+name: Desktop release
+
+on:
+  push:
+    tags: ['desktop-v*']
+
+permissions:
+  contents: write # создать релиз и загрузить установщик
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check settings
+        env:
+          SERVER_URL: ${{ vars.NEXUS_SERVER_URL }}
+          PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          # http разрешён только для сервера на этом же ПК (разработка).
+          [[ "$SERVER_URL" == https://* || "$SERVER_URL" =~ ^http://(localhost|127\.0\.0\.1)(:[0-9]+)?/?$ ]] \
+            || { echo "::error::vars.NEXUS_SERVER_URL must be https://… or http://localhost:PORT"; exit 1; }
+          [[ -n "$PUBKEY" ]] || { echo "::error::vars.TAURI_UPDATER_PUBKEY is not set"; exit 1; }
+          [[ "$HAS_KEY" == true ]] || { echo "::error::secrets.TAURI_SIGNING_PRIVATE_KEY is not set"; exit 1; }
+
+      # Версия из тега, адрес сервера, ключ и адрес обновлений — поверх tauri.conf.json.
+      - name: Release config
+        env:
+          VERSION: ${{ github.ref_name }}
+          SERVER_URL: ${{ vars.NEXUS_SERVER_URL }}
+          PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          REPO: ${{ github.repository }}
+        run: |
+          # shellcheck disable=SC2016 # ${…} внутри — шаблон JavaScript, а не bash
+          node -e '
+            const e = process.env;
+            const config = {
+              version: e.VERSION.replace(/^desktop-v/, ""),
+              build: { frontendDist: e.SERVER_URL },
+              plugins: { updater: {
+                pubkey: e.PUBKEY,
+                endpoints: [`https://github.com/${e.REPO}/releases/latest/download/latest.json`],
+              } },
+            };
+            require("fs").writeFileSync("release.conf.json", JSON.stringify(config, null, 2));
+            console.log(JSON.stringify(config, null, 2));
+          '
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - run: pnpm install --frozen-lockfile
+        working-directory: desktop
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: desktop
+          tauriScript: pnpm tauri
+          args: --config ${{ github.workspace }}/release.conf.json
+          tagName: ${{ github.ref_name }}
+          releaseName: NexusChat __VERSION__
+          releaseBody: |
+            Установщик для Windows: файл `NexusChat___VERSION___x64-setup.exe` ниже.
+            Уже установленный NexusChat предложит обновиться сам.
+          releaseDraft: false
+          includeUpdaterJson: true

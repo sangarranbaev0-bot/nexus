@@ -1,0 +1,444 @@
+//! Контракт клиент ↔ сервер. TS-типы для клиента генерируются отсюда (`cargo test`).
+
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
+
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct HealthResponse {
+    pub db: bool,
+    #[ts(type = "number")]
+    pub server_time: i64,
+}
+
+/// Тело любой ошибки API.
+#[derive(Serialize, Deserialize, TS, Debug)]
+#[ts(export)]
+pub struct ApiError {
+    pub error: String,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct User {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub email: String,
+    pub username: String,
+}
+
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct RegisterRequest {
+    pub email: String,
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
+}
+
+/// Ответ на register/login/refresh. Refresh-токен приходит отдельно, в httpOnly cookie.
+#[derive(Serialize, Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AuthResponse {
+    pub access_token: String,
+    pub user: User,
+}
+
+/// Сообщения от клиента по WebSocket. Первым обязано идти `auth`.
+#[derive(Deserialize, Serialize, TS, Debug, PartialEq)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum ClientMessage {
+    Auth {
+        token: String,
+    },
+    Ping {
+        #[ts(type = "number")]
+        sent_at: i64,
+    },
+    /// Пользователь печатает в канале. Клиент шлёт не чаще раза в несколько секунд.
+    Typing {
+        #[ts(type = "number")]
+        channel_id: i64,
+    },
+    /// Бездействие вкладки: `true` после 5 минут без активности, `false` при возврате.
+    SetIdle {
+        idle: bool,
+    },
+    /// Войти в голосовой канал или звонок в ЛС (из другого голосового выйдет сам).
+    VoiceJoin {
+        #[ts(type = "number")]
+        channel_id: i64,
+    },
+    VoiceLeave,
+    VoiceSetFlags {
+        flags: VoiceFlags,
+    },
+    /// WebRTC-сигнал (SDP/ICE) участнику того же голосового канала. Содержимое сервер не читает.
+    VoiceSignal {
+        #[ts(type = "number")]
+        to_user_id: i64,
+        #[ts(type = "unknown")]
+        data: serde_json::Value,
+    },
+}
+
+/// Сообщения от сервера по WebSocket.
+#[derive(Deserialize, Serialize, TS, Debug, PartialEq)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum ServerMessage {
+    Hello {
+        /// Глобальный id подключения (строка присутствия), уникален между экземплярами.
+        #[ts(type = "number")]
+        conn_id: i64,
+        #[ts(type = "number")]
+        user_id: i64,
+    },
+    Pong {
+        #[ts(type = "number")]
+        sent_at: i64,
+        #[ts(type = "number")]
+        server_time: i64,
+    },
+    Error {
+        message: String,
+    },
+    MessageCreated {
+        message: Message,
+    },
+    MessageUpdated {
+        message: Message,
+    },
+    MessageDeleted {
+        #[ts(type = "number")]
+        channel_id: i64,
+        #[ts(type = "number")]
+        message_id: i64,
+    },
+    Typing {
+        #[ts(type = "number")]
+        channel_id: i64,
+        #[ts(type = "number")]
+        user_id: i64,
+        username: String,
+    },
+    /// Каналы сервера изменились: клиент перезагружает их список.
+    ChannelsChanged {
+        #[ts(type = "number")]
+        server_id: i64,
+    },
+    /// Вошёл в голос или изменил флаги (микрофон, камера, экран).
+    VoiceState {
+        participant: VoiceParticipant,
+    },
+    VoiceLeft {
+        #[ts(type = "number")]
+        channel_id: i64,
+        #[ts(type = "number")]
+        user_id: i64,
+    },
+    VoiceSignal {
+        #[ts(type = "number")]
+        from_user_id: i64,
+        #[ts(type = "unknown")]
+        data: serde_json::Value,
+    },
+    PresenceChanged {
+        #[ts(type = "number")]
+        user_id: i64,
+        status: Presence,
+    },
+    /// Канал прочитан в другой вкладке или на другом устройстве этого пользователя.
+    ChannelRead {
+        /// `null` — личные сообщения.
+        #[ts(type = "number | null")]
+        server_id: Option<i64>,
+        #[ts(type = "number")]
+        channel_id: i64,
+    },
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Message {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub channel_id: i64,
+    #[ts(type = "number")]
+    pub author_id: i64,
+    pub author_username: String,
+    pub content: String,
+    /// Unix-время в мс.
+    #[ts(type = "number")]
+    pub created_at: i64,
+    #[ts(type = "number | null")]
+    pub edited_at: Option<i64>,
+    pub attachments: Vec<Attachment>,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Attachment {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub filename: String,
+    pub content_type: String,
+    #[ts(type = "number")]
+    pub size_bytes: i64,
+    /// Подписанная ссылка на скачивание; действует 1–2 суток.
+    pub url: String,
+}
+
+/// Тело POST и PATCH сообщения. Вложения задаются только при создании.
+#[derive(Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MessageContent {
+    #[serde(default)]
+    pub content: String,
+    #[serde(default)]
+    #[ts(optional, type = "Array<number>")]
+    pub attachment_ids: Option<Vec<i64>>,
+}
+
+pub fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as i64)
+}
+
+/// Роль участника сервера. Порядок вариантов задаёт старшинство: Member < Admin < Owner.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum Role {
+    Member,
+    Admin,
+    Owner,
+}
+
+impl Role {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Role::Member => "member",
+            Role::Admin => "admin",
+            Role::Owner => "owner",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "member" => Some(Role::Member),
+            "admin" => Some(Role::Admin),
+            "owner" => Some(Role::Owner),
+            _ => None,
+        }
+    }
+}
+
+/// Сервер (гильдия) с ролью текущего пользователя в нём.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Server {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub name: String,
+    #[ts(type = "number")]
+    pub owner_id: i64,
+    pub my_role: Role,
+    /// Сумма непрочитанных по каналам (каждый канал считается максимум до 100).
+    pub unread_count: i32,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Channel {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub server_id: i64,
+    pub name: String,
+    pub position: i32,
+    pub kind: ChannelKind,
+    /// Непрочитанные чужие сообщения, максимум 100 (клиент покажет «99+»).
+    pub unread_count: i32,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum ChannelKind {
+    #[default]
+    Text,
+    Voice,
+}
+
+impl ChannelKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ChannelKind::Text => "text",
+            ChannelKind::Voice => "voice",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        if s == "voice" {
+            ChannelKind::Voice
+        } else {
+            ChannelKind::Text
+        }
+    }
+}
+
+/// Участник голосового канала или звонка в ЛС.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct VoiceParticipant {
+    #[ts(type = "number")]
+    pub channel_id: i64,
+    #[ts(type = "number")]
+    pub user_id: i64,
+    pub username: String,
+    /// Подключение (вкладка), из которого пользователь в голосе; см. `Hello.connId`.
+    #[ts(type = "number")]
+    pub connection_id: i64,
+    #[serde(flatten)]
+    pub flags: VoiceFlags,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Default)]
+#[ts(export)]
+pub struct VoiceFlags {
+    pub muted: bool,
+    pub deafened: bool,
+    pub camera: bool,
+    pub screen: bool,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Member {
+    #[ts(type = "number")]
+    pub user_id: i64,
+    pub username: String,
+    pub role: Role,
+    pub status: Presence,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum Presence {
+    Online,
+    Idle,
+    Offline,
+}
+
+impl Presence {
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "online" => Presence::Online,
+            "idle" => Presence::Idle,
+            _ => Presence::Offline,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MarkReadRequest {
+    #[ts(type = "number")]
+    pub message_id: i64,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Invite {
+    pub code: String,
+    #[ts(type = "number")]
+    pub server_id: i64,
+    /// Unix-время в мс; `null` — бессрочный.
+    #[ts(type = "number | null")]
+    pub expires_at: Option<i64>,
+    pub max_uses: Option<i32>,
+    pub uses: i32,
+}
+
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CreateServerRequest {
+    pub name: String,
+}
+
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CreateChannelRequest {
+    pub name: String,
+    #[serde(default)]
+    #[ts(optional)]
+    pub kind: Option<ChannelKind>,
+}
+
+#[derive(Serialize, Deserialize, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateInviteRequest {
+    #[ts(optional)]
+    pub expires_in_hours: Option<u32>,
+    #[ts(optional)]
+    pub max_uses: Option<i32>,
+}
+
+/// Owner меняет роль участника: только `admin` или `member`.
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct UpdateMemberRequest {
+    pub role: Role,
+}
+
+/// Диалог в личных сообщениях. `id` — id канала: лента и отметки прочтения общие с серверными.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DmChannel {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub user_id: i64,
+    pub username: String,
+    pub status: Presence,
+    pub unread_count: i32,
+}
+
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct OpenDmRequest {
+    pub username: String,
+}
