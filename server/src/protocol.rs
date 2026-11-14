@@ -226,6 +226,23 @@ pub struct Message {
     pub system_kind: Option<String>,
     /// Дополнительные данные события (имя канала/роль).
     pub system_detail: Option<String>,
+    /// Блок «Переслано от»; `null` — сообщение не пересланное.
+    pub forwarded_from: Option<ForwardPreview>,
+}
+
+/// Снимок исходного сообщения в пересланной копии.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ForwardPreview {
+    #[ts(type = "number | null")]
+    pub message_id: Option<i64>,
+    #[ts(type = "number | null")]
+    pub author_id: Option<i64>,
+    pub author_username: String,
+    pub content: String,
+    #[ts(type = "number | null")]
+    pub channel_id: Option<i64>,
 }
 
 /// Краткая цитата сообщения, на которое отвечают.
@@ -279,6 +296,15 @@ pub struct MessageContent {
     #[serde(default)]
     #[ts(optional, type = "number")]
     pub reply_to_id: Option<i64>,
+}
+
+/// Тело POST `/api/messages/{id}/forward`: канал, куда переслать.
+#[derive(Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ForwardRequest {
+    #[ts(type = "number")]
+    pub channel_id: i64,
 }
 
 pub fn now_ms() -> i64 {

@@ -7,6 +7,7 @@ import {
   activeView,
   deleteMessage,
   editMessage,
+  forwardMessage,
   isViewing,
   loadInitial,
   loadOlder,
@@ -18,11 +19,12 @@ import {
   toggleReaction,
   useMessages,
 } from './messages';
-import { Modal, errorMessage } from './Modal';
-import { Markdown } from './Markdown';
+import { Modal, errorMessage, ghostButton, inputClass } from './Modal';import { Markdown } from './Markdown';
 import { EmojiPicker } from './EmojiPicker';
 import { useSession } from './session';
 import { sendTyping } from './socket';
+import { useGuilds } from './guilds';
+import { dmTitle, useDms } from './dms';
 
 const MAX_LEN = 2000;
 const TYPING_EVERY_MS = 3000;
@@ -279,6 +281,7 @@ function MessageItem({
   const me = useSession((s) => s.user);
   const [editing, setEditing] = useState(false);
   const [history, setHistory] = useState<MessageEdit[] | null>(null);
+  const [forwarding, setForwarding] = useState(false);
   const mine = m.authorId === me?.id;
 
   const remove = async () => {
@@ -320,6 +323,7 @@ function MessageItem({
         )}
       </header>
       {m.replyTo && <ReplyQuote reply={m.replyTo} />}
+      {m.forwardedFrom && <ForwardQuote from={m.forwardedFrom} />}
       {editing ? (
         <EditBox message={m} onDone={() => setEditing(false)} onError={onError} />
       ) : (
@@ -335,6 +339,9 @@ function MessageItem({
         <div className="absolute -top-3 right-4 hidden gap-1 rounded bg-zinc-900 p-0.5 shadow group-focus-within:flex group-hover:flex">
           <button onClick={() => onReply(m)} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
             Ответить
+          </button>
+          <button onClick={() => setForwarding(true)} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
+            Переслать
           </button>
           {canPin && (
             <button onClick={togglePin} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
@@ -382,6 +389,13 @@ function MessageItem({
             </ol>
           )}
         </Modal>
+      )}
+      {forwarding && (
+        <ForwardDialog
+          message={m}
+          onClose={() => setForwarding(false)}
+          onError={onError}
+        />
       )}
     </article>
   );
@@ -503,6 +517,111 @@ function ReplyQuote({ reply }: { reply: NonNullable<Message['replyTo']> }) {
       <span className="shrink-0 text-indigo-300">↩ {reply.authorUsername}</span>
       <span className="truncate">{reply.content || '📎 вложение'}</span>
     </button>
+  );
+}
+
+function ForwardQuote({ from }: { from: NonNullable<Message['forwardedFrom']> }) {
+  return (
+    <div className="mb-1 rounded border-l-2 border-indigo-500/70 bg-indigo-500/5 py-1 pl-2 pr-2 text-sm">
+      <div className="text-xs font-semibold text-indigo-300">
+        ↪ Переслано от {from.authorUsername}
+      </div>
+      <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-zinc-300">
+        {from.content ? <Markdown text={from.content} /> : '📎 вложение'}
+      </div>
+    </div>
+  );
+}
+
+/** Выбор канала для пересылки: серверные текст-каналы без текущего, затем ЛС и группы. */
+function ForwardDialog({
+  message,
+  onClose,
+  onError,
+}: {
+  message: Message;
+  onClose: () => void;
+  onError: (e: string) => void;
+}) {
+  const servers = useGuilds((s) => s.servers);
+  const allChannels = useGuilds((s) => s.channels);
+  const dms = useDms((s) => s.dms);
+  const [pending, setPending] = useState<number | null>(null);
+
+  const groups: { serverId: number; title: string; channels: { id: number; name: string }[] }[] =
+    (servers ?? [])
+      .map((srv) => ({
+        serverId: srv.id,
+        title: srv.name,
+        channels: (allChannels[srv.id] ?? [])
+          .filter((c) => c.kind === 'text' && c.id !== message.channelId)
+          .map((c) => ({ id: c.id, name: c.name })),
+      }))
+      .filter((g) => g.channels.length > 0);
+
+  const onPick = async (channelId: number) => {
+    setPending(channelId);
+    try {
+      await forwardMessage(message.id, channelId);
+      onClose();
+    } catch (e) {
+      onError(errorMessage(e));
+      setPending(null);
+    }
+  };
+
+  return (
+    <Modal title="Переслать сообщение" onClose={onClose}>
+      <div className="max-h-[60vh] space-y-3 overflow-y-auto">
+        {groups.length === 0 && (!dms || dms.length === 0) && (
+          <p className="text-zinc-400">Нет других каналов для пересылки.</p>
+        )}
+        {groups.map((g) => (
+          <section key={g.serverId}>
+            <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-400">{g.title}</h3>
+            <ul className="space-y-1">
+              {g.channels.map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    disabled={pending !== null}
+                    onClick={() => void onPick(c.id)}
+                    className={`w-full rounded px-2 py-1 text-left hover:bg-zinc-700 disabled:opacity-60 ${
+                      pending === c.id ? ghostButton : ''
+                    }`}
+                  >
+                    #{c.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+        {dms && dms.length > 0 && (
+          <section>
+            <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-400">Личные сообщения</h3>
+            <ul className="space-y-1">
+              {dms
+                .filter((d) => d.id !== message.channelId)
+                .map((d) => (
+                  <li key={d.id}>
+                    <button
+                      type="button"
+                      disabled={pending !== null}
+                      onClick={() => void onPick(d.id)}
+                      className={`w-full rounded px-2 py-1 text-left hover:bg-zinc-700 disabled:opacity-60 ${
+                        pending === d.id ? inputClass : ''
+                      }`}
+                    >
+                      @{dmTitle(d)}
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    </Modal>
   );
 }
 

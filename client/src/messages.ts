@@ -145,6 +145,14 @@ export async function loadEdits(messageId: number) {
   return api<MessageEdit[]>(`/api/messages/${messageId}/edits`);
 }
 
+/** Пересылка в другой канал: копия со снимком автора и текста. */
+export async function forwardMessage(messageId: number, channelId: number) {
+  return api<Message>(`/api/messages/${messageId}/forward`, {
+    method: 'POST',
+    body: { channelId },
+  });
+}
+
 // --- Прочтение -------------------------------------------------------------
 
 /** Что сейчас на экране: канал и прокручен ли он до низа. Ставит ChatView. */

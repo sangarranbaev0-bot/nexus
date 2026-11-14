@@ -26,6 +26,7 @@ const UNREAD: &str = "(SELECT count(*) FROM (
     SELECT 1 FROM messages m
     WHERE m.channel_id = c.id
       AND m.author_id <> $1
+      AND m.system_kind IS NULL
       AND m.id > COALESCE(rs.last_read_message_id, 0)
       AND m.created_at > mem.joined_at
     LIMIT 100) unread)::int";

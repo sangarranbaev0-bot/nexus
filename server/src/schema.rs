@@ -109,6 +109,11 @@ diesel::table! {
         pinned_at -> Nullable<Timestamptz>,
         system_kind -> Nullable<Text>,
         system_detail -> Nullable<Text>,
+        forwarded_from_id -> Nullable<Int8>,
+        forwarded_channel_id -> Nullable<Int8>,
+        forwarded_author_id -> Nullable<Int8>,
+        forwarded_author -> Nullable<Text>,
+        forwarded_content -> Nullable<Text>,
     }
 }
 

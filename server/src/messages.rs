@@ -2,7 +2,7 @@ use axum::{
     Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{get, patch, put},
+    routing::{get, patch, post, put},
 };
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
@@ -19,7 +19,8 @@ use crate::{
     events::{Notice, notify},
     permissions,
     protocol::{
-        Attachment, ChannelKind, Message, MessageContent, MessageEdit, Reaction, ReplyPreview,
+        Attachment, ChannelKind, ForwardPreview, ForwardRequest, Message, MessageContent,
+        MessageEdit, Reaction, ReplyPreview,
     },
     schema::{message_edits, messages, users},
     servers::{ChannelAccess, channel_access},
@@ -36,6 +37,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/messages/{id}", patch(update).delete(remove))
         .route("/api/messages/{id}/pin", put(pin).delete(unpin))
         .route("/api/messages/{id}/edits", get(edits))
+        .route("/api/messages/{id}/forward", post(forward))
 }
 
 type Row = (
@@ -50,9 +52,14 @@ type Row = (
     Option<DateTime<Utc>>,
     Option<String>,
     Option<String>,
+    Option<i64>,
+    Option<i64>,
+    Option<i64>,
+    Option<String>,
+    Option<String>,
 );
 
-fn columns() -> (
+type Columns = (
     messages::id,
     messages::channel_id,
     messages::author_id,
@@ -64,7 +71,14 @@ fn columns() -> (
     messages::pinned_at,
     messages::system_kind,
     messages::system_detail,
-) {
+    messages::forwarded_from_id,
+    messages::forwarded_channel_id,
+    messages::forwarded_author_id,
+    messages::forwarded_author,
+    messages::forwarded_content,
+);
+
+fn columns() -> Columns {
     (
         messages::id,
         messages::channel_id,
@@ -77,6 +91,11 @@ fn columns() -> (
         messages::pinned_at,
         messages::system_kind,
         messages::system_detail,
+        messages::forwarded_from_id,
+        messages::forwarded_channel_id,
+        messages::forwarded_author_id,
+        messages::forwarded_author,
+        messages::forwarded_content,
     )
 }
 
@@ -93,6 +112,11 @@ fn to_message(
         pinned_at,
         system_kind,
         system_detail,
+        forwarded_from_id,
+        forwarded_channel_id,
+        forwarded_author_id,
+        forwarded_author,
+        forwarded_content,
     ): Row,
     attachments: &mut HashMap<i64, Vec<Attachment>>,
     reactions: Vec<Reaction>,
@@ -112,6 +136,13 @@ fn to_message(
         pinned: pinned_at.is_some(),
         system_kind,
         system_detail,
+        forwarded_from: forwarded_author.map(|author_username| ForwardPreview {
+            message_id: forwarded_from_id,
+            author_id: forwarded_author_id,
+            author_username,
+            content: forwarded_content.unwrap_or_default(),
+            channel_id: forwarded_channel_id,
+        }),
     }
 }
 
@@ -467,6 +498,84 @@ async fn create(
     {
         tracing::warn!("notification dispatch failed for message {id}: {e:?}");
     }
+    let message = load_message(&mut conn, &state.file_key, id)
+        .await?
+        .ok_or_else(|| AppError::not_found("message"))?;
+    Ok((StatusCode::CREATED, Json(message)))
+}
+
+/// Пересылка: копия сообщения в другой канал со снимком исходного автора и текста.
+/// Вложения не копируются — в пересланной копии остаётся только блок «Переслано от».
+async fn forward(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(message_id): Path<i64>,
+    Json(req): Json<ForwardRequest>,
+) -> AppResult<(StatusCode, Json<Message>)> {
+    let mut conn = state.pool.get().await?;
+    let (source_channel, _, _) = locate(&mut conn, message_id, user_id).await?;
+    let source: (i64, String, String, Option<String>, Option<String>) = messages::table
+        .inner_join(users::table)
+        .filter(messages::id.eq(message_id))
+        .select((
+            messages::author_id,
+            users::username,
+            messages::content,
+            messages::system_kind,
+            messages::system_detail,
+        ))
+        .first(&mut conn)
+        .await?;
+    if source.3.is_some() {
+        return Err(AppError::bad_request("cannot forward a system message"));
+    }
+    if source_channel == req.channel_id {
+        return Err(AppError::bad_request(
+            "forward target must be another channel",
+        ));
+    }
+    let target = channel_access(&mut conn, req.channel_id, user_id).await?;
+    if target.kind == ChannelKind::Voice {
+        return Err(AppError::bad_request("voice channels have no messages"));
+    }
+    if target.server_id.is_none()
+        && crate::friends::dm_has_block(&mut conn, req.channel_id, user_id).await?
+    {
+        return Err(AppError::forbidden_with("blocked"));
+    }
+    if let Some(server_id) = target.server_id {
+        permissions::require_channel_permission(
+            &mut conn,
+            server_id,
+            user_id,
+            req.channel_id,
+            permissions::SEND_MESSAGES,
+        )
+        .await?;
+    }
+    let snapshot = source.2.chars().take(MAX_LEN).collect::<String>();
+    let id: i64 = diesel::insert_into(messages::table)
+        .values((
+            messages::channel_id.eq(req.channel_id),
+            messages::author_id.eq(user_id),
+            messages::content.eq(""),
+            messages::forwarded_from_id.eq(message_id),
+            messages::forwarded_channel_id.eq(Some(source_channel)),
+            messages::forwarded_author_id.eq(Some(source.0)),
+            messages::forwarded_author.eq(source.1),
+            messages::forwarded_content.eq(&snapshot),
+        ))
+        .returning(messages::id)
+        .get_result(&mut conn)
+        .await?;
+    notify(
+        &mut conn,
+        &Notice::MessageCreated {
+            server_id: target.server_id,
+            message_id: id,
+        },
+    )
+    .await?;
     let message = load_message(&mut conn, &state.file_key, id)
         .await?
         .ok_or_else(|| AppError::not_found("message"))?;

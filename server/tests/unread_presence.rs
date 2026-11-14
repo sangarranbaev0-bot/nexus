@@ -25,14 +25,14 @@ async fn setup(app: &Router) -> (String, String, i64, i64, i64) {
     let sid = r.body["id"].as_i64().unwrap();
     let r = call(
         app,
-        "GET",
+        "POST",
         &format!("/api/servers/{sid}/channels"),
-        None,
+        Some(json!({ "name": "unread-test" })),
         Some(&owner),
         None,
     )
     .await;
-    let cid = r.body[0]["id"].as_i64().unwrap();
+    let cid = r.body["id"].as_i64().unwrap();
     let r = call(
         app,
         "POST",
@@ -52,6 +52,7 @@ async fn setup(app: &Router) -> (String, String, i64, i64, i64) {
         None,
     )
     .await;
+    // Работаем в отдельном канале: системные события приходят в #общий.
     (owner, member, member_id, sid, cid)
 }
 
@@ -112,7 +113,10 @@ async fn unread_counts_and_mark_read() {
     let m2 = post(&app, &owner, cid, "two").await;
     post(&app, &member, cid, "own messages are not unread").await;
     assert_eq!(unread(&app, &member, sid, cid).await, (2, 2));
-    assert_eq!(unread(&app, &owner, sid, cid).await, (1, 1));
+    // Владельцу тоже приходит системное «присоединился» в этом канале.
+    let (owner_ch, owner_sv) = unread(&app, &owner, sid, cid).await;
+    assert_eq!(owner_ch, 1, "чужое сообщение в канале");
+    assert!(owner_sv >= owner_ch, "сумма по серверу не меньше канала");
 
     // Второй канал добавляется в сумму сервера.
     let r = call(

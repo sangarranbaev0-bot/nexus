@@ -573,3 +573,113 @@ async fn edit_history_is_visible_to_channel_members() {
         StatusCode::NOT_FOUND
     );
 }
+
+#[tokio::test]
+async fn forwards_message_with_snapshot_and_access_checks() {
+    let app = test_app().await;
+    let (owner, member, _, sid, cid) = setup(&app).await;
+    let (outsider, _) = register_user(&app).await;
+
+    let r = call(
+        &app,
+        "POST",
+        &format!("/api/servers/{sid}/channels"),
+        Some(json!({ "name": "forward-target" })),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::CREATED, "{}", r.body);
+    let target = r.body["id"].as_i64().unwrap();
+
+    let source = post(&app, &member, cid, "пересылаемый текст").await;
+    let source_id = source["id"].as_i64().unwrap();
+
+    let r = call(
+        &app,
+        "POST",
+        &format!("/api/messages/{source_id}/forward"),
+        Some(json!({ "channelId": target })),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::CREATED, "{}", r.body);
+    let fwd_id = r.body["id"].as_i64().unwrap();
+    assert_eq!(r.body["content"], "", "текст живёт в блоке «Переслано от»");
+    assert_eq!(
+        r.body["forwardedFrom"]["messageId"].as_i64(),
+        Some(source_id)
+    );
+    assert_eq!(r.body["forwardedFrom"]["channelId"].as_i64(), Some(cid));
+    assert_eq!(
+        r.body["forwardedFrom"]["authorUsername"],
+        source["authorUsername"].clone()
+    );
+    assert_eq!(r.body["forwardedFrom"]["content"], "пересылаемый текст");
+
+    let r = call(
+        &app,
+        "GET",
+        &format!("/api/channels/{target}/messages"),
+        None,
+        Some(&member),
+        None,
+    )
+    .await;
+    assert!(ids(&r.body).contains(&fwd_id), "{}", r.body);
+
+    // В тот же канал пересылать нельзя.
+    let r = call(
+        &app,
+        "POST",
+        &format!("/api/messages/{source_id}/forward"),
+        Some(json!({ "channelId": cid })),
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::BAD_REQUEST, "{}", r.body);
+
+    // Посторонний не видит исходник.
+    let r = call(
+        &app,
+        "POST",
+        &format!("/api/messages/{source_id}/forward"),
+        Some(json!({ "channelId": target })),
+        Some(&outsider),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::NOT_FOUND, "{}", r.body);
+
+    // Удалили оригинал — снимок остался, ссылка на id обнулилась.
+    let r = call(
+        &app,
+        "DELETE",
+        &format!("/api/messages/{source_id}"),
+        None,
+        Some(&member),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::NO_CONTENT, "{}", r.body);
+    let r = call(
+        &app,
+        "GET",
+        &format!("/api/channels/{target}/messages"),
+        None,
+        Some(&member),
+        None,
+    )
+    .await;
+    let fwd = r
+        .body
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"].as_i64() == Some(fwd_id))
+        .unwrap();
+    assert_eq!(fwd["forwardedFrom"]["messageId"], serde_json::Value::Null);
+    assert_eq!(fwd["forwardedFrom"]["content"], "пересылаемый текст");
+}
