@@ -5,7 +5,7 @@
   "identifier": "com.nexuschat.desktop",
   "build": {
     "devUrl": "http://localhost:5173",
-    "frontendDist": "https://chat.example.com"
+    "frontendDist": "http://127.0.0.1:3001"
   },
   "app": {
     "windows": [

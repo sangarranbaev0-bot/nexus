@@ -1,6 +1,6 @@
 [package]
 name = "nexuschat-desktop"
-version = "0.1.0"
+version = "0.3.0"
 description = "NexusChat для Windows"
 edition = "2024"
 rust-version = "1.90"

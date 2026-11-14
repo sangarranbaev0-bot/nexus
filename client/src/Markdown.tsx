@@ -177,6 +177,17 @@ const ts = /^<t:(\d+)(?::([tTdDfFR]))?>/.exec(rest);
 
     // Упоминания не внутри слова/email: перед @ или # должен быть пробел/начало.
     const before = i === 0 ? '' : text[i - 1];
+    if ((before === '' || /\s|[([{>]/.test(before)) && /^https?:\/\/\S+/.test(rest)) {
+      const url = /^https?:\/\/[^\s<]+/.exec(rest)!;
+      flush();
+      nodes.push(
+        <a key={key++} href={url[0]} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline">
+          {url[0]}
+        </a>,
+      );
+      i += url[0].length;
+      continue;
+    }
     if ((text[i] === '@' || text[i] === '#') && (before === '' || /\s|[([{>]/.test(before))) {
       const mention = /^([@#])([\p{L}\p{N}_.-]{1,32})/u.exec(rest);
       if (mention) {
