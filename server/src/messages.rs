@@ -258,9 +258,7 @@ async fn list(
     }
     let mut rows: Vec<Row> = query.load(&mut conn).await?;
     rows.reverse();
-    Ok(Json(
-        with_extras(&mut conn, &state.file_key, rows).await?,
-    ))
+    Ok(Json(with_extras(&mut conn, &state.file_key, rows).await?))
 }
 
 /// Закреплённые сообщения канала, свежие сверху.

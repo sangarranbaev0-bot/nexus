@@ -266,7 +266,8 @@ async fn create_channel(
 ) -> AppResult<(StatusCode, Json<Channel>)> {
     let name = normalize_channel_name(&req.name)?;
     let mut conn = state.pool.get().await?;
-    permissions::require_permission(&mut conn, server_id, user_id, permissions::MANAGE_CHANNELS).await?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::MANAGE_CHANNELS)
+        .await?;
 
     // shortcut: позиция = max + 1 без блокировки, при одновременном создании возможен дубль
     // позиции (порядок тогда решает id); заменить, когда появится перетаскивание каналов.
@@ -308,7 +309,8 @@ async fn delete_channel(
     let mut conn = state.pool.get().await?;
     let server_id = channel_server(&mut conn, channel_id).await?;
     // Посторонний получает 404 и для канала: role_in отвечает так же, как на несуществующий.
-    permissions::require_permission(&mut conn, server_id, user_id, permissions::MANAGE_CHANNELS).await?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::MANAGE_CHANNELS)
+        .await?;
     diesel::delete(channels::table.find(channel_id))
         .execute(&mut conn)
         .await?;

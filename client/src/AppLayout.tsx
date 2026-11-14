@@ -183,7 +183,7 @@ export function AppLayout() {
         ) : server && channel ? (
           <ChatView
             key={channel.id}
-            channel={{ id: channel.id, label: `#${channel.name}` }}
+            channel={{ id: channel.id, label: `#${channel.name}`, unread: channel.unreadCount }}
             canModerate={can(server, P.MANAGE_MESSAGES)}
             canPin={can(server, P.PIN_MESSAGES)}
             onRead={() => clearUnread(server.id, channel.id)}
@@ -193,7 +193,7 @@ export function AppLayout() {
             <DmCall dm={dm} />
             <ChatView
               key={dm.id}
-              channel={{ id: dm.id, label: `@${dm.username}` }}
+              channel={{ id: dm.id, label: `@${dm.username}`, unread: dm.unreadCount }}
               canModerate={false}
               canPin={true}
               onRead={() => clearDmUnread(dm.id)}

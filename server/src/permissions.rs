@@ -252,7 +252,7 @@ pub async fn channel_bits(
     if perms.role == Role::Owner || has(perms.bits, ADMINISTRATOR) {
         return Ok(ALL);
     }
-let overwrites: Vec<OverwriteRow> = channel_overwrites::table
+    let overwrites: Vec<OverwriteRow> = channel_overwrites::table
         .filter(channel_overwrites::channel_id.eq(channel_id))
         .select((
             channel_overwrites::role_id,
@@ -269,10 +269,7 @@ let overwrites: Vec<OverwriteRow> = channel_overwrites::table
             bits = (bits & !o.deny) | o.allow;
         }
     }
-    if let Some(o) = overwrites
-        .iter()
-        .find(|o| o.user_id == Some(perms.user_id))
-    {
+    if let Some(o) = overwrites.iter().find(|o| o.user_id == Some(perms.user_id)) {
         bits = (bits & !o.deny) | o.allow;
     }
     Ok(bits)

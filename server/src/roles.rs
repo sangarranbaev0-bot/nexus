@@ -17,9 +17,7 @@ use crate::{
     auth::AuthUser,
     error::{AppError, AppResult},
     events::{Notice, notify},
-    permissions::{
-        self, MemberPerms, MANAGE_CHANNELS, MANAGE_ROLES, VIEW_AUDIT_LOG,
-    },
+    permissions::{self, MANAGE_CHANNELS, MANAGE_ROLES, MemberPerms, VIEW_AUDIT_LOG},
     protocol::{
         AssignRolesRequest, AuditEntry, Category, CreateCategoryRequest, CreateRoleRequest,
         Overwrite, RoleInfo, UpdateCategoryRequest, UpdateChannelRequest, UpdateRoleRequest,
@@ -232,7 +230,8 @@ async fn create_role(
     let color = req.color.map(validate_color).transpose()?.flatten();
     let permissions_bits = validate_permissions(req.permissions.unwrap_or(0))?;
     let mut conn = state.pool.get().await?;
-    let actor = permissions::require_permission(&mut conn, server_id, user_id, MANAGE_ROLES).await?;
+    let actor =
+        permissions::require_permission(&mut conn, server_id, user_id, MANAGE_ROLES).await?;
     let rank = actor_rank(&mut conn, server_id, &actor).await?;
 
     let max_position: Option<i32> = roles::table
@@ -305,13 +304,16 @@ async fn update_role(
     Json(req): Json<UpdateRoleRequest>,
 ) -> AppResult<Json<RoleInfo>> {
     let mut conn = state.pool.get().await?;
-    let actor = permissions::require_permission(&mut conn, server_id, user_id, MANAGE_ROLES).await?;
+    let actor =
+        permissions::require_permission(&mut conn, server_id, user_id, MANAGE_ROLES).await?;
     let existing = load_role(&mut conn, server_id, role_id).await?;
     let rank = actor_rank(&mut conn, server_id, &actor).await?;
 
     if existing.is_default {
         if req.name.is_some() || req.position.is_some() {
-            return Err(AppError::bad_request("@everyone cannot be renamed or moved"));
+            return Err(AppError::bad_request(
+                "@everyone cannot be renamed or moved",
+            ));
         }
     } else if existing.position >= rank {
         return Err(AppError::forbidden());
@@ -379,7 +381,8 @@ async fn delete_role(
     Path((server_id, role_id)): Path<(i64, i64)>,
 ) -> AppResult<StatusCode> {
     let mut conn = state.pool.get().await?;
-    let actor = permissions::require_permission(&mut conn, server_id, user_id, MANAGE_ROLES).await?;
+    let actor =
+        permissions::require_permission(&mut conn, server_id, user_id, MANAGE_ROLES).await?;
     let existing = load_role(&mut conn, server_id, role_id).await?;
     if existing.is_default {
         return Err(AppError::bad_request("@everyone cannot be deleted"));
@@ -410,7 +413,8 @@ async fn assign_roles(
     Json(req): Json<AssignRolesRequest>,
 ) -> AppResult<StatusCode> {
     let mut conn = state.pool.get().await?;
-    let actor = permissions::require_permission(&mut conn, server_id, user_id, MANAGE_ROLES).await?;
+    let actor =
+        permissions::require_permission(&mut conn, server_id, user_id, MANAGE_ROLES).await?;
     let target_role = role_in(&mut conn, server_id, target_id).await?;
     if target_role == crate::protocol::Role::Owner && actor.role != crate::protocol::Role::Owner {
         return Err(AppError::forbidden());
@@ -475,7 +479,12 @@ struct CategoryRow {
     position: i32,
 }
 
-fn category_columns() -> (categories::id, categories::server_id, categories::name, categories::position) {
+fn category_columns() -> (
+    categories::id,
+    categories::server_id,
+    categories::name,
+    categories::position,
+) {
     (
         categories::id,
         categories::server_id,
@@ -783,13 +792,8 @@ async fn upsert_overwrite(
 
     let mut conn = state.pool.get().await?;
     let server_id = channel_server(&mut conn, channel_id).await?;
-    let actor = permissions::require_permission(
-        &mut conn,
-        server_id,
-        user_id,
-        MANAGE_CHANNELS,
-    )
-    .await?;
+    let actor =
+        permissions::require_permission(&mut conn, server_id, user_id, MANAGE_CHANNELS).await?;
     let rank = actor_rank(&mut conn, server_id, &actor).await?;
     let is_owner = actor.role == crate::protocol::Role::Owner;
 
@@ -875,13 +879,8 @@ async fn delete_overwrite(
 ) -> AppResult<StatusCode> {
     let mut conn = state.pool.get().await?;
     let server_id = channel_server(&mut conn, channel_id).await?;
-    let actor = permissions::require_permission(
-        &mut conn,
-        server_id,
-        user_id,
-        MANAGE_CHANNELS,
-    )
-    .await?;
+    let actor =
+        permissions::require_permission(&mut conn, server_id, user_id, MANAGE_CHANNELS).await?;
     let row: Option<(Option<i64>, Option<i64>, i64, i64)> = channel_overwrites::table
         .filter(channel_overwrites::id.eq(overwrite_id))
         .filter(channel_overwrites::channel_id.eq(channel_id))
@@ -894,7 +893,8 @@ async fn delete_overwrite(
         .first(&mut conn)
         .await
         .optional()?;
-    let (role_id, target_user, allow, deny) = row.ok_or_else(|| AppError::not_found("overwrite"))?;
+    let (role_id, target_user, allow, deny) =
+        row.ok_or_else(|| AppError::not_found("overwrite"))?;
     let rank = actor_rank(&mut conn, server_id, &actor).await?;
     let is_owner = actor.role == crate::protocol::Role::Owner;
 

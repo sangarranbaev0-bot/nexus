@@ -374,11 +374,22 @@ async fn replies_are_validated_and_previewed() {
     .await;
     assert_eq!(r.status, StatusCode::CREATED, "{}", r.body);
     assert_eq!(r.body["replyTo"]["id"], original_id);
-    assert_eq!(r.body["replyTo"]["authorUsername"], original["authorUsername"]);
+    assert_eq!(
+        r.body["replyTo"]["authorUsername"],
+        original["authorUsername"]
+    );
     assert_eq!(r.body["replyTo"]["content"], "original text");
 
     // Цитата приходит и в списке.
-    let r = call(&app, "GET", &format!("/api/channels/{cid}/messages"), None, Some(&member), None).await;
+    let r = call(
+        &app,
+        "GET",
+        &format!("/api/channels/{cid}/messages"),
+        None,
+        Some(&member),
+        None,
+    )
+    .await;
     assert_eq!(r.body[1]["replyTo"]["id"], original_id);
 
     // Ответ на сообщение из другого канала запрещён.
@@ -392,7 +403,9 @@ async fn replies_are_validated_and_previewed() {
     )
     .await;
     let other = r.body["id"].as_i64().unwrap();
-    let elsewhere = post(&app, &owner, other, "elsewhere").await["id"].as_i64().unwrap();
+    let elsewhere = post(&app, &owner, other, "elsewhere").await["id"]
+        .as_i64()
+        .unwrap();
     let r = call(
         &app,
         "POST",
@@ -418,11 +431,34 @@ async fn replies_are_validated_and_previewed() {
 
     // Удаление оригинала обнуляет цитату, а не удаляет ответ.
     assert_eq!(
-        call(&app, "DELETE", &format!("/api/messages/{original_id}"), None, Some(&owner), None).await.status,
+        call(
+            &app,
+            "DELETE",
+            &format!("/api/messages/{original_id}"),
+            None,
+            Some(&owner),
+            None
+        )
+        .await
+        .status,
         StatusCode::NO_CONTENT
     );
-    let r = call(&app, "GET", &format!("/api/channels/{cid}/messages"), None, Some(&member), None).await;
-    let reply = r.body.as_array().unwrap().iter().find(|m| m["content"] == "answer").unwrap();
+    let r = call(
+        &app,
+        "GET",
+        &format!("/api/channels/{cid}/messages"),
+        None,
+        Some(&member),
+        None,
+    )
+    .await;
+    let reply = r
+        .body
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["content"] == "answer")
+        .unwrap();
     assert!(reply["replyTo"].is_null());
 }
 
@@ -430,19 +466,25 @@ async fn replies_are_validated_and_previewed() {
 async fn pins_require_permission_and_are_listed() {
     let app = test_app().await;
     let (owner, member, member_id, sid, cid) = setup(&app).await;
-    let id = post(&app, &owner, cid, "pin me").await["id"].as_i64().unwrap();
+    let id = post(&app, &owner, cid, "pin me").await["id"]
+        .as_i64()
+        .unwrap();
     let pin_url = format!("/api/messages/{id}/pin");
     let pins_url = format!("/api/channels/{cid}/pins");
 
     // Участник без PIN_MESSAGES не может закрепить.
     assert_eq!(
-        call(&app, "PUT", &pin_url, None, Some(&member), None).await.status,
+        call(&app, "PUT", &pin_url, None, Some(&member), None)
+            .await
+            .status,
         StatusCode::FORBIDDEN
     );
     // Посторонний не видит сообщение.
     let (outsider, _) = register_user(&app).await;
     assert_eq!(
-        call(&app, "PUT", &pin_url, None, Some(&outsider), None).await.status,
+        call(&app, "PUT", &pin_url, None, Some(&outsider), None)
+            .await
+            .status,
         StatusCode::NOT_FOUND
     );
 

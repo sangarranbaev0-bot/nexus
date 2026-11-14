@@ -502,7 +502,7 @@ async fn role_validation_and_overwrite_targets() {
     assert_eq!(r.status, StatusCode::OK, "{}", r.body);
     assert_eq!(r.body.as_array().unwrap().len(), 1);
     assert_eq!(r.body[0]["userId"], member_id);
-assert_eq!(r.body[0]["allow"], 2);
+    assert_eq!(r.body[0]["allow"], 2);
 }
 
 #[tokio::test]
@@ -574,7 +574,11 @@ async fn hidden_channels_and_overwrite_escalation() {
     let cats_url = format!("/api/servers/{sid}/categories");
     let r = call(&app, "GET", &cats_url, None, Some(&member), None).await;
     assert!(
-        r.body.as_array().unwrap().iter().all(|c| c["id"] != category_id),
+        r.body
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|c| c["id"] != category_id),
         "{}",
         r.body
     );

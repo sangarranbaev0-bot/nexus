@@ -302,7 +302,7 @@ pub struct Server {
     pub name: String,
     #[ts(type = "number")]
     pub owner_id: i64,
-pub my_role: Role,
+    pub my_role: Role,
     /// Итоговые права участника на сервере (битовая маска, как в `permissions.rs`).
     #[ts(type = "number")]
     pub my_permissions: i64,

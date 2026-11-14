@@ -1,7 +1,17 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 
 /** Нативный <dialog>: фокус-ловушка, Esc и затемнение фона из коробки. */
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({
+  title,
+  onClose,
+  children,
+  wide = false,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  wide?: boolean;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -14,7 +24,9 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       aria-labelledby="modal-title"
-      className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-lg bg-zinc-800 p-0 text-zinc-100 backdrop:bg-black/70"
+      className={`m-auto rounded-lg bg-zinc-800 p-0 text-zinc-100 backdrop:bg-black/70 ${
+        wide ? 'w-[min(72rem,calc(100vw-2rem))]' : 'w-[min(28rem,calc(100vw-2rem))]'
+      }`}
     >
       <div className="space-y-4 p-6">
         <h2 id="modal-title" className="text-xl font-semibold">

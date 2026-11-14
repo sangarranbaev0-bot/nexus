@@ -112,7 +112,11 @@ async fn list(
             };
             visible_by_channel.insert(row.channel_id, allowed);
         }
-        if visible_by_channel.get(&row.channel_id).copied().unwrap_or(true) {
+        if visible_by_channel
+            .get(&row.channel_id)
+            .copied()
+            .unwrap_or(true)
+        {
             visible.push(row.into());
         }
     }

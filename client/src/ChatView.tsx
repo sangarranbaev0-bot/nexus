@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Attachment } from './generated/Attachment';
 import type { Message } from './generated/Message';
 import { uploadFile } from './api';
@@ -17,6 +17,8 @@ import {
   useMessages,
 } from './messages';
 import { Modal, errorMessage } from './Modal';
+import { Markdown } from './Markdown';
+import { EmojiPicker } from './EmojiPicker';
 import { useSession } from './session';
 import { sendTyping } from './socket';
 
@@ -29,6 +31,8 @@ const LOAD_OLDER_PX = 200;
 export interface ChatTarget {
   id: number;
   label: string;
+  /** Непрочитанных на момент открытия: по нему рисуем линию «НОВОЕ». */
+  unread?: number;
 }
 
 export function ChatView({
@@ -55,6 +59,7 @@ export function ChatView({
   const [dropped, setDropped] = useState<{ files: File[] } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const initialUnread = useRef(channel.unread ?? 0).current;
 
   return (
     <div
@@ -83,6 +88,7 @@ export function ChatView({
         onRead={onRead}
         items={log?.items}
         hasMore={!!log?.hasMore}
+        unread={initialUnread}
         onError={setError}
         onReply={setReplyTo}
       />
@@ -95,7 +101,15 @@ export function ChatView({
         📌 Закреплённые
       </button>
       {showPins && (
-        <PinsDialog channelId={channel.id} onClose={() => setShowPins(false)} onError={setError} />
+        <PinsDialog
+          channelId={channel.id}
+          onClose={() => setShowPins(false)}
+          onJump={(id) => {
+            setShowPins(false);
+            requestAnimationFrame(() => jumpToMessage(id));
+          }}
+          onError={setError}
+        />
       )}
       {error && (
         <p role="alert" className="px-4 text-sm text-red-400">
@@ -115,6 +129,7 @@ function MessageList({
   onRead,
   items,
   hasMore,
+  unread,
   onError,
   onReply,
 }: {
@@ -124,6 +139,7 @@ function MessageList({
   onRead: () => void;
   items: Message[] | undefined;
   hasMore: boolean;
+  unread: number;
   onError: (e: string) => void;
   onReply: (m: Message) => void;
 }) {
@@ -153,7 +169,13 @@ function MessageList({
     if (p.first !== undefined && first !== p.first && last === p.last) {
       el.scrollTop += el.scrollHeight - p.height;
     } else if (last !== p.last && (nearBottom.current || p.last === undefined)) {
-      el.scrollTop = el.scrollHeight;
+      const divider = p.last === undefined ? el.querySelector<HTMLElement>('[data-new-divider]') : null;
+      if (divider) {
+        el.scrollTop = Math.max(0, divider.offsetTop - 60);
+        nearBottom.current = false;
+      } else {
+        el.scrollTop = el.scrollHeight;
+      }
     }
     prev.current = { first, last, height: el.scrollHeight };
     ackIfViewing();
@@ -201,16 +223,32 @@ function MessageList({
         </div>
       )}
       {items === undefined && <p className="px-4 text-zinc-400">Загрузка…</p>}
-      {items?.map((m) => (
-        <MessageItem
-          key={m.id}
-          message={m}
-          canModerate={canModerate}
-          canPin={canPin}
-          onError={onError}
-          onReply={onReply}
-        />
-      ))}
+      {items?.map((m, i) => {
+        const firstUnread = unread > 0 && unread < items.length ? items.length - unread : -1;
+        return (
+          <Fragment key={m.id}>
+            {i === firstUnread && (
+              <div
+                data-new-divider
+                role="separator"
+                aria-label="Новые сообщения"
+                className="my-2 flex items-center gap-3 px-4 text-xs font-semibold text-red-400"
+              >
+                <span className="h-px flex-1 bg-red-500/60" />
+                НОВОЕ
+                <span className="h-px flex-1 bg-red-500/60" />
+              </div>
+            )}
+            <MessageItem
+              message={m}
+              canModerate={canModerate}
+              canPin={canPin}
+              onError={onError}
+              onReply={onReply}
+            />
+          </Fragment>
+        );
+      })}
     </div>
   );
 }
@@ -269,16 +307,20 @@ function MessageItem({
             📌
           </span>
         )}
+        {m.editedAt !== null && (
+          <span className="text-xs text-zinc-500" title={formatTime(m.editedAt)}>
+            (изменено)
+          </span>
+        )}
       </header>
       {m.replyTo && <ReplyQuote reply={m.replyTo} />}
       {editing ? (
         <EditBox message={m} onDone={() => setEditing(false)} onError={onError} />
       ) : (
         (m.content || m.editedAt !== null) && (
-          <p className="break-words whitespace-pre-wrap text-zinc-100">
-            {m.content}
-            {m.editedAt !== null && <span className="ml-1 text-xs text-zinc-500">(изменено)</span>}
-          </p>
+          <div className="break-words whitespace-pre-wrap text-zinc-100">
+            <Markdown text={m.content} />
+          </div>
         )
       )}
       <Attachments files={m.attachments} />
@@ -312,10 +354,12 @@ function MessageItem({
 function PinsDialog({
   channelId,
   onClose,
+  onJump,
   onError,
 }: {
   channelId: number;
   onClose: () => void;
+  onJump: (id: number) => void;
   onError: (e: string) => void;
 }) {
   const [items, setItems] = useState<Message[] | null>(null);
@@ -352,6 +396,9 @@ function PinsDialog({
                 <time dateTime={new Date(m.createdAt).toISOString()}>{formatTime(m.createdAt)}</time>
                 <button onClick={() => unpin(m.id)} className="ml-auto text-red-400 hover:underline">
                   Открепить
+                </button>
+                <button onClick={() => onJump(m.id)} className="text-indigo-300 hover:underline">
+                  Перейти
                 </button>
               </div>
               <button
@@ -396,11 +443,8 @@ function ReplyQuote({ reply }: { reply: NonNullable<Message['replyTo']> }) {
   );
 }
 
-const QUICK_REACTIONS = ['👍', '😂', '❤️', '🔥', '👀', '✅'];
-
 function ReactionBar({ message, me, onError }: { message: Message; me?: number; onError: (e: string) => void }) {
   const [picker, setPicker] = useState(false);
-  const [custom, setCustom] = useState('');
   const mine = (emoji: string) =>
     me !== undefined && message.reactions.some((r) => r.emoji === emoji && r.userIds.includes(me));
 
@@ -408,7 +452,6 @@ function ReactionBar({ message, me, onError }: { message: Message; me?: number; 
     if (!emoji) return;
     try {
       await toggleReaction(message.id, emoji, mine(emoji));
-      setCustom('');
     } catch (e) {
       onError(errorMessage(e));
     }
@@ -433,43 +476,24 @@ function ReactionBar({ message, me, onError }: { message: Message; me?: number; 
           </button>
         );
       })}
-      <button
-        type="button"
-        onClick={() => setPicker((v) => !v)}
-        title="Добавить реакцию"
-        aria-label="Добавить реакцию"
-        className="rounded px-1.5 py-0.5 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
-      >
-        🙂+
-      </button>
-      {picker && (
-        <div className="flex flex-wrap items-center gap-1 rounded bg-zinc-800 p-1 shadow">
-          {QUICK_REACTIONS.map((e) => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => toggle(e)}
-              className="rounded px-1 text-lg hover:bg-zinc-700"
-            >
-              {e}
-            </button>
-          ))}
-          <input
-            value={custom}
-            maxLength={16}
-            placeholder="эмодзи"
-            aria-label="Своя реакция"
-            onChange={(e) => setCustom(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && custom.trim()) {
-                e.preventDefault();
-                void toggle(custom.trim());
-              }
-            }}
-            className="w-24 rounded bg-zinc-700 px-2 py-0.5 text-sm outline-none placeholder:text-zinc-500"
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setPicker((v) => !v)}
+          title="Добавить реакцию"
+          aria-label="Добавить реакцию"
+          className="rounded px-1.5 py-0.5 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+        >
+          🙂+
+        </button>
+        {picker && (
+          <EmojiPicker
+            className="absolute bottom-full left-0 z-20 mb-1"
+            onPick={toggle}
+            onClose={() => setPicker(false)}
           />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -540,8 +564,26 @@ function Composer({
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const lastTyping = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
+  const textInput = useRef<HTMLTextAreaElement>(null);
+
+  const insertEmoji = (emoji: string) => {
+    const el = textInput.current;
+    const start = el?.selectionStart ?? value.length;
+    const end = el?.selectionEnd ?? start;
+    setValue(value.slice(0, start) + emoji + value.slice(end));
+    setEmojiOpen(false);
+    if (Date.now() - lastTyping.current > TYPING_EVERY_MS) {
+      lastTyping.current = Date.now();
+      sendTyping(channel.id);
+    }
+    requestAnimationFrame(() => {
+      el?.focus();
+      if (el) el.selectionStart = el.selectionEnd = start + emoji.length;
+    });
+  };
 
   const update = (key: string, patch: Partial<Pending>) =>
     setPending((list) => list.map((p) => (p.key === key ? { ...p, ...patch } : p)));
@@ -669,7 +711,25 @@ function Composer({
             ))}
           </ul>
         )}
-        <div className="flex items-end">
+        <div className="relative flex items-end">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setEmojiOpen((v) => !v)}
+              title="Эмодзи"
+              aria-label="Эмодзи"
+              className="px-2 py-2.5 text-lg text-zinc-400 hover:text-zinc-100"
+            >
+              🙂
+            </button>
+            {emojiOpen && (
+              <EmojiPicker
+                className="absolute bottom-full left-0 z-20 mb-2"
+                onPick={insertEmoji}
+                onClose={() => setEmojiOpen(false)}
+              />
+            )}
+          </div>
           <button
             type="button"
             onClick={() => fileInput.current?.click()}
@@ -691,6 +751,7 @@ function Composer({
             }}
           />
           <textarea
+            ref={textInput}
             value={value}
             maxLength={MAX_LEN}
             onChange={(e) => onChange(e.target.value)}
@@ -736,14 +797,21 @@ function formatSize(bytes: number) {
 }
 
 function Attachments({ files }: { files: Attachment[] }) {
+  const [open, setOpen] = useState<Attachment | null>(null);
   if (files.length === 0) return null;
   return (
     <div className="mt-1 flex flex-wrap items-start gap-2">
       {files.map((f) =>
         f.contentType.startsWith('image/') ? (
-          <a key={f.id} href={f.url} target="_blank" rel="noreferrer" title={f.filename}>
+          <button
+            key={f.id}
+            type="button"
+            onClick={() => setOpen(f)}
+            title={f.filename}
+            className="cursor-zoom-in rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
             <img src={f.url} alt={f.filename} loading="lazy" className="max-h-80 max-w-full rounded sm:max-w-sm" />
-          </a>
+          </button>
         ) : (
           <a
             key={f.id}
@@ -760,6 +828,21 @@ function Attachments({ files }: { files: Attachment[] }) {
             </span>
           </a>
         ),
+      )}
+      {open && (
+        <Modal title={open.filename} onClose={() => setOpen(null)} wide>
+          <img
+            src={open.url}
+            alt={open.filename}
+            className="mx-auto max-h-[70vh] max-w-full rounded object-contain"
+          />
+          <div className="flex items-center justify-between gap-4 text-sm text-zinc-400">
+            <span>{formatSize(open.sizeBytes)}</span>
+            <a href={open.url} download={open.filename} className="text-indigo-300 hover:underline">
+              Скачать
+            </a>
+          </div>
+        </Modal>
       )}
     </div>
   );
