@@ -355,3 +355,122 @@ async fn events_cross_instances_and_respect_membership() {
         None
     );
 }
+
+#[tokio::test]
+async fn replies_are_validated_and_previewed() {
+    let app = test_app().await;
+    let (owner, member, _, sid, cid) = setup(&app).await;
+    let original = post(&app, &owner, cid, "original text").await;
+    let original_id = original["id"].as_i64().unwrap();
+
+    let r = call(
+        &app,
+        "POST",
+        &format!("/api/channels/{cid}/messages"),
+        Some(json!({ "content": "answer", "replyToId": original_id })),
+        Some(&member),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::CREATED, "{}", r.body);
+    assert_eq!(r.body["replyTo"]["id"], original_id);
+    assert_eq!(r.body["replyTo"]["authorUsername"], original["authorUsername"]);
+    assert_eq!(r.body["replyTo"]["content"], "original text");
+
+    // Цитата приходит и в списке.
+    let r = call(&app, "GET", &format!("/api/channels/{cid}/messages"), None, Some(&member), None).await;
+    assert_eq!(r.body[1]["replyTo"]["id"], original_id);
+
+    // Ответ на сообщение из другого канала запрещён.
+    let r = call(
+        &app,
+        "POST",
+        &format!("/api/servers/{sid}/channels"),
+        Some(json!({ "name": "other" })),
+        Some(&owner),
+        None,
+    )
+    .await;
+    let other = r.body["id"].as_i64().unwrap();
+    let elsewhere = post(&app, &owner, other, "elsewhere").await["id"].as_i64().unwrap();
+    let r = call(
+        &app,
+        "POST",
+        &format!("/api/channels/{cid}/messages"),
+        Some(json!({ "content": "bad", "replyToId": elsewhere })),
+        Some(&member),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::BAD_REQUEST, "{}", r.body);
+
+    // Ответ на несуществующее сообщение запрещён.
+    let r = call(
+        &app,
+        "POST",
+        &format!("/api/channels/{cid}/messages"),
+        Some(json!({ "content": "bad", "replyToId": 999999999 })),
+        Some(&member),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::BAD_REQUEST, "{}", r.body);
+
+    // Удаление оригинала обнуляет цитату, а не удаляет ответ.
+    assert_eq!(
+        call(&app, "DELETE", &format!("/api/messages/{original_id}"), None, Some(&owner), None).await.status,
+        StatusCode::NO_CONTENT
+    );
+    let r = call(&app, "GET", &format!("/api/channels/{cid}/messages"), None, Some(&member), None).await;
+    let reply = r.body.as_array().unwrap().iter().find(|m| m["content"] == "answer").unwrap();
+    assert!(reply["replyTo"].is_null());
+}
+
+#[tokio::test]
+async fn pins_require_permission_and_are_listed() {
+    let app = test_app().await;
+    let (owner, member, member_id, sid, cid) = setup(&app).await;
+    let id = post(&app, &owner, cid, "pin me").await["id"].as_i64().unwrap();
+    let pin_url = format!("/api/messages/{id}/pin");
+    let pins_url = format!("/api/channels/{cid}/pins");
+
+    // Участник без PIN_MESSAGES не может закрепить.
+    assert_eq!(
+        call(&app, "PUT", &pin_url, None, Some(&member), None).await.status,
+        StatusCode::FORBIDDEN
+    );
+    // Посторонний не видит сообщение.
+    let (outsider, _) = register_user(&app).await;
+    assert_eq!(
+        call(&app, "PUT", &pin_url, None, Some(&outsider), None).await.status,
+        StatusCode::NOT_FOUND
+    );
+
+    // Владелец закрепляет, список отдаёт сообщение.
+    let r = call(&app, "PUT", &pin_url, None, Some(&owner), None).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    assert_eq!(r.body["pinned"], true);
+    let r = call(&app, "GET", &pins_url, None, Some(&member), None).await;
+    assert_eq!(r.body.as_array().unwrap().len(), 1);
+    assert_eq!(r.body[0]["id"], id);
+
+    // Админ тоже может открепить.
+    assert_eq!(
+        call(
+            &app,
+            "PATCH",
+            &format!("/api/servers/{sid}/members/{member_id}"),
+            Some(json!({ "role": "admin" })),
+            Some(&owner),
+            None,
+        )
+        .await
+        .status,
+        StatusCode::NO_CONTENT
+    );
+    let r = call(&app, "DELETE", &pin_url, None, Some(&member), None).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    assert_eq!(r.body["pinned"], false);
+    let r = call(&app, "GET", &pins_url, None, Some(&member), None).await;
+    assert_eq!(r.body.as_array().unwrap().len(), 0);
+}

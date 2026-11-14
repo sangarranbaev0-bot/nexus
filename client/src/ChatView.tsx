@@ -9,12 +9,14 @@ import {
   isViewing,
   loadInitial,
   loadOlder,
+  loadPins,
   markRead,
   sendMessage,
+  setPinned,
   toggleReaction,
   useMessages,
 } from './messages';
-import { errorMessage } from './Modal';
+import { Modal, errorMessage } from './Modal';
 import { useSession } from './session';
 import { sendTyping } from './socket';
 
@@ -32,15 +34,18 @@ export interface ChatTarget {
 export function ChatView({
   channel,
   canModerate,
+  canPin,
   onRead,
 }: {
   channel: ChatTarget;
   canModerate: boolean;
+  canPin: boolean;
   /** Пользователь увидел последнее сообщение: сбросить счётчик непрочитанных. */
   onRead: () => void;
 }) {
   const log = useMessages((s) => s.logs[channel.id]);
   const [error, setError] = useState<string | null>(null);
+  const [showPins, setShowPins] = useState(false);
 
   useEffect(() => {
     setError(null);
@@ -49,6 +54,7 @@ export function ChatView({
 
   const [dropped, setDropped] = useState<{ files: File[] } | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
 
   return (
     <div
@@ -73,17 +79,30 @@ export function ChatView({
       <MessageList
         channel={channel}
         canModerate={canModerate}
+        canPin={canPin}
         onRead={onRead}
         items={log?.items}
         hasMore={!!log?.hasMore}
         onError={setError}
+        onReply={setReplyTo}
       />
+      <button
+        type="button"
+        onClick={() => setShowPins(true)}
+        title="Закреплённые сообщения"
+        className="absolute top-1 right-4 z-10 rounded bg-zinc-900/80 px-2 py-1 text-xs text-zinc-300 backdrop-blur hover:bg-zinc-800"
+      >
+        📌 Закреплённые
+      </button>
+      {showPins && (
+        <PinsDialog channelId={channel.id} onClose={() => setShowPins(false)} onError={setError} />
+      )}
       {error && (
         <p role="alert" className="px-4 text-sm text-red-400">
           {error}
         </p>
       )}
-      <Composer channel={channel} dropped={dropped} />
+      <Composer channel={channel} dropped={dropped} replyTo={replyTo} onCancelReply={() => setReplyTo(null)} />
       <TypingIndicator channelId={channel.id} />
     </div>
   );
@@ -92,17 +111,21 @@ export function ChatView({
 function MessageList({
   channel,
   canModerate,
+  canPin,
   onRead,
   items,
   hasMore,
   onError,
+  onReply,
 }: {
   channel: ChatTarget;
   canModerate: boolean;
+  canPin: boolean;
   onRead: () => void;
   items: Message[] | undefined;
   hasMore: boolean;
   onError: (e: string) => void;
+  onReply: (m: Message) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const nearBottom = useRef(true);
@@ -179,7 +202,14 @@ function MessageList({
       )}
       {items === undefined && <p className="px-4 text-zinc-400">Загрузка…</p>}
       {items?.map((m) => (
-        <MessageItem key={m.id} message={m} canModerate={canModerate} onError={onError} />
+        <MessageItem
+          key={m.id}
+          message={m}
+          canModerate={canModerate}
+          canPin={canPin}
+          onError={onError}
+          onReply={onReply}
+        />
       ))}
     </div>
   );
@@ -196,11 +226,15 @@ function formatTime(ms: number) {
 function MessageItem({
   message: m,
   canModerate,
+  canPin,
   onError,
+  onReply,
 }: {
   message: Message;
   canModerate: boolean;
+  canPin: boolean;
   onError: (e: string) => void;
+  onReply: (m: Message) => void;
 }) {
   const me = useSession((s) => s.user);
   const [editing, setEditing] = useState(false);
@@ -215,14 +249,28 @@ function MessageItem({
     }
   };
 
+  const togglePin = async () => {
+    try {
+      await setPinned(m.id, !m.pinned);
+    } catch (e) {
+      onError(errorMessage(e));
+    }
+  };
+
   return (
-    <article tabIndex={0} className="group relative px-4 py-1 hover:bg-zinc-900/30 focus:bg-zinc-900/30">
+    <article id={`msg-${m.id}`} tabIndex={0} className="group relative px-4 py-1 hover:bg-zinc-900/30 focus:bg-zinc-900/30">
       <header className="flex items-baseline gap-2">
         <span className="font-medium text-indigo-300">{m.authorUsername}</span>
         <time className="text-xs text-zinc-500" dateTime={new Date(m.createdAt).toISOString()}>
           {formatTime(m.createdAt)}
         </time>
+        {m.pinned && (
+          <span title="Закреплено" className="text-xs text-amber-300">
+            📌
+          </span>
+        )}
       </header>
+      {m.replyTo && <ReplyQuote reply={m.replyTo} />}
       {editing ? (
         <EditBox message={m} onDone={() => setEditing(false)} onError={onError} />
       ) : (
@@ -235,19 +283,116 @@ function MessageItem({
       )}
       <Attachments files={m.attachments} />
       <ReactionBar message={m} me={me?.id} onError={onError} />
-      {!editing && (mine || canModerate) && (
+      {!editing && (
         <div className="absolute -top-3 right-4 hidden gap-1 rounded bg-zinc-900 p-0.5 shadow group-focus-within:flex group-hover:flex">
+          <button onClick={() => onReply(m)} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
+            Ответить
+          </button>
+          {canPin && (
+            <button onClick={togglePin} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
+              {m.pinned ? 'Открепить' : 'Закрепить'}
+            </button>
+          )}
           {mine && (
             <button onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
               Изменить
             </button>
           )}
-          <button onClick={remove} className="rounded px-2 py-0.5 text-sm text-red-400 hover:bg-zinc-700">
-            Удалить
-          </button>
+          {(mine || canModerate) && (
+            <button onClick={remove} className="rounded px-2 py-0.5 text-sm text-red-400 hover:bg-zinc-700">
+              Удалить
+            </button>
+          )}
         </div>
       )}
     </article>
+  );
+}
+
+function PinsDialog({
+  channelId,
+  onClose,
+  onError,
+}: {
+  channelId: number;
+  onClose: () => void;
+  onError: (e: string) => void;
+}) {
+  const [items, setItems] = useState<Message[] | null>(null);
+
+  useEffect(() => {
+    loadPins(channelId).then(setItems, (e) => {
+      onError(errorMessage(e));
+      onClose();
+    });
+    // Загружаем один раз при открытии.
+  }, [channelId]);
+
+  const unpin = async (id: number) => {
+    try {
+      await setPinned(id, false);
+      setItems((list) => list?.filter((m) => m.id !== id) ?? null);
+    } catch (e) {
+      onError(errorMessage(e));
+    }
+  };
+
+  return (
+    <Modal title={`Закреплённые${items ? ` (${items.length})` : ''}`} onClose={onClose}>
+      {items === null ? (
+        <p className="text-zinc-400">Загрузка…</p>
+      ) : items.length === 0 ? (
+        <p className="text-zinc-400">Пока ничего не закреплено.</p>
+      ) : (
+        <ul className="max-h-[60vh] space-y-2 overflow-y-auto">
+          {items.map((m) => (
+            <li key={m.id} className="rounded bg-zinc-900 p-3 text-sm">
+              <div className="flex items-baseline gap-2 text-xs text-zinc-400">
+                <span className="font-medium text-indigo-300">{m.authorUsername}</span>
+                <time dateTime={new Date(m.createdAt).toISOString()}>{formatTime(m.createdAt)}</time>
+                <button onClick={() => unpin(m.id)} className="ml-auto text-red-400 hover:underline">
+                  Открепить
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  jumpToMessage(m.id);
+                }}
+                className="mt-1 block w-full truncate text-left text-zinc-200 hover:underline"
+              >
+                {m.content || '📎 вложение'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
+  );
+}
+
+function jumpToMessage(id: number) {
+  const el = document.getElementById(`msg-${id}`);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.animate(
+    [{ backgroundColor: 'rgba(99,102,241,0.28)' }, { backgroundColor: 'transparent' }],
+    { duration: 1200 },
+  );
+}
+
+function ReplyQuote({ reply }: { reply: NonNullable<Message['replyTo']> }) {
+  return (
+    <button
+      type="button"
+      onClick={() => jumpToMessage(reply.id)}
+      title="Перейти к сообщению"
+      className="mb-0.5 flex max-w-full items-center gap-1 border-l-2 border-zinc-600 pl-2 text-left text-xs text-zinc-400 hover:text-zinc-200"
+    >
+      <span className="shrink-0 text-indigo-300">↩ {reply.authorUsername}</span>
+      <span className="truncate">{reply.content || '📎 вложение'}</span>
+    </button>
   );
 }
 
@@ -381,7 +526,17 @@ interface Pending {
   error?: string;
 }
 
-function Composer({ channel, dropped }: { channel: ChatTarget; dropped: { files: File[] } | null }) {
+function Composer({
+  channel,
+  dropped,
+  replyTo,
+  onCancelReply,
+}: {
+  channel: ChatTarget;
+  dropped: { files: File[] } | null;
+  replyTo: Message | null;
+  onCancelReply: () => void;
+}) {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
@@ -431,16 +586,22 @@ function Composer({ channel, dropped }: { channel: ChatTarget; dropped: { files:
     if (uploading || (!text && ready.length === 0)) return;
     setError(null);
     try {
-      await sendMessage(channel.id, text, ready.map((p) => p.attachment!.id));
+      await sendMessage(channel.id, text, ready.map((p) => p.attachment!.id), replyTo?.id);
       setValue('');
       pending.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
       setPending([]);
+      onCancelReply();
     } catch (e) {
       setError(errorMessage(e)); // текст и файлы остаются в поле
     }
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Escape' && replyTo) {
+      e.preventDefault();
+      onCancelReply();
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void submit();
@@ -459,6 +620,22 @@ function Composer({ channel, dropped }: { channel: ChatTarget; dropped: { files:
   return (
     <div className="px-4 pt-2">
       <div className="rounded-lg bg-zinc-700">
+        {replyTo && (
+          <div className="flex items-center gap-2 border-b border-zinc-600 px-3 py-1.5 text-xs">
+            <span className="shrink-0 text-indigo-300">Ответ {replyTo.authorUsername}</span>
+            <span className="min-w-0 flex-1 truncate text-zinc-400">
+              {replyTo.content || '📎 вложение'}
+            </span>
+            <button
+              type="button"
+              onClick={onCancelReply}
+              aria-label="Отменить ответ"
+              className="text-zinc-400 hover:text-zinc-100"
+            >
+              ×
+            </button>
+          </div>
+        )}
         {pending.length > 0 && (
           <ul className="flex flex-wrap gap-2 p-3" aria-label="Вложения к сообщению">
             {pending.map((p) => (

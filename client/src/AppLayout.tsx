@@ -185,6 +185,7 @@ export function AppLayout() {
             key={channel.id}
             channel={{ id: channel.id, label: `#${channel.name}` }}
             canModerate={can(server, P.MANAGE_MESSAGES)}
+            canPin={can(server, P.PIN_MESSAGES)}
             onRead={() => clearUnread(server.id, channel.id)}
           />
         ) : dm ? (
@@ -194,6 +195,7 @@ export function AppLayout() {
               key={dm.id}
               channel={{ id: dm.id, label: `@${dm.username}` }}
               canModerate={false}
+              canPin={true}
               onRead={() => clearDmUnread(dm.id)}
             />
           </>

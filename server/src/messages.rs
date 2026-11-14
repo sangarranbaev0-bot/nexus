@@ -2,7 +2,7 @@ use axum::{
     Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{get, patch},
+    routing::{get, patch, put},
 };
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
@@ -18,7 +18,7 @@ use crate::{
     error::{AppError, AppResult},
     events::{Notice, notify},
     permissions,
-    protocol::{Attachment, ChannelKind, Message, MessageContent, Reaction},
+    protocol::{Attachment, ChannelKind, Message, MessageContent, Reaction, ReplyPreview},
     schema::{messages, users},
     servers::{ChannelAccess, channel_access},
 };
@@ -30,7 +30,9 @@ const MAX_PAGE: i64 = 100;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/channels/{id}/messages", get(list).post(create))
+        .route("/api/channels/{id}/pins", get(pins))
         .route("/api/messages/{id}", patch(update).delete(remove))
+        .route("/api/messages/{id}/pin", put(pin).delete(unpin))
 }
 
 type Row = (
@@ -40,6 +42,8 @@ type Row = (
     String,
     String,
     DateTime<Utc>,
+    Option<DateTime<Utc>>,
+    Option<i64>,
     Option<DateTime<Utc>>,
 );
 
@@ -51,6 +55,8 @@ fn columns() -> (
     messages::content,
     messages::created_at,
     messages::edited_at,
+    messages::reply_to_id,
+    messages::pinned_at,
 ) {
     (
         messages::id,
@@ -60,13 +66,16 @@ fn columns() -> (
         messages::content,
         messages::created_at,
         messages::edited_at,
+        messages::reply_to_id,
+        messages::pinned_at,
     )
 }
 
 fn to_message(
-    (id, channel_id, author_id, author_username, content, created, edited): Row,
+    (id, channel_id, author_id, author_username, content, created, edited, _, pinned_at): Row,
     attachments: &mut HashMap<i64, Vec<Attachment>>,
     reactions: Vec<Reaction>,
+    reply_to: Option<ReplyPreview>,
 ) -> Message {
     Message {
         id,
@@ -78,6 +87,8 @@ fn to_message(
         edited_at: edited.map(|t| t.timestamp_millis()),
         attachments: attachments.remove(&id).unwrap_or_default(),
         reactions,
+        reply_to,
+        pinned: pinned_at.is_some(),
     }
 }
 
@@ -126,11 +137,57 @@ async fn with_extras(
     let ids: Vec<i64> = rows.iter().map(|r| r.0).collect();
     let mut files = attachments::for_messages(conn, key, &ids).await?;
     let mut reactions = reactions_for(conn, &ids).await?;
+    let reply_ids: Vec<i64> = rows.iter().filter_map(|r| r.7).collect();
+    let replies = reply_previews(conn, &reply_ids).await?;
     Ok(rows
         .into_iter()
         .map(|r| {
             let reactions = reactions.remove(&r.0).unwrap_or_default();
-            to_message(r, &mut files, reactions)
+            let reply_to = r.7.and_then(|id| replies.get(&id).cloned());
+            to_message(r, &mut files, reactions, reply_to)
+        })
+        .collect())
+}
+
+#[derive(QueryableByName)]
+struct ReplyRow {
+    #[diesel(sql_type = BigInt)]
+    id: i64,
+    #[diesel(sql_type = BigInt)]
+    author_id: i64,
+    #[diesel(sql_type = Text)]
+    author_username: String,
+    #[diesel(sql_type = Text)]
+    content: String,
+}
+
+/// Цитаты для ответов: одним запросом на всю страницу, текст обрезан до 200 символов.
+async fn reply_previews(
+    conn: &mut AsyncPgConnection,
+    ids: &[i64],
+) -> AppResult<HashMap<i64, ReplyPreview>> {
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let rows: Vec<ReplyRow> = diesel::sql_query(
+        "SELECT m.id, m.author_id, u.username AS author_username, m.content \
+         FROM messages m JOIN users u ON u.id = m.author_id WHERE m.id = ANY($1)",
+    )
+    .bind::<Array<BigInt>, _>(ids.to_vec())
+    .load(conn)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            (
+                r.id,
+                ReplyPreview {
+                    id: r.id,
+                    author_id: r.author_id,
+                    author_username: r.author_username,
+                    content: r.content.chars().take(200).collect(),
+                },
+            )
         })
         .collect())
 }
@@ -206,6 +263,89 @@ async fn list(
     ))
 }
 
+/// Закреплённые сообщения канала, свежие сверху.
+async fn pins(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(channel_id): Path<i64>,
+) -> AppResult<Json<Vec<Message>>> {
+    let mut conn = state.pool.get().await?;
+    let access = channel_access(&mut conn, channel_id, user_id).await?;
+    if let Some(server_id) = access.server_id {
+        permissions::require_channel_permissions(
+            &mut conn,
+            server_id,
+            user_id,
+            channel_id,
+            permissions::VIEW_CHANNEL | permissions::READ_MESSAGE_HISTORY,
+        )
+        .await?;
+    }
+    let rows: Vec<Row> = messages::table
+        .inner_join(users::table)
+        .filter(messages::channel_id.eq(channel_id))
+        .filter(messages::pinned_at.is_not_null())
+        .order(messages::pinned_at.desc())
+        .limit(50)
+        .select(columns())
+        .load(&mut conn)
+        .await?;
+    Ok(Json(with_extras(&mut conn, &state.file_key, rows).await?))
+}
+
+async fn pin(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(message_id): Path<i64>,
+) -> AppResult<Json<Message>> {
+    set_pinned(&state, user_id, message_id, true).await
+}
+
+async fn unpin(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(message_id): Path<i64>,
+) -> AppResult<Json<Message>> {
+    set_pinned(&state, user_id, message_id, false).await
+}
+
+async fn set_pinned(
+    state: &AppState,
+    user_id: i64,
+    message_id: i64,
+    value: bool,
+) -> AppResult<Json<Message>> {
+    let mut conn = state.pool.get().await?;
+    let (channel_id, _author_id, access) = locate(&mut conn, message_id, user_id).await?;
+    if let Some(server_id) = access.server_id {
+        permissions::require_channel_permissions(
+            &mut conn,
+            server_id,
+            user_id,
+            channel_id,
+            permissions::VIEW_CHANNEL | permissions::PIN_MESSAGES,
+        )
+        .await?;
+    }
+    let pinned_at = if value { Some(Utc::now()) } else { None };
+    diesel::update(messages::table.find(message_id))
+        .set(messages::pinned_at.eq(pinned_at))
+        .execute(&mut conn)
+        .await?;
+    notify(
+        &mut conn,
+        &Notice::MessageUpdated {
+            server_id: access.server_id,
+            message_id,
+        },
+    )
+    .await?;
+    let message = load_message(&mut conn, &state.file_key, message_id)
+        .await?
+        .ok_or_else(|| AppError::not_found("message"))?;
+    Ok(Json(message))
+}
+
 async fn create(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
@@ -225,6 +365,19 @@ async fn create(
         return Err(AppError::bad_request("voice channels have no messages"));
     }
     let server_id = access.server_id;
+    if let Some(reply_id) = req.reply_to_id {
+        let target: Option<i64> = messages::table
+            .find(reply_id)
+            .select(messages::channel_id)
+            .first(&mut conn)
+            .await
+            .optional()?;
+        if target != Some(channel_id) {
+            return Err(AppError::bad_request(
+                "reply target must be in the same channel",
+            ));
+        }
+    }
     if let Some(server_id) = server_id {
         permissions::require_channel_permission(
             &mut conn,
@@ -254,6 +407,7 @@ async fn create(
                     messages::channel_id.eq(channel_id),
                     messages::author_id.eq(user_id),
                     messages::content.eq(&content),
+                    messages::reply_to_id.eq(req.reply_to_id),
                 ))
                 .returning(messages::id)
                 .get_result(conn)

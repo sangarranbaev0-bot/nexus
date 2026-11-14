@@ -99,11 +99,16 @@ export function resetMessages() {
   useMessages.setState({ logs: {}, typing: {} });
 }
 
-export async function sendMessage(channelId: number, content: string, attachmentIds: number[] = []) {
+export async function sendMessage(
+  channelId: number,
+  content: string,
+  attachmentIds: number[] = [],
+  replyToId?: number,
+) {
   applyCreated(
     await api<Message>(`/api/channels/${channelId}/messages`, {
       method: 'POST',
-      body: { content, attachmentIds },
+      body: { content, attachmentIds, replyToId },
     }),
   );
 }
@@ -124,6 +129,14 @@ export async function toggleReaction(id: number, emoji: string, mine: boolean) {
       method: mine ? 'DELETE' : 'PUT',
     }),
   );
+}
+
+export async function setPinned(id: number, pinned: boolean) {
+  applyUpdated(await api<Message>(`/api/messages/${id}/pin`, { method: pinned ? 'PUT' : 'DELETE' }));
+}
+
+export async function loadPins(channelId: number) {
+  return api<Message[]>(`/api/channels/${channelId}/pins`);
 }
 
 // --- Прочтение -------------------------------------------------------------

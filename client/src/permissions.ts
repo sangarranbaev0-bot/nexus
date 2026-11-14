@@ -26,10 +26,11 @@ export const P = {
   PRIORITY_SPEAKER: 1 << 23,
   STREAM: 1 << 24,
   ADMINISTRATOR: 1 << 25,
+  PIN_MESSAGES: 1 << 26,
 } as const;
 
 export const ALL_PERMISSIONS =
-  (1 << 26) - 1;
+  (1 << 27) - 1;
 
 export interface PermissionItem {
   bit: number;
@@ -71,6 +72,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { bit: P.MENTION_EVERYONE, label: 'Упоминать @everyone' },
       { bit: P.READ_MESSAGE_HISTORY, label: 'Читать историю' },
       { bit: P.MANAGE_MESSAGES, label: 'Удалять чужие сообщения' },
+      { bit: P.PIN_MESSAGES, label: 'Закреплять сообщения' },
       { bit: P.CREATE_THREADS, label: 'Создавать ветки' },
       { bit: P.MANAGE_THREADS, label: 'Управлять ветками' },
     ],

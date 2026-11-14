@@ -3,4 +3,4 @@
 /**
  * Тело POST и PATCH сообщения. Вложения задаются только при создании.
  */
-export type MessageContent = { content: string, attachmentIds?: Array<number>, };
+export type MessageContent = { content: string, attachmentIds?: Array<number>, replyToId?: number, };

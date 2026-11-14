@@ -200,6 +200,22 @@ pub struct Message {
     pub edited_at: Option<i64>,
     pub attachments: Vec<Attachment>,
     pub reactions: Vec<Reaction>,
+    pub reply_to: Option<ReplyPreview>,
+    pub pinned: bool,
+}
+
+/// Краткая цитата сообщения, на которое отвечают.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ReplyPreview {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub author_id: i64,
+    pub author_username: String,
+    /// Обрезанный текст (200 символов) или пустая строка, если было только вложение.
+    pub content: String,
 }
 
 /// Реакция на сообщение: эмодзи и все, кто его поставил (по порядку добавления).
@@ -236,6 +252,9 @@ pub struct MessageContent {
     #[serde(default)]
     #[ts(optional, type = "Array<number>")]
     pub attachment_ids: Option<Vec<i64>>,
+    #[serde(default)]
+    #[ts(optional, type = "number")]
+    pub reply_to_id: Option<i64>,
 }
 
 pub fn now_ms() -> i64 {

@@ -98,6 +98,8 @@ diesel::table! {
         content -> Text,
         created_at -> Timestamptz,
         edited_at -> Nullable<Timestamptz>,
+        reply_to_id -> Nullable<Int8>,
+        pinned_at -> Nullable<Timestamptz>,
     }
 }
 
