@@ -4,19 +4,19 @@ use axum::{
     Json, Router,
     extract::{Path, State},
     http::StatusCode,
-    routing::post,
+    routing::{get, post},
 };
-use diesel::sql_types::{BigInt, Int4, Text};
+use diesel::sql_types::{BigInt, Int4, Nullable, Text, Timestamptz};
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 
 use crate::{
     AppState,
     auth::AuthUser,
-    error::AppResult,
+    error::{AppError, AppResult},
     events::{Notice, notify},
     permissions::{self, VIEW_CHANNEL},
-    protocol::{Channel, ChannelKind, MarkReadRequest, Role, Server},
-    servers::channel_access,
+    protocol::{Channel, ChannelKind, MarkReadRequest, NotifyLevel, NotifySetting, Role, Server},
+    servers::{channel_access, role_in},
 };
 
 /// Чужие сообщения канала `c` после отметки прочтения из `rs` и после вступления `mem`.
@@ -129,7 +129,94 @@ pub async fn servers_with_unread(
 }
 
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/api/channels/{id}/read", post(mark_read))
+    Router::new()
+        .route("/api/channels/{id}/read", post(mark_read))
+        .route("/api/me/notifications", get(notify_list).put(notify_set))
+}
+
+#[derive(diesel::QueryableByName)]
+struct NotifyRow {
+    #[diesel(sql_type = Nullable<BigInt>)]
+    server_id: Option<i64>,
+    #[diesel(sql_type = Nullable<BigInt>)]
+    channel_id: Option<i64>,
+    #[diesel(sql_type = Text)]
+    level: String,
+    #[diesel(sql_type = Nullable<Timestamptz>)]
+    muted_until: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Все настройки уведомлений пользователя (для серверов и каналов).
+async fn notify_list(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+) -> AppResult<Json<Vec<NotifySetting>>> {
+    let mut conn = state.pool.get().await?;
+    let rows: Vec<NotifyRow> = diesel::sql_query(
+        "SELECT server_id, channel_id, level, muted_until
+         FROM notify_settings WHERE user_id = $1",
+    )
+    .bind::<BigInt, _>(user_id)
+    .load(&mut conn)
+    .await?;
+    Ok(Json(
+        rows.into_iter()
+            .filter_map(|r| {
+                let level = NotifyLevel::parse(&r.level)?;
+                Some(NotifySetting {
+                    server_id: r.server_id,
+                    channel_id: r.channel_id,
+                    level,
+                    muted_until: r.muted_until.map(|t| t.timestamp_millis()),
+                })
+            })
+            .collect(),
+    ))
+}
+
+/// Ставит настройку. Чужой сервер или невидимый канал — 404.
+async fn notify_set(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Json(req): Json<NotifySetting>,
+) -> AppResult<StatusCode> {
+    let mut conn = state.pool.get().await?;
+    let (col, target) = match (req.server_id, req.channel_id) {
+        (Some(server_id), None) => {
+            role_in(&mut conn, server_id, user_id).await?;
+            ("server_id", server_id)
+        }
+        (None, Some(channel_id)) => {
+            channel_access(&mut conn, channel_id, user_id).await?;
+            ("channel_id", channel_id)
+        }
+        _ => {
+            return Err(AppError::bad_request(
+                "set exactly one of serverId and channelId",
+            ));
+        }
+    };
+    diesel::sql_query(format!(
+        "DELETE FROM notify_settings WHERE user_id = $1 AND {col} = $2"
+    ))
+    .bind::<BigInt, _>(user_id)
+    .bind::<BigInt, _>(target)
+    .execute(&mut conn)
+    .await?;
+    diesel::sql_query(format!(
+        "INSERT INTO notify_settings (user_id, {col}, level, muted_until)
+         VALUES ($1, $2, $3, $4)"
+    ))
+    .bind::<BigInt, _>(user_id)
+    .bind::<BigInt, _>(target)
+    .bind::<Text, _>(req.level.as_str())
+    .bind::<Nullable<Timestamptz>, _>(
+        req.muted_until
+            .and_then(chrono::DateTime::from_timestamp_millis),
+    )
+    .execute(&mut conn)
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Отметка только растёт: запоздавший запрос со старым id ничего не откатит.

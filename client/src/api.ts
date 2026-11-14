@@ -44,6 +44,16 @@ const ru: Record<string, string> = {
   'cannot message yourself': 'Нельзя написать самому себе',
   'message must be 1-2000 characters': 'Сообщение: от 1 до 2000 символов',
   'message not found': 'Сообщение не найдено',
+  'username is required': 'Укажите имя пользователя',
+  'cannot friend yourself': 'Нельзя добавить самого себя',
+  'already friends': 'Вы уже друзья',
+  'request already sent': 'Заявка уже отправлена',
+  'incoming request exists': 'Этот пользователь уже отправил вам заявку',
+  'cannot remove yourself': 'Нельзя удалить самого себя',
+  'cannot block yourself': 'Нельзя заблокировать самого себя',
+  blocked: 'Действие недоступно: пользователь в блокировке',
+  'a group needs 3-10 people': 'В группе должно быть от 3 до 10 человек',
+  'group name is too long': 'Название группы слишком длинное',
 };
 
 async function parse<T>(res: Response): Promise<T> {

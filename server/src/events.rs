@@ -86,6 +86,14 @@ pub enum Notice {
         server_id: Option<i64>,
         channel_id: i64,
     },
+    /// У этих пользователей изменились друзья, заявки или блокировки.
+    FriendsChanged {
+        user_ids: Vec<i64>,
+    },
+    /// У этих пользователей изменились личные диалоги или группы.
+    DmsChanged {
+        user_ids: Vec<i64>,
+    },
 }
 
 /// Событие внутри экземпляра, которое получают WebSocket-подключения.
@@ -253,6 +261,26 @@ async fn handle(state: &AppState, payload: &str) {
                 Event::ToUsers {
                     user_ids: [user_id].into(),
                     json: to_json(&msg),
+                },
+            );
+            Ok(())
+        }
+        Notice::FriendsChanged { user_ids } => {
+            send(
+                state,
+                Event::ToUsers {
+                    user_ids: user_ids.into(),
+                    json: to_json(&ServerMessage::FriendsChanged),
+                },
+            );
+            Ok(())
+        }
+        Notice::DmsChanged { user_ids } => {
+            send(
+                state,
+                Event::ToUsers {
+                    user_ids: user_ids.into(),
+                    json: to_json(&ServerMessage::DmsChanged),
                 },
             );
             Ok(())

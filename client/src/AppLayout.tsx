@@ -10,7 +10,9 @@ import {
   NewDmDialog,
   StatusDot,
 } from "./Dialogs";
-import { clearDmUnread, loadDms, useDms } from "./dms";
+import { clearDmUnread, dmTitle, loadDms, useDms } from "./dms";
+import { FriendsPage } from "./FriendsPage";
+import { GroupActions, GroupHeader } from "./Groups";
 import { joinVoice, useVoice } from "./voice";
 import { VoicePanel, VoiceRoster, VoiceStage } from "./VoiceView";
 import type { DmChannel } from "./generated/DmChannel";
@@ -27,7 +29,9 @@ import {
   useGuilds,
 } from "./guilds";
 import { P } from "./permissions";
-import { errorMessage } from "./Modal";
+import { Modal, errorMessage } from "./Modal";
+import { NotifyControls } from "./NotifyControls";
+import { loadNotifySettings } from "./notify";
 import { ServerSettingsDialog } from "./Settings";
 import { presenceView } from "./presence";
 import { logout, useSession } from "./session";
@@ -40,6 +44,7 @@ type Dialog =
   | "members"
   | "newDm"
   | "settings"
+  | "notify"
   | null;
 
 export function AppLayout() {
@@ -68,6 +73,7 @@ export function AppLayout() {
   useEffect(() => {
     loadServers().catch((e) => setLoadError(errorMessage(e)));
     loadDms().catch((e) => setLoadError(errorMessage(e)));
+    loadNotifySettings().catch(() => {});
   }, []);
   useEffect(() => {
     if (serverId && servers?.some((s) => s.id === serverId)) {
@@ -164,13 +170,31 @@ export function AppLayout() {
               {channel.name}
             </>
           )}
-          {dm && (
+          {dm && dm.isGroup && (
+            <>
+              <GroupHeader dm={dm} />
+              <DmCallButton dm={dm} />
+              <GroupActions dm={dm} />
+            </>
+          )}
+          {dm && !dm.isGroup && (
             <>
               <span className="text-zinc-500">@</span>
               {dm.username}
               <StatusDot userId={dm.userId} fallback={dm.status} />
               <DmCallButton dm={dm} />
             </>
+          )}
+          {isHome && !dm && <span>Друзья</span>}
+          {server && (
+            <button
+              onClick={() => setDialog("notify")}
+              title="Уведомления"
+              aria-label="Настройки уведомлений"
+              className="ml-auto rounded px-2 py-1 text-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+            >
+              🔔
+            </button>
           )}
         </header>
         {server && channel?.kind === "voice" ? (
@@ -193,18 +217,14 @@ export function AppLayout() {
             <DmCall dm={dm} />
             <ChatView
               key={dm.id}
-              channel={{ id: dm.id, label: `@${dm.username}`, unread: dm.unreadCount }}
+              channel={{ id: dm.id, label: dmTitle(dm), unread: dm.unreadCount }}
               canModerate={false}
               canPin={true}
               onRead={() => clearDmUnread(dm.id)}
             />
           </>
         ) : isHome ? (
-          <HomePlaceholder
-            noServers={servers?.length === 0}
-            onNewDm={() => setDialog("newDm")}
-            onAddServer={() => setDialog("addServer")}
-          />
+          <FriendsPage />
         ) : (
           <section className="grid flex-1 place-items-center text-zinc-400">
             {server && channels?.length === 0 && "На сервере пока нет каналов."}
@@ -228,42 +248,21 @@ export function AppLayout() {
       {server && dialog === "settings" && (
         <ServerSettingsDialog server={server} onClose={() => setDialog(null)} />
       )}
-    </div>
-  );
-}
-
-function HomePlaceholder({
-  noServers,
-  onNewDm,
-  onAddServer,
-}: {
-  noServers: boolean;
-  onNewDm: () => void;
-  onAddServer: () => void;
-}) {
-  return (
-    <div className="grid flex-1 place-items-center p-8 text-center">
-      <div className="space-y-4">
-        <p className="text-lg text-zinc-300">
-          Выберите диалог слева или напишите кому-нибудь.
-        </p>
-        <div className="flex justify-center gap-2">
-          <button
-            onClick={onNewDm}
-            className="rounded bg-indigo-500 px-4 py-2 font-medium hover:bg-indigo-600"
-          >
-            Написать
-          </button>
-          {noServers && (
-            <button
-              onClick={onAddServer}
-              className="rounded bg-zinc-700 px-4 py-2 font-medium hover:bg-zinc-600"
-            >
-              Создать или вступить на сервер
-            </button>
-          )}
-        </div>
-      </div>
+      {server && dialog === "notify" && (
+        <Modal
+          title={`Уведомления · ${channel ? `#${channel.name}` : server.name}`}
+          onClose={() => setDialog(null)}
+        >
+          <NotifyControls
+            target={channel ? { channelId: channel.id } : { serverId: server.id }}
+            inheritHint={
+              channel
+                ? `Для этого канала. Если не менять — действует настройка сервера «${server.name}».`
+                : undefined
+            }
+          />
+        </Modal>
+      )}
     </div>
   );
 }
@@ -294,7 +293,7 @@ function DmList({ dms, onNew }: { dms: DmChannel[]; onNew: () => void }) {
               to={`/channels/@me/${d.id}`}
               aria-label={
                 d.unreadCount
-                  ? `${d.username}, непрочитанных: ${formatBadge(d.unreadCount)}`
+                  ? `${dmTitle(d)}, непрочитанных: ${formatBadge(d.unreadCount)}`
                   : undefined
               }
               className={({ isActive }) =>
@@ -308,7 +307,7 @@ function DmList({ dms, onNew }: { dms: DmChannel[]; onNew: () => void }) {
               }
             >
               <StatusDot userId={d.userId} fallback={d.status} />
-              <span className="flex-1 truncate">{d.username}</span>
+              <span className="flex-1 truncate">{dmTitle(d)}</span>
               <CallMarker channelId={d.id} />
               {d.unreadCount > 0 && (
                 <span
@@ -670,7 +669,7 @@ function DmCallButton({ dm }: { dm: DmChannel }) {
     <button
       onClick={() => void joinVoice(dm.id, null)}
       title="Позвонить"
-      aria-label={`Позвонить ${dm.username}`}
+      aria-label={`Позвонить ${dmTitle(dm)}`}
       className="ml-auto rounded px-2 py-1 text-lg hover:bg-zinc-700"
     >
       📞
@@ -688,7 +687,7 @@ function DmCall({ dm }: { dm: DmChannel }) {
     <VoiceStage
       channelId={dm.id}
       serverId={null}
-      label={`@${dm.username}`}
+      label={dmTitle(dm)}
       compact
     />
   );

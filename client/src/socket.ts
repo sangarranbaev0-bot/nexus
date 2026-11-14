@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { getAccessToken, refreshSession } from './api';
 import type { ClientMessage } from './generated/ClientMessage';
 import type { ServerMessage } from './generated/ServerMessage';
-import { bumpDm, clearDmUnread, isDm, reloadDmsSoon } from './dms';
+import { bumpDm, clearDmUnread, isDm, loadDms, reloadDmsSoon } from './dms';
 import type { Message } from './generated/Message';
 import {
   bumpUnread,
@@ -12,6 +12,7 @@ import {
   loadRoles,
   serverOfChannel,
 } from './guilds';
+import { bumpFriends } from './friends';
 import { applyCreated, applyDeleted, applyTyping, applyUpdated, isViewing, resetMessages } from './messages';
 import { applyPresence, watchIdle } from './presence';
 import { signOutLocal, useSession } from './session';
@@ -144,6 +145,13 @@ export function connectSocket(): () => void {
         case 'channelRead':
           if (msg.serverId === null) clearDmUnread(msg.channelId);
           else clearUnread(msg.serverId, msg.channelId);
+          break;
+        case 'friendsChanged':
+          bumpFriends();
+          void loadDms().catch(() => {});
+          break;
+        case 'dmsChanged':
+          void loadDms().catch(() => {});
           break;
       }
     };

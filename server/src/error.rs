@@ -25,6 +25,9 @@ impl AppError {
     pub fn forbidden() -> Self {
         Self(StatusCode::FORBIDDEN, "forbidden".into())
     }
+    pub fn forbidden_with(msg: impl Into<String>) -> Self {
+        Self(StatusCode::FORBIDDEN, msg.into())
+    }
     pub fn not_found(what: &str) -> Self {
         Self(StatusCode::NOT_FOUND, format!("{what} not found"))
     }

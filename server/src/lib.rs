@@ -3,6 +3,7 @@ pub mod auth;
 mod dms;
 pub mod error;
 pub mod events;
+mod friends;
 mod messages;
 pub mod permissions;
 pub mod presence;
@@ -98,6 +99,7 @@ pub fn app(state: AppState) -> Router {
         .merge(reactions::routes())
         .merge(reads::routes())
         .merge(dms::routes())
+        .merge(friends::routes())
         .merge(attachments::routes())
         .merge(voice::routes())
         .layer(TraceLayer::new_for_http())

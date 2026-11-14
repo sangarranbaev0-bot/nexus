@@ -14,4 +14,4 @@ connId: number, userId: number, } | { "type": "pong", sentAt: number, serverTime
 /**
  * `null` — личные сообщения.
  */
-serverId: number | null, channelId: number, };
+serverId: number | null, channelId: number, } | { "type": "friendsChanged" } | { "type": "dmsChanged" };

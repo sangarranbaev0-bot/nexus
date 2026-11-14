@@ -40,6 +40,10 @@ diesel::allow_tables_to_appear_in_same_query!(
     categories,
     channel_overwrites,
     audit_log,
+    friend_requests,
+    friends,
+    blocks,
+    notify_settings,
 );
 
 diesel::table! {
@@ -139,6 +143,41 @@ diesel::table! {
     dm_participants (channel_id, user_id) {
         channel_id -> Int8,
         user_id -> Int8,
+    }
+}
+
+diesel::table! {
+    friend_requests (id) {
+        id -> Int8,
+        from_user_id -> Int8,
+        to_user_id -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    friends (user_id, friend_id) {
+        user_id -> Int8,
+        friend_id -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    blocks (user_id, blocked_id) {
+        user_id -> Int8,
+        blocked_id -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    notify_settings (user_id, server_id, channel_id) {
+        user_id -> Int8,
+        server_id -> Nullable<Int8>,
+        channel_id -> Nullable<Int8>,
+        level -> Text,
+        muted_until -> Nullable<Timestamptz>,
     }
 }
 

@@ -362,6 +362,11 @@ async fn create(
     if access.kind == ChannelKind::Voice {
         return Err(AppError::bad_request("voice channels have no messages"));
     }
+    if access.server_id.is_none()
+        && crate::friends::dm_has_block(&mut conn, channel_id, user_id).await?
+    {
+        return Err(AppError::forbidden_with("blocked"));
+    }
     let server_id = access.server_id;
     if let Some(reply_id) = req.reply_to_id {
         let target: Option<i64> = messages::table

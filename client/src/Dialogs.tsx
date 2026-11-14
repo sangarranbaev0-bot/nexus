@@ -16,7 +16,7 @@ import {
   useGuilds,
 } from "./guilds";
 import { P, colorToCss } from "./permissions";
-import { openDm } from "./dms";
+import { openDm, createGroup } from "./dms";
 import {
   Modal,
   errorMessage,
@@ -444,35 +444,86 @@ export function StatusDot({
 
 export function NewDmDialog({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
-  const { onSubmit, error, pending } = useSubmit(async (value) => {
-    const dm = await openDm(value);
-    onClose();
-    navigate(`/channels/@me/${dm.id}`);
-  });
+  const [group, setGroup] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const value = String(f.get("value") ?? "");
+    setPending(true);
+    setError(null);
+    try {
+      const dm = group
+        ? await createGroup(
+            value
+              .split(/[,\n]/)
+              .map((u) => u.trim())
+              .filter(Boolean),
+            String(f.get("name") ?? ""),
+          )
+        : await openDm(value);
+      onClose();
+      navigate(`/channels/@me/${dm.id}`);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setPending(false);
+    }
+  };
 
   return (
-    <Modal title="Написать сообщение" onClose={onClose}>
+    <Modal title={group ? "Создать группу" : "Написать сообщение"} onClose={onClose}>
       <form onSubmit={onSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Тип диалога">
+          {(
+            [
+              [false, "👤 Личный"],
+              [true, "👥 Группа"],
+            ] as const
+          ).map(([g, title]) => (
+            <button
+              key={title}
+              type="button"
+              role="radio"
+              aria-checked={group === g}
+              onClick={() => setGroup(g)}
+              className={`rounded p-2 ${group === g ? "bg-zinc-700" : "bg-zinc-900"}`}
+            >
+              {title}
+            </button>
+          ))}
+        </div>
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
-            Имя пользователя
+            {group ? "Имена участников через запятую (2-9)" : "Имя пользователя"}
           </span>
           <input
+            key={String(group)}
             name="value"
             required
             autoFocus
-            maxLength={32}
-            placeholder="например, bob"
+            maxLength={group ? 400 : 32}
+            placeholder={group ? "bob, alice, kim" : "например, bob"}
             className={inputClass}
           />
         </label>
+        {group && (
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+              Название группы (необязательно)
+            </span>
+            <input name="name" maxLength={100} className={inputClass} />
+          </label>
+        )}
         <ErrorText error={error} />
         <div className="flex justify-end gap-2">
           <button type="button" className={ghostButton} onClick={onClose}>
             Отмена
           </button>
           <button disabled={pending} className={primaryButton}>
-            Открыть диалог
+            {group ? "Создать группу" : "Открыть диалог"}
           </button>
         </div>
       </form>

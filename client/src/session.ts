@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api, refreshSession, setAccessToken } from './api';
 import { useDms } from './dms';
+import { resetFriends } from './friends';
 import { useGuilds } from './guilds';
 import type { AuthResponse } from './generated/AuthResponse';
 import type { LoginRequest } from './generated/LoginRequest';
@@ -24,6 +25,7 @@ export const signOutLocal = () => {
   useSession.setState({ status: 'anon', user: null });
   useGuilds.setState({ servers: null, channels: {} });
   useDms.setState({ dms: null });
+  resetFriends();
 };
 
 /** При загрузке страницы пытаемся восстановить сессию по refresh-cookie. */

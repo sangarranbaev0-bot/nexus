@@ -23,6 +23,7 @@ import {
   inputClass,
   primaryButton,
 } from "./Modal";
+import { NotifyControls } from "./NotifyControls";
 import {
   P,
   PERMISSION_GROUPS,
@@ -31,12 +32,13 @@ import {
   togglePerm,
 } from "./permissions";
 
-type Tab = "roles" | "categories" | "audit";
+type Tab = "roles" | "categories" | "audit" | "notify";
 
 const tabLabel: Record<Tab, string> = {
   roles: "Роли",
   categories: "Категории",
   audit: "Аудит",
+  notify: "Уведомления",
 };
 
 export function ServerSettingsDialog({
@@ -51,13 +53,16 @@ export function ServerSettingsDialog({
       ? "roles"
       : hasPerm(server.myPermissions, P.MANAGE_CHANNELS)
         ? "categories"
-        : "audit",
+        : hasPerm(server.myPermissions, P.VIEW_AUDIT_LOG)
+          ? "audit"
+          : "notify",
   );
   const tabs: Tab[] = [];
   if (hasPerm(server.myPermissions, P.MANAGE_ROLES)) tabs.push("roles");
   if (hasPerm(server.myPermissions, P.MANAGE_CHANNELS))
     tabs.push("categories");
   if (hasPerm(server.myPermissions, P.VIEW_AUDIT_LOG)) tabs.push("audit");
+  tabs.push("notify");
   return (
     <Modal title={`Настройки «${server.name}»`} onClose={onClose}>
       <div role="tablist" className="flex gap-1 border-b border-zinc-700 pb-2">
@@ -81,6 +86,12 @@ export function ServerSettingsDialog({
         {tab === "roles" && <RolesTab server={server} />}
         {tab === "categories" && <CategoriesTab server={server} />}
         {tab === "audit" && <AuditTab server={server} />}
+        {tab === "notify" && (
+          <NotifyControls
+            target={{ serverId: server.id }}
+            inheritHint="Каналы наследуют эту настройку, если для них не задано своё значение."
+          />
+        )}
       </div>
     </Modal>
   );

@@ -12,6 +12,16 @@ export async function loadDms() {
   useDms.setState({ dms });
 }
 
+/** Название диалога: у группы — имя или список участников, у ЛС — собеседник. */
+export const dmTitle = (d: DmChannel) =>
+  d.isGroup ? d.name || d.members.map((m) => m.username).join(', ') : d.username;
+
+export async function createGroup(usernames: string[], name: string) {
+  const dm = await api<DmChannel>('/api/dms/group', { method: 'POST', body: { usernames, name } });
+  useDms.setState((s) => ({ dms: [dm, ...(s.dms ?? []).filter((d) => d.id !== dm.id)] }));
+  return dm;
+}
+
 export async function openDm(username: string) {
   const dm = await api<DmChannel>('/api/dms', { method: 'POST', body: { username } });
   useDms.setState((s) => ({ dms: [dm, ...(s.dms ?? []).filter((d) => d.id !== dm.id)] }));

@@ -179,6 +179,10 @@ pub enum ServerMessage {
         #[ts(type = "number")]
         channel_id: i64,
     },
+    /// Список друзей, заявок или блокировок изменился: клиент перечитывает их.
+    FriendsChanged,
+    /// Состав или название личного диалога/группы изменились.
+    DmsChanged,
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
@@ -641,15 +645,136 @@ pub struct AuditEntry {
 pub struct DmChannel {
     #[ts(type = "number")]
     pub id: i64,
+    /// Собеседник (в группе — первый по алфавиту другой участник).
     #[ts(type = "number")]
     pub user_id: i64,
     pub username: String,
     pub status: Presence,
     pub unread_count: i32,
+    pub is_group: bool,
+    /// Название группы; пустое — показываем имена участников.
+    pub name: String,
+    /// Все участники, кроме вас.
+    pub members: Vec<DmMember>,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DmMember {
+    #[ts(type = "number")]
+    pub user_id: i64,
+    pub username: String,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateGroupRequest {
+    pub usernames: Vec<String>,
+    #[ts(optional)]
+    pub name: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug)]
+#[ts(export)]
+pub struct NameRequest {
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct OpenDmRequest {
     pub username: String,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Friend {
+    #[ts(type = "number")]
+    pub user_id: i64,
+    pub username: String,
+    pub status: Presence,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct FriendRequest {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub from_user_id: i64,
+    pub from_username: String,
+    #[ts(type = "number")]
+    pub to_user_id: i64,
+    pub to_username: String,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct FriendRequests {
+    pub incoming: Vec<FriendRequest>,
+    pub outgoing: Vec<FriendRequest>,
+}
+
+#[derive(Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SendFriendRequest {
+    pub username: String,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BlockedUser {
+    #[ts(type = "number")]
+    pub user_id: i64,
+    pub username: String,
+}
+
+/// Порог уведомлений: все сообщения, только @упоминания или ничего.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum NotifyLevel {
+    All,
+    Mentions,
+    None,
+}
+
+impl NotifyLevel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            NotifyLevel::All => "all",
+            NotifyLevel::Mentions => "mentions",
+            NotifyLevel::None => "none",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "all" => Some(NotifyLevel::All),
+            "mentions" => Some(NotifyLevel::Mentions),
+            "none" => Some(NotifyLevel::None),
+            _ => None,
+        }
+    }
+}
+
+/// Настройка уведомлений для сервера или канала (ровно одно из двух полей задано).
+/// `mutedUntil` — Unix-время в мс, до которого уведомления подавлены полностью.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct NotifySetting {
+    #[ts(type = "number | null")]
+    pub server_id: Option<i64>,
+    #[ts(type = "number | null")]
+    pub channel_id: Option<i64>,
+    pub level: NotifyLevel,
+    #[ts(type = "number | null")]
+    pub muted_until: Option<i64>,
 }
