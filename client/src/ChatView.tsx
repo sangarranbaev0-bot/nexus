@@ -11,6 +11,7 @@ import {
   loadOlder,
   markRead,
   sendMessage,
+  toggleReaction,
   useMessages,
 } from './messages';
 import { errorMessage } from './Modal';
@@ -233,6 +234,7 @@ function MessageItem({
         )
       )}
       <Attachments files={m.attachments} />
+      <ReactionBar message={m} me={me?.id} onError={onError} />
       {!editing && (mine || canModerate) && (
         <div className="absolute -top-3 right-4 hidden gap-1 rounded bg-zinc-900 p-0.5 shadow group-focus-within:flex group-hover:flex">
           {mine && (
@@ -246,6 +248,84 @@ function MessageItem({
         </div>
       )}
     </article>
+  );
+}
+
+const QUICK_REACTIONS = ['👍', '😂', '❤️', '🔥', '👀', '✅'];
+
+function ReactionBar({ message, me, onError }: { message: Message; me?: number; onError: (e: string) => void }) {
+  const [picker, setPicker] = useState(false);
+  const [custom, setCustom] = useState('');
+  const mine = (emoji: string) =>
+    me !== undefined && message.reactions.some((r) => r.emoji === emoji && r.userIds.includes(me));
+
+  const toggle = async (emoji: string) => {
+    if (!emoji) return;
+    try {
+      await toggleReaction(message.id, emoji, mine(emoji));
+      setCustom('');
+    } catch (e) {
+      onError(errorMessage(e));
+    }
+  };
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1">
+      {message.reactions.map((r) => {
+        const active = me !== undefined && r.userIds.includes(me);
+        return (
+          <button
+            key={r.emoji}
+            type="button"
+            onClick={() => toggle(r.emoji)}
+            title={active ? 'Снять реакцию' : 'Поставить реакцию'}
+            className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-sm ${
+              active ? 'bg-indigo-600/40 text-indigo-100' : 'bg-zinc-700/60 text-zinc-200'
+            } hover:bg-zinc-600`}
+          >
+            <span>{r.emoji}</span>
+            <span className="text-xs text-zinc-300">{r.userIds.length}</span>
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        onClick={() => setPicker((v) => !v)}
+        title="Добавить реакцию"
+        aria-label="Добавить реакцию"
+        className="rounded px-1.5 py-0.5 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+      >
+        🙂+
+      </button>
+      {picker && (
+        <div className="flex flex-wrap items-center gap-1 rounded bg-zinc-800 p-1 shadow">
+          {QUICK_REACTIONS.map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => toggle(e)}
+              className="rounded px-1 text-lg hover:bg-zinc-700"
+            >
+              {e}
+            </button>
+          ))}
+          <input
+            value={custom}
+            maxLength={16}
+            placeholder="эмодзи"
+            aria-label="Своя реакция"
+            onChange={(e) => setCustom(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && custom.trim()) {
+                e.preventDefault();
+                void toggle(custom.trim());
+              }
+            }}
+            className="w-24 rounded bg-zinc-700 px-2 py-0.5 text-sm outline-none placeholder:text-zinc-500"
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

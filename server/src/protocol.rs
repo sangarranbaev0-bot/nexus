@@ -199,6 +199,17 @@ pub struct Message {
     #[ts(type = "number | null")]
     pub edited_at: Option<i64>,
     pub attachments: Vec<Attachment>,
+    pub reactions: Vec<Reaction>,
+}
+
+/// Реакция на сообщение: эмодзи и все, кто его поставил (по порядку добавления).
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Reaction {
+    pub emoji: String,
+    #[ts(type = "Array<number>")]
+    pub user_ids: Vec<i64>,
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]

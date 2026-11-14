@@ -6,6 +6,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
+use diesel::sql_types::{Array, BigInt, Text};
 use std::collections::HashMap;
 
 use diesel_async::{AsyncConnection, AsyncPgConnection, RunQueryDsl};
@@ -17,7 +18,7 @@ use crate::{
     error::{AppError, AppResult},
     events::{Notice, notify},
     permissions,
-    protocol::{Attachment, ChannelKind, Message, MessageContent},
+    protocol::{Attachment, ChannelKind, Message, MessageContent, Reaction},
     schema::{messages, users},
     servers::{ChannelAccess, channel_access},
 };
@@ -65,6 +66,7 @@ fn columns() -> (
 fn to_message(
     (id, channel_id, author_id, author_username, content, created, edited): Row,
     attachments: &mut HashMap<i64, Vec<Attachment>>,
+    reactions: Vec<Reaction>,
 ) -> Message {
     Message {
         id,
@@ -75,20 +77,61 @@ fn to_message(
         created_at: created.timestamp_millis(),
         edited_at: edited.map(|t| t.timestamp_millis()),
         attachments: attachments.remove(&id).unwrap_or_default(),
+        reactions,
     }
 }
 
-/// Строки сообщений вместе с их вложениями (одним запросом на все вложения).
-async fn with_attachments(
+#[derive(QueryableByName)]
+struct ReactionRow {
+    #[diesel(sql_type = BigInt)]
+    message_id: i64,
+    #[diesel(sql_type = Text)]
+    emoji: String,
+    #[diesel(sql_type = Array<BigInt>)]
+    user_ids: Vec<i64>,
+}
+
+/// Реакции сразу для всех сообщений страницы: один запрос, порядок по первому появлению.
+async fn reactions_for(
+    conn: &mut AsyncPgConnection,
+    ids: &[i64],
+) -> AppResult<HashMap<i64, Vec<Reaction>>> {
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let rows: Vec<ReactionRow> = diesel::sql_query(
+        "SELECT message_id, emoji, array_agg(user_id ORDER BY created_at, user_id) AS user_ids \
+         FROM message_reactions WHERE message_id = ANY($1) \
+         GROUP BY message_id, emoji ORDER BY min(created_at), emoji",
+    )
+    .bind::<Array<BigInt>, _>(ids.to_vec())
+    .load(conn)
+    .await?;
+    let mut out: HashMap<i64, Vec<Reaction>> = HashMap::new();
+    for row in rows {
+        out.entry(row.message_id).or_default().push(Reaction {
+            emoji: row.emoji,
+            user_ids: row.user_ids,
+        });
+    }
+    Ok(out)
+}
+
+/// Строки сообщений вместе с вложениями и реакциями (по запросу на страницу).
+async fn with_extras(
     conn: &mut AsyncPgConnection,
     key: &[u8],
     rows: Vec<Row>,
 ) -> AppResult<Vec<Message>> {
     let ids: Vec<i64> = rows.iter().map(|r| r.0).collect();
     let mut files = attachments::for_messages(conn, key, &ids).await?;
+    let mut reactions = reactions_for(conn, &ids).await?;
     Ok(rows
         .into_iter()
-        .map(|r| to_message(r, &mut files))
+        .map(|r| {
+            let reactions = reactions.remove(&r.0).unwrap_or_default();
+            to_message(r, &mut files, reactions)
+        })
         .collect())
 }
 
@@ -104,7 +147,7 @@ pub async fn load_message(
         .first(conn)
         .await
         .optional()?;
-    Ok(with_attachments(conn, key, row.into_iter().collect())
+    Ok(with_extras(conn, key, row.into_iter().collect())
         .await?
         .pop())
 }
@@ -159,7 +202,7 @@ async fn list(
     let mut rows: Vec<Row> = query.load(&mut conn).await?;
     rows.reverse();
     Ok(Json(
-        with_attachments(&mut conn, &state.file_key, rows).await?,
+        with_extras(&mut conn, &state.file_key, rows).await?,
     ))
 }
 
@@ -236,7 +279,7 @@ async fn create(
 }
 
 /// Канал, автор и доступ к сообщению. Посторонним 404, как и для серверов.
-async fn locate(
+pub(crate) async fn locate(
     conn: &mut AsyncPgConnection,
     message_id: i64,
     user_id: i64,

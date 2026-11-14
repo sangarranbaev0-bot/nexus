@@ -117,6 +117,15 @@ export async function deleteMessage(m: Message) {
   applyDeleted(m.channelId, m.id);
 }
 
+/** Поставить или снять реакцию. `mine` — стоит ли она уже у текущего пользователя. */
+export async function toggleReaction(id: number, emoji: string, mine: boolean) {
+  applyUpdated(
+    await api<Message>(`/api/messages/${id}/reactions/${encodeURIComponent(emoji)}`, {
+      method: mine ? 'DELETE' : 'PUT',
+    }),
+  );
+}
+
 // --- Прочтение -------------------------------------------------------------
 
 /** Что сейчас на экране: канал и прокручен ли он до низа. Ставит ChatView. */

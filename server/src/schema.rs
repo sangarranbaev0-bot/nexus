@@ -105,6 +105,18 @@ diesel::joinable!(messages -> channels (channel_id));
 diesel::joinable!(messages -> users (author_id));
 
 diesel::table! {
+    message_reactions (message_id, user_id, emoji) {
+        message_id -> Int8,
+        user_id -> Int8,
+        emoji -> Text,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::joinable!(message_reactions -> messages (message_id));
+diesel::joinable!(message_reactions -> users (user_id));
+
+diesel::table! {
     read_states (user_id, channel_id) {
         user_id -> Int8,
         channel_id -> Int8,

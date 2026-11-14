@@ -7,6 +7,7 @@ mod messages;
 pub mod permissions;
 pub mod presence;
 pub mod protocol;
+mod reactions;
 mod reads;
 mod roles;
 pub mod schema;
@@ -94,6 +95,7 @@ pub fn app(state: AppState) -> Router {
         .merge(servers::routes())
         .merge(roles::routes())
         .merge(messages::routes())
+        .merge(reactions::routes())
         .merge(reads::routes())
         .merge(dms::routes())
         .merge(attachments::routes())
