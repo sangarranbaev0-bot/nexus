@@ -14,6 +14,7 @@ import {
   loadRoles,
   setMemberRole,
   useGuilds,
+  wave,
 } from "./guilds";
 import { P, colorToCss } from "./permissions";
 import { openDm, createGroup } from "./dms";
@@ -295,6 +296,15 @@ export function MembersDialog({
     }
   };
 
+  const waveHello = async () => {
+    setError(null);
+    try {
+      await wave(server.id);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+
   const toggle = async (m: Member) => {
     setError(null);
     try {
@@ -311,6 +321,11 @@ export function MembersDialog({
 
   return (
     <Modal title="Участники" onClose={onClose}>
+      <div className="mb-3 flex justify-end">
+        <button onClick={waveHello} className="text-sm text-indigo-400 hover:underline">
+          👋 Помахать
+        </button>
+      </div>
       <ul className="max-h-80 divide-y divide-zinc-700 overflow-y-auto">
         {members?.map((m) => (
           <li key={m.userId} className="py-2">

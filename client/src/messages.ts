@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from './api';
 import type { Message } from './generated/Message';
+import type { MessageEdit } from './generated/MessageEdit';
 
 const PAGE = 50;
 export const TYPING_TTL_MS = 6000;
@@ -137,6 +138,11 @@ export async function setPinned(id: number, pinned: boolean) {
 
 export async function loadPins(channelId: number) {
   return api<Message[]>(`/api/channels/${channelId}/pins`);
+}
+
+/** Предыдущие версии сообщения, свежие сверху. */
+export async function loadEdits(messageId: number) {
+  return api<MessageEdit[]>(`/api/messages/${messageId}/edits`);
 }
 
 // --- Прочтение -------------------------------------------------------------

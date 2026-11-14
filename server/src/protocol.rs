@@ -44,6 +44,18 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+/// Одна предыдущая версия сообщения.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MessageEdit {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub content: String,
+    #[ts(type = "number")]
+    pub edited_at: i64,
+}
+
 /// Ответ на register/login/refresh. Refresh-токен приходит отдельно, в httpOnly cookie.
 #[derive(Serialize, Deserialize, TS, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -183,6 +195,10 @@ pub enum ServerMessage {
     FriendsChanged,
     /// Состав или название личного диалога/группы изменились.
     DmsChanged,
+    /// Новое уведомление пришло этому пользователю (только его подключениям).
+    NotificationCreated {
+        notification: Notification,
+    },
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
@@ -206,6 +222,10 @@ pub struct Message {
     pub reactions: Vec<Reaction>,
     pub reply_to: Option<ReplyPreview>,
     pub pinned: bool,
+    /// Тип системного события (`memberJoin`, `channelCreate`, `roleUpdate`, `welcome`); `null` — обычное.
+    pub system_kind: Option<String>,
+    /// Дополнительные данные события (имя канала/роль).
+    pub system_detail: Option<String>,
 }
 
 /// Краткая цитата сообщения, на которое отвечают.
@@ -312,6 +332,9 @@ pub struct Server {
     pub my_permissions: i64,
     /// Сумма непрочитанных по каналам (больше ста почти не бывает, считаем максимум 100).
     pub unread_count: i32,
+    /// Канал событий сервера (вход, создание канала, роли); `null` — не задан.
+    #[ts(type = "number | null")]
+    pub system_channel_id: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone)]
@@ -766,6 +789,7 @@ impl NotifyLevel {
 
 /// Настройка уведомлений для сервера или канала (ровно одно из двух полей задано).
 /// `mutedUntil` — Unix-время в мс, до которого уведомления подавлены полностью.
+/// `suppressEveryone` глушит @everyone/@here, даже если у автора есть право.
 #[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -777,4 +801,82 @@ pub struct NotifySetting {
     pub level: NotifyLevel,
     #[ts(type = "number | null")]
     pub muted_until: Option<i64>,
+    pub suppress_everyone: bool,
+}
+
+/// Почему пришло уведомление.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum NotificationKind {
+    Mention,
+    Reply,
+    Word,
+    Everyone,
+}
+
+impl NotificationKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            NotificationKind::Mention => "mention",
+            NotificationKind::Reply => "reply",
+            NotificationKind::Word => "word",
+            NotificationKind::Everyone => "everyone",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "mention" => Some(NotificationKind::Mention),
+            "reply" => Some(NotificationKind::Reply),
+            "word" => Some(NotificationKind::Word),
+            "everyone" => Some(NotificationKind::Everyone),
+            _ => None,
+        }
+    }
+}
+
+/// Запись центра уведомлений.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Notification {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub kind: NotificationKind,
+    #[ts(type = "number | null")]
+    pub server_id: Option<i64>,
+    #[ts(type = "number")]
+    pub channel_id: i64,
+    #[ts(type = "number")]
+    pub message_id: i64,
+    #[ts(type = "number")]
+    pub actor_id: i64,
+    pub actor_username: String,
+    /// Обрезанный текст сообщения (200 символов).
+    pub preview: String,
+    /// Unix-время в мс.
+    #[ts(type = "number")]
+    pub created_at: i64,
+    pub read: bool,
+    /// Название сервера или собеседника для подписи.
+    pub location: String,
+}
+
+/// Слово-триггер пользователя.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct NotifyWord {
+    pub word: String,
+    pub case_sensitive: bool,
+}
+
+/// Тело добавления слова-триггера.
+#[derive(Serialize, Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AddNotifyWord {
+    pub word: String,
+    pub case_sensitive: bool,
 }

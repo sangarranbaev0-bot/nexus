@@ -18,8 +18,10 @@ use crate::{
     error::{AppError, AppResult},
     events::{Notice, notify},
     permissions,
-    protocol::{Attachment, ChannelKind, Message, MessageContent, Reaction, ReplyPreview},
-    schema::{messages, users},
+    protocol::{
+        Attachment, ChannelKind, Message, MessageContent, MessageEdit, Reaction, ReplyPreview,
+    },
+    schema::{message_edits, messages, users},
     servers::{ChannelAccess, channel_access},
 };
 
@@ -33,6 +35,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/channels/{id}/pins", get(pins))
         .route("/api/messages/{id}", patch(update).delete(remove))
         .route("/api/messages/{id}/pin", put(pin).delete(unpin))
+        .route("/api/messages/{id}/edits", get(edits))
 }
 
 type Row = (
@@ -45,6 +48,8 @@ type Row = (
     Option<DateTime<Utc>>,
     Option<i64>,
     Option<DateTime<Utc>>,
+    Option<String>,
+    Option<String>,
 );
 
 fn columns() -> (
@@ -57,6 +62,8 @@ fn columns() -> (
     messages::edited_at,
     messages::reply_to_id,
     messages::pinned_at,
+    messages::system_kind,
+    messages::system_detail,
 ) {
     (
         messages::id,
@@ -68,11 +75,25 @@ fn columns() -> (
         messages::edited_at,
         messages::reply_to_id,
         messages::pinned_at,
+        messages::system_kind,
+        messages::system_detail,
     )
 }
 
 fn to_message(
-    (id, channel_id, author_id, author_username, content, created, edited, _, pinned_at): Row,
+    (
+        id,
+        channel_id,
+        author_id,
+        author_username,
+        content,
+        created,
+        edited,
+        _,
+        pinned_at,
+        system_kind,
+        system_detail,
+    ): Row,
     attachments: &mut HashMap<i64, Vec<Attachment>>,
     reactions: Vec<Reaction>,
     reply_to: Option<ReplyPreview>,
@@ -89,6 +110,8 @@ fn to_message(
         reactions,
         reply_to,
         pinned: pinned_at.is_some(),
+        system_kind,
+        system_detail,
     }
 }
 
@@ -403,13 +426,14 @@ async fn create(
     }
 
     // Сообщение и привязка файлов — одна транзакция: чужой или уже занятый файл откатывает всё.
+    let content_for_tx = content.clone();
     let id = conn
         .transaction(async move |conn| -> AppResult<i64> {
             let id: i64 = diesel::insert_into(messages::table)
                 .values((
                     messages::channel_id.eq(channel_id),
                     messages::author_id.eq(user_id),
-                    messages::content.eq(&content),
+                    messages::content.eq(&content_for_tx),
                     messages::reply_to_id.eq(req.reply_to_id),
                 ))
                 .returning(messages::id)
@@ -429,10 +453,57 @@ async fn create(
         },
     )
     .await?;
+    // Центр уведомлений: не мешает доставке, ошибки только логируем.
+    if let Err(e) = crate::notifications::dispatch(
+        &mut conn,
+        &access,
+        channel_id,
+        id,
+        user_id,
+        &content,
+        req.reply_to_id,
+    )
+    .await
+    {
+        tracing::warn!("notification dispatch failed for message {id}: {e:?}");
+    }
     let message = load_message(&mut conn, &state.file_key, id)
         .await?
         .ok_or_else(|| AppError::not_found("message"))?;
     Ok((StatusCode::CREATED, Json(message)))
+}
+
+/// Системное сообщение сервера: вставляет запись от лица `actor_id` с типом события
+/// и рассылает `MessageCreated`. `content` пустой — клиент строит текст по `system_kind`.
+pub async fn post_system(
+    conn: &mut AsyncPgConnection,
+    server_id: i64,
+    channel_id: i64,
+    actor_id: i64,
+    kind: &str,
+    detail: Option<&str>,
+    content: &str,
+) -> AppResult<i64> {
+    let id: i64 = diesel::insert_into(messages::table)
+        .values((
+            messages::channel_id.eq(channel_id),
+            messages::author_id.eq(actor_id),
+            messages::content.eq(content),
+            messages::system_kind.eq(kind),
+            messages::system_detail.eq(detail),
+        ))
+        .returning(messages::id)
+        .get_result(conn)
+        .await?;
+    notify(
+        conn,
+        &Notice::MessageCreated {
+            server_id: Some(server_id),
+            message_id: id,
+        },
+    )
+    .await?;
+    Ok(id)
 }
 
 /// Канал, автор и доступ к сообщению. Посторонним 404, как и для серверов.
@@ -471,6 +542,20 @@ async fn update(
     if author_id != user_id {
         return Err(AppError::forbidden());
     }
+    let previous: String = messages::table
+        .find(message_id)
+        .select(messages::content)
+        .first(&mut conn)
+        .await?;
+    if previous != content {
+        diesel::insert_into(message_edits::table)
+            .values((
+                message_edits::message_id.eq(message_id),
+                message_edits::content.eq(&previous),
+            ))
+            .execute(&mut conn)
+            .await?;
+    }
     diesel::update(messages::table.find(message_id))
         .set((
             messages::content.eq(&content),
@@ -490,6 +575,44 @@ async fn update(
         .await?
         .ok_or_else(|| AppError::not_found("message"))?;
     Ok(Json(message))
+}
+
+async fn edits(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(message_id): Path<i64>,
+) -> AppResult<Json<Vec<MessageEdit>>> {
+    let mut conn = state.pool.get().await?;
+    let (channel_id, _, access) = locate(&mut conn, message_id, user_id).await?;
+    if let Some(server_id) = access.server_id {
+        permissions::require_channel_permissions(
+            &mut conn,
+            server_id,
+            user_id,
+            channel_id,
+            permissions::VIEW_CHANNEL | permissions::READ_MESSAGE_HISTORY,
+        )
+        .await?;
+    }
+    let rows: Vec<(i64, String, DateTime<Utc>)> = message_edits::table
+        .filter(message_edits::message_id.eq(message_id))
+        .select((
+            message_edits::id,
+            message_edits::content,
+            message_edits::edited_at,
+        ))
+        .order(message_edits::edited_at.desc())
+        .load(&mut conn)
+        .await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|(id, content, edited_at)| MessageEdit {
+                id,
+                content,
+                edited_at: edited_at.timestamp_millis(),
+            })
+            .collect(),
+    ))
 }
 
 async fn remove(

@@ -91,6 +91,8 @@ struct ServerRow {
     role: String,
     #[diesel(sql_type = Int4)]
     unread_count: i32,
+    #[diesel(sql_type = Nullable<BigInt>)]
+    system_channel_id: Option<i64>,
 }
 
 pub async fn servers_with_unread(
@@ -98,7 +100,7 @@ pub async fn servers_with_unread(
     user_id: i64,
 ) -> AppResult<Vec<Server>> {
     let rows: Vec<ServerRow> = diesel::sql_query(format!(
-        "SELECT s.id, s.name, s.owner_id, mem.role,
+        "SELECT s.id, s.name, s.owner_id, mem.role, s.system_channel_id,
                 COALESCE((SELECT sum({UNREAD})
                           FROM channels c
                           LEFT JOIN read_states rs ON rs.channel_id = c.id AND rs.user_id = $1
@@ -123,6 +125,7 @@ pub async fn servers_with_unread(
             my_role,
             my_permissions,
             unread_count: r.unread_count,
+            system_channel_id: r.system_channel_id,
         });
     }
     Ok(servers)
@@ -131,7 +134,7 @@ pub async fn servers_with_unread(
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/channels/{id}/read", post(mark_read))
-        .route("/api/me/notifications", get(notify_list).put(notify_set))
+        .route("/api/me/notify-settings", get(notify_list).put(notify_set))
 }
 
 #[derive(diesel::QueryableByName)]
@@ -144,6 +147,8 @@ struct NotifyRow {
     level: String,
     #[diesel(sql_type = Nullable<Timestamptz>)]
     muted_until: Option<chrono::DateTime<chrono::Utc>>,
+    #[diesel(sql_type = diesel::sql_types::Bool)]
+    suppress_everyone: bool,
 }
 
 /// Все настройки уведомлений пользователя (для серверов и каналов).
@@ -153,7 +158,7 @@ async fn notify_list(
 ) -> AppResult<Json<Vec<NotifySetting>>> {
     let mut conn = state.pool.get().await?;
     let rows: Vec<NotifyRow> = diesel::sql_query(
-        "SELECT server_id, channel_id, level, muted_until
+        "SELECT server_id, channel_id, level, muted_until, suppress_everyone
          FROM notify_settings WHERE user_id = $1",
     )
     .bind::<BigInt, _>(user_id)
@@ -168,6 +173,7 @@ async fn notify_list(
                     channel_id: r.channel_id,
                     level,
                     muted_until: r.muted_until.map(|t| t.timestamp_millis()),
+                    suppress_everyone: r.suppress_everyone,
                 })
             })
             .collect(),
@@ -204,8 +210,8 @@ async fn notify_set(
     .execute(&mut conn)
     .await?;
     diesel::sql_query(format!(
-        "INSERT INTO notify_settings (user_id, {col}, level, muted_until)
-         VALUES ($1, $2, $3, $4)"
+        "INSERT INTO notify_settings (user_id, {col}, level, muted_until, suppress_everyone)
+         VALUES ($1, $2, $3, $4, $5)"
     ))
     .bind::<BigInt, _>(user_id)
     .bind::<BigInt, _>(target)
@@ -214,6 +220,7 @@ async fn notify_set(
         req.muted_until
             .and_then(chrono::DateTime::from_timestamp_millis),
     )
+    .bind::<diesel::sql_types::Bool, _>(req.suppress_everyone)
     .execute(&mut conn)
     .await?;
     Ok(StatusCode::NO_CONTENT)

@@ -24,16 +24,17 @@ async fn setup(app: &Router) -> (String, String, i64, i64, i64) {
     )
     .await;
     let sid = r.body["id"].as_i64().unwrap();
+    // Отдельный текстовый канал: системные сообщения (welcome, вход) идут в #общий.
     let r = call(
         app,
-        "GET",
+        "POST",
         &format!("/api/servers/{sid}/channels"),
-        None,
+        Some(json!({ "name": "messages-test" })),
         Some(&owner),
         None,
     )
     .await;
-    let cid = r.body[0]["id"].as_i64().unwrap();
+    let cid = r.body["id"].as_i64().unwrap();
     let r = call(
         app,
         "POST",
@@ -515,4 +516,60 @@ async fn pins_require_permission_and_are_listed() {
     assert_eq!(r.body["pinned"], false);
     let r = call(&app, "GET", &pins_url, None, Some(&member), None).await;
     assert_eq!(r.body.as_array().unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn edit_history_is_visible_to_channel_members() {
+    let app = test_app().await;
+    let (owner, member, _, _, cid) = setup(&app).await;
+    let (outsider, _) = register_user(&app).await;
+
+    let id = post(&app, &owner, cid, "v1").await["id"].as_i64().unwrap();
+    let edit_url = format!("/api/messages/{id}");
+    for text in ["v2", "v3"] {
+        let r = call(
+            &app,
+            "PATCH",
+            &edit_url,
+            Some(json!({ "content": text })),
+            Some(&owner),
+            None,
+        )
+        .await;
+        assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    }
+
+    let r = call(
+        &app,
+        "GET",
+        &format!("/api/messages/{id}/edits"),
+        None,
+        Some(&member),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.body);
+    let contents: Vec<&str> = r
+        .body
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["content"].as_str().unwrap())
+        .collect();
+    assert_eq!(contents, ["v2", "v1"]);
+
+    // Посторонний не видит историю — как и само сообщение.
+    assert_eq!(
+        call(
+            &app,
+            "GET",
+            &format!("/api/messages/{id}/edits"),
+            None,
+            Some(&outsider),
+            None
+        )
+        .await
+        .status,
+        StatusCode::NOT_FOUND
+    );
 }

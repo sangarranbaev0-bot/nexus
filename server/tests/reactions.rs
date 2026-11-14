@@ -83,6 +83,15 @@ fn users(body: &Value, emoji: &str) -> Vec<i64> {
         .unwrap_or_default()
 }
 
+/// Сообщение по id среди ответа списка (там же теперь системные сообщения).
+fn message_by_id(body: &Value, id: i64) -> &Value {
+    body.as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == id)
+        .expect("message in list")
+}
+
 async fn react(app: &Router, token: &str, id: i64, emoji: &str, method: &str) -> Value {
     let r = call(
         app,
@@ -134,7 +143,7 @@ async fn add_remove_reactions_and_permissions() {
         None,
     )
     .await;
-    assert_eq!(r.body[0]["reactions"], json!([]));
+    assert_eq!(reaction(message_by_id(&r.body, id), "👍"), None);
 
     // Повторная реакция не дублируется.
     let m = react(&app, &member, id, "👍", "PUT").await;
@@ -158,7 +167,7 @@ async fn add_remove_reactions_and_permissions() {
         None,
     )
     .await;
-    assert_eq!(users(&r.body[0], "👍").len(), 2);
+    assert_eq!(users(message_by_id(&r.body, id), "👍").len(), 2);
 
     // Снятие убирает только свою реакцию.
     let m = react(&app, &member, id, "👍", "DELETE").await;

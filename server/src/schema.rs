@@ -44,6 +44,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     friends,
     blocks,
     notify_settings,
+    notifications,
+    notification_words,
 );
 
 diesel::table! {
@@ -52,6 +54,7 @@ diesel::table! {
         name -> Text,
         owner_id -> Int8,
         created_at -> Timestamptz,
+        system_channel_id -> Nullable<Int8>,
     }
 }
 
@@ -104,11 +107,14 @@ diesel::table! {
         edited_at -> Nullable<Timestamptz>,
         reply_to_id -> Nullable<Int8>,
         pinned_at -> Nullable<Timestamptz>,
+        system_kind -> Nullable<Text>,
+        system_detail -> Nullable<Text>,
     }
 }
 
 diesel::joinable!(messages -> channels (channel_id));
 diesel::joinable!(messages -> users (author_id));
+diesel::joinable!(message_edits -> messages (message_id));
 
 diesel::table! {
     message_reactions (message_id, user_id, emoji) {
@@ -172,12 +178,45 @@ diesel::table! {
 }
 
 diesel::table! {
+    message_edits (id) {
+        id -> Int8,
+        message_id -> Int8,
+        content -> Text,
+        edited_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     notify_settings (user_id, server_id, channel_id) {
         user_id -> Int8,
         server_id -> Nullable<Int8>,
         channel_id -> Nullable<Int8>,
         level -> Text,
         muted_until -> Nullable<Timestamptz>,
+        suppress_everyone -> Bool,
+    }
+}
+
+diesel::table! {
+    notifications (id) {
+        id -> Int8,
+        user_id -> Int8,
+        kind -> Text,
+        server_id -> Nullable<Int8>,
+        channel_id -> Int8,
+        message_id -> Int8,
+        actor_id -> Int8,
+        created_at -> Timestamptz,
+        read_at -> Nullable<Timestamptz>,
+    }
+}
+
+diesel::table! {
+    notification_words (user_id, word) {
+        user_id -> Int8,
+        word -> Text,
+        case_sensitive -> Bool,
+        created_at -> Timestamptz,
     }
 }
 

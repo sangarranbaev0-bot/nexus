@@ -94,6 +94,11 @@ pub enum Notice {
     DmsChanged {
         user_ids: Vec<i64>,
     },
+    /// Новое уведомление в центре; доставляется только адресату.
+    NotificationCreated {
+        user_id: i64,
+        notification_id: i64,
+    },
 }
 
 /// Событие внутри экземпляра, которое получают WebSocket-подключения.
@@ -284,6 +289,28 @@ async fn handle(state: &AppState, payload: &str) {
                 },
             );
             Ok(())
+        }
+        Notice::NotificationCreated {
+            user_id,
+            notification_id,
+        } => {
+            async {
+                let mut conn = state.pool.get().await?;
+                if let Some(notification) =
+                    crate::notifications::load_one(&mut conn, user_id, notification_id).await?
+                {
+                    let msg = ServerMessage::NotificationCreated { notification };
+                    send(
+                        state,
+                        Event::ToUsers {
+                            user_ids: [user_id].into(),
+                            json: to_json(&msg),
+                        },
+                    );
+                }
+                AppResult::Ok(())
+            }
+            .await
         }
         Notice::ChannelsChanged { server_id } => {
             send(

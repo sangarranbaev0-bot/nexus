@@ -12,4 +12,8 @@ myPermissions: number,
 /**
  * Сумма непрочитанных по каналам (больше ста почти не бывает, считаем максимум 100).
  */
-unreadCount: number, };
+unreadCount: number, 
+/**
+ * Канал событий сервера (вход, создание канала, роли); `null` — не задан.
+ */
+systemChannelId: number | null, };

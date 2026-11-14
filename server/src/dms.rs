@@ -20,7 +20,7 @@ use crate::{
     events::{Notice, notify},
     presence::STATUS_SQL,
     protocol::{CreateGroupRequest, DmChannel, DmMember, NameRequest, OpenDmRequest, Presence},
-    schema::{channels, dm_participants, users},
+    schema::{channels, dm_participants, messages, users},
 };
 
 pub fn routes() -> Router<AppState> {
@@ -30,6 +30,7 @@ pub fn routes() -> Router<AppState> {
         .route("/api/dms/{id}", patch(rename_group))
         .route("/api/dms/{id}/members", post(add_member))
         .route("/api/dms/{id}/members/me", delete(leave_group))
+        .route("/api/users/{id}/wave", post(wave))
 }
 
 const MAX_GROUP: usize = 10;
@@ -135,6 +136,20 @@ async fn open(
         return Err(AppError::forbidden_with("blocked"));
     }
 
+    let channel_id = ensure_dm_channel(&mut conn, user_id, other).await?;
+    let dm = load(&mut conn, user_id, Some(channel_id))
+        .await?
+        .pop()
+        .ok_or_else(|| AppError::not_found("channel"))?;
+    Ok(Json(dm))
+}
+
+/// Канал ЛС между двумя пользователями: создаёт при отсутствии. Блокировки здесь не проверяются.
+async fn ensure_dm_channel(
+    conn: &mut AsyncPgConnection,
+    user_id: i64,
+    other: i64,
+) -> AppResult<i64> {
     let key = dm_key(user_id, other);
     let channel_id = conn
         .transaction(async move |conn| -> AppResult<i64> {
@@ -171,6 +186,49 @@ async fn open(
             Ok(id)
         })
         .await?;
+    Ok(channel_id)
+}
+
+/// «Помахать»: открывает ЛС и отправляет приветствие 👋 от вас.
+async fn wave(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(other): Path<i64>,
+) -> AppResult<Json<DmChannel>> {
+    if other == user_id {
+        return Err(AppError::bad_request("cannot message yourself"));
+    }
+    let mut conn = state.pool.get().await?;
+    let exists: Option<i64> = users::table
+        .find(other)
+        .select(users::id)
+        .first(&mut conn)
+        .await
+        .optional()?;
+    exists.ok_or_else(|| AppError::not_found("user"))?;
+    if crate::friends::blocked_between(&mut conn, user_id, other).await? {
+        return Err(AppError::forbidden_with("blocked"));
+    }
+
+    let channel_id = ensure_dm_channel(&mut conn, user_id, other).await?;
+    let message_id: i64 = diesel::insert_into(messages::table)
+        .values((
+            messages::channel_id.eq(channel_id),
+            messages::author_id.eq(user_id),
+            messages::content.eq("👋"),
+        ))
+        .returning(messages::id)
+        .get_result(&mut conn)
+        .await?;
+    notify(
+        &mut conn,
+        &Notice::MessageCreated {
+            server_id: None,
+            message_id,
+        },
+    )
+    .await?;
+    dms_changed(&mut conn, channel_id, &[]).await?;
 
     let dm = load(&mut conn, user_id, Some(channel_id))
         .await?

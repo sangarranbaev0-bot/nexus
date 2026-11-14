@@ -13,6 +13,7 @@ import {
   serverOfChannel,
 } from './guilds';
 import { bumpFriends } from './friends';
+import { pushNotification } from './notify';
 import { applyCreated, applyDeleted, applyTyping, applyUpdated, isViewing, resetMessages } from './messages';
 import { applyPresence, watchIdle } from './presence';
 import { signOutLocal, useSession } from './session';
@@ -152,6 +153,9 @@ export function connectSocket(): () => void {
           break;
         case 'dmsChanged':
           void loadDms().catch(() => {});
+          break;
+        case 'notificationCreated':
+          pushNotification(msg.notification);
           break;
       }
     };

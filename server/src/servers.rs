@@ -20,7 +20,7 @@ use crate::{
         Invite, Member, Presence, Role, Server, UpdateMemberRequest,
     },
     reads,
-    schema::{channels, dm_participants, invites, members, roles, servers},
+    schema::{channels, dm_participants, invites, members, roles, servers, users},
 };
 
 const DEFAULT_CHANNEL: &str = "общий";
@@ -36,6 +36,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/api/servers/{id}/members", get(list_members))
         .route("/api/servers/{id}/members/{user_id}", patch(update_member))
+        .route("/api/servers/{id}/wave", post(wave))
         .route("/api/servers/{id}/invites", post(create_invite))
         .route("/api/channels/{id}", delete(delete_channel))
         .route("/api/invites/{code}/join", post(join_by_invite))
@@ -206,23 +207,31 @@ async fn create_server(
                 ))
                 .execute(conn)
                 .await?;
+            // Системный канал — текстовый «общий», создаём первым и запоминаем его id.
+            let system_channel_id: i64 = diesel::insert_into(channels::table)
+                .values((
+                    channels::server_id.eq(id),
+                    channels::name.eq(DEFAULT_CHANNEL),
+                    channels::position.eq(0),
+                    channels::kind.eq(ChannelKind::Text.as_str()),
+                ))
+                .returning(channels::id)
+                .get_result(conn)
+                .await?;
             diesel::insert_into(channels::table)
-                .values(&[
-                    (
-                        channels::server_id.eq(id),
-                        channels::name.eq(DEFAULT_CHANNEL),
-                        channels::position.eq(0),
-                        channels::kind.eq(ChannelKind::Text.as_str()),
-                    ),
-                    (
-                        channels::server_id.eq(id),
-                        channels::name.eq(DEFAULT_VOICE_CHANNEL),
-                        channels::position.eq(1),
-                        channels::kind.eq(ChannelKind::Voice.as_str()),
-                    ),
-                ])
+                .values((
+                    channels::server_id.eq(id),
+                    channels::name.eq(DEFAULT_VOICE_CHANNEL),
+                    channels::position.eq(1),
+                    channels::kind.eq(ChannelKind::Voice.as_str()),
+                ))
                 .execute(conn)
                 .await?;
+            diesel::update(servers::table.find(id))
+                .set(servers::system_channel_id.eq(system_channel_id))
+                .execute(conn)
+                .await?;
+            let system_channel_id = Some(system_channel_id);
             Ok(Server {
                 id,
                 name,
@@ -230,6 +239,7 @@ async fn create_server(
                 my_role: Role::Owner,
                 my_permissions: permissions::ALL,
                 unread_count: 0,
+                system_channel_id,
             })
         })
         .await?;
@@ -241,6 +251,19 @@ async fn create_server(
         },
     )
     .await?;
+    // Приветствие владельца в системном канале.
+    if let Some(cid) = server.system_channel_id {
+        let _ = crate::messages::post_system(
+            &mut conn,
+            server.id,
+            cid,
+            user_id,
+            "welcome",
+            Some(&server.name),
+            "",
+        )
+        .await;
+    }
     Ok((StatusCode::CREATED, Json(server)))
 }
 
@@ -289,6 +312,20 @@ async fn create_channel(
         .get_result(&mut conn)
         .await?;
     notify(&mut conn, &Notice::ChannelsChanged { server_id }).await?;
+    // Событие в системный канал (не мешает созданию).
+    if let Ok(Some(system_id)) = system_channel(server_id, &mut conn).await {
+        let detail = format!("#{name}");
+        let _ = crate::messages::post_system(
+            &mut conn,
+            server_id,
+            system_id,
+            user_id,
+            "channelCreate",
+            Some(&detail),
+            "",
+        )
+        .await;
+    }
     let channel = Channel {
         id,
         server_id,
@@ -299,6 +336,31 @@ async fn create_channel(
         unread_count: 0,
     };
     Ok((StatusCode::CREATED, Json(channel)))
+}
+
+/// Канал событий сервера, если он задан.
+async fn system_channel(server_id: i64, conn: &mut AsyncPgConnection) -> AppResult<Option<i64>> {
+    Ok(servers::table
+        .find(server_id)
+        .select(servers::system_channel_id)
+        .first(conn)
+        .await?)
+}
+
+/// «Помахать»: короткое событие в системный канал сервера.
+async fn wave(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(server_id): Path<i64>,
+) -> AppResult<StatusCode> {
+    let mut conn = state.pool.get().await?;
+    role_in(&mut conn, server_id, user_id).await?;
+    let system_id = system_channel(server_id, &mut conn)
+        .await?
+        .ok_or_else(|| AppError::not_found("system channel"))?;
+    crate::messages::post_system(&mut conn, server_id, system_id, user_id, "wave", None, "")
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn delete_channel(
@@ -389,6 +451,33 @@ async fn update_member(
         .await?;
     if updated == 0 {
         return Err(AppError::not_found("member"));
+    }
+    // Событие в системный канал: имя участника и новая роль.
+    if let Ok(Some(system_id)) = system_channel(server_id, &mut conn).await {
+        let username: Option<String> = users::table
+            .find(target_id)
+            .select(users::username)
+            .first(&mut conn)
+            .await
+            .optional()?;
+        if let Some(username) = username {
+            let role_label = match req.role {
+                Role::Admin => "администратор",
+                Role::Member => "участник",
+                Role::Owner => "владелец",
+            };
+            let detail = format!("{username}|{role_label}");
+            let _ = crate::messages::post_system(
+                &mut conn,
+                server_id,
+                system_id,
+                user_id,
+                "roleUpdate",
+                Some(&detail),
+                "",
+            )
+            .await;
+        }
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -513,11 +602,24 @@ async fn join_by_invite(
 
     notify(&mut conn, &Notice::MemberJoined { server_id, user_id }).await?;
 
-    let (name, owner_id): (String, i64) = servers::table
+    let (name, owner_id, system_channel_id): (String, i64, Option<i64>) = servers::table
         .find(server_id)
-        .select((servers::name, servers::owner_id))
+        .select((servers::name, servers::owner_id, servers::system_channel_id))
         .first(&mut conn)
         .await?;
+    // Событие входа в системный канал.
+    if let Some(cid) = system_channel_id {
+        let _ = crate::messages::post_system(
+            &mut conn,
+            server_id,
+            cid,
+            user_id,
+            "memberJoin",
+            None,
+            "",
+        )
+        .await;
+    }
     let my_role = role_in(&mut conn, server_id, user_id).await?;
     let my_permissions = permissions::member_perms(&mut conn, server_id, user_id)
         .await?
@@ -530,6 +632,7 @@ async fn join_by_invite(
         my_permissions,
         // Вступивший не получает историю как непрочитанную.
         unread_count: 0,
+        system_channel_id,
     }))
 }
 

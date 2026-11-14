@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Attachment } from './generated/Attachment';
 import type { Message } from './generated/Message';
+import type { MessageEdit } from './generated/MessageEdit';
 import { uploadFile } from './api';
 import {
   activeView,
@@ -10,6 +11,7 @@ import {
   loadInitial,
   loadOlder,
   loadPins,
+  loadEdits,
   markRead,
   sendMessage,
   setPinned,
@@ -276,6 +278,7 @@ function MessageItem({
 }) {
   const me = useSession((s) => s.user);
   const [editing, setEditing] = useState(false);
+  const [history, setHistory] = useState<MessageEdit[] | null>(null);
   const mine = m.authorId === me?.id;
 
   const remove = async () => {
@@ -297,6 +300,9 @@ function MessageItem({
 
   return (
     <article id={`msg-${m.id}`} tabIndex={0} className="group relative px-4 py-1 hover:bg-zinc-900/30 focus:bg-zinc-900/30">
+      {m.systemKind && <SystemMessage message={m} />}
+      {!m.systemKind && (
+        <>
       <header className="flex items-baseline gap-2">
         <span className="font-medium text-indigo-300">{m.authorUsername}</span>
         <time className="text-xs text-zinc-500" dateTime={new Date(m.createdAt).toISOString()}>
@@ -340,6 +346,14 @@ function MessageItem({
               Изменить
             </button>
           )}
+          {m.editedAt !== null && (
+            <button
+              onClick={() => void loadEdits(m.id).then(setHistory, (e) => onError(errorMessage(e)))}
+              className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700"
+            >
+              История
+            </button>
+          )}
           {(mine || canModerate) && (
             <button onClick={remove} className="rounded px-2 py-0.5 text-sm text-red-400 hover:bg-zinc-700">
               Удалить
@@ -347,7 +361,56 @@ function MessageItem({
           )}
         </div>
       )}
+        </>
+      )}
+      {history && (
+        <Modal title="История правок" onClose={() => setHistory(null)}>
+          {history.length === 0 ? (
+            <p className="text-zinc-400">Предыдущих версий нет.</p>
+          ) : (
+            <ol className="max-h-[60vh] space-y-2 overflow-y-auto">
+              {history.map((e) => (
+                <li key={e.id} className="rounded bg-zinc-900 p-2 text-sm">
+                  <time className="mb-1 block text-xs text-zinc-500" dateTime={new Date(e.editedAt).toISOString()}>
+                    {formatTime(e.editedAt)}
+                  </time>
+                  <div className="whitespace-pre-wrap break-words">
+                    <Markdown text={e.content} />
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Modal>
+      )}
     </article>
+  );
+}
+
+const SYSTEM_TEXT: Record<string, string> = {
+  welcome: 'приветствует всех на сервере',
+  memberJoin: 'присоединился к серверу',
+  channelCreate: 'создал канал',
+  roleUpdate: 'изменил роль участника',
+  wave: 'машет всем 👋',
+};
+
+/** Компактная строка системного события в системном канале. */
+function SystemMessage({ message: m }: { message: Message }) {
+  const text = SYSTEM_TEXT[m.systemKind ?? ''] ?? 'системное событие';
+  const detail = m.systemDetail ? ` ${m.systemDetail}` : '';
+  return (
+    <div className="flex items-center gap-1.5 text-sm text-zinc-400">
+      <span aria-hidden>•</span>
+      <span className="font-medium text-zinc-300">{m.authorUsername}</span>
+      <span>
+        {text}
+        {detail}
+      </span>
+      <time className="text-xs text-zinc-600" dateTime={new Date(m.createdAt).toISOString()}>
+        {formatTime(m.createdAt)}
+      </time>
+    </div>
   );
 }
 
@@ -419,7 +482,7 @@ function PinsDialog({
   );
 }
 
-function jumpToMessage(id: number) {
+export function jumpToMessage(id: number) {
   const el = document.getElementById(`msg-${id}`);
   if (!el) return;
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });

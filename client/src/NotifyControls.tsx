@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { errorMessage } from './Modal';
 import type { NotifyLevel } from './generated/NotifyLevel';
 import type { NotifySetting } from './generated/NotifySetting';
+import { serverOfChannel } from './guilds';
 import {
   channelLevel,
   loadNotifySettings,
   serverLevel,
+  serverSuppressEveryone,
   setChannelNotify,
   setServerNotify,
   useNotify,
@@ -31,7 +33,14 @@ function formatUntil(ms: number) {
   });
 }
 
-/** Выбор уровня уведомлений и временного mute для сервера или канала. */
+function muteLabel(m: number) {
+  if (m < 60) return `${m} мин`;
+  if (m < 1440) return `${m / 60} ч`;
+  if (m < 10080) return `${m / 1440} дн`;
+  return '7 дн';
+}
+
+/** Выбор уровня уведомлений, подавления @everyone и временного mute для сервера или канала. */
 export function NotifyControls({
   target,
   inheritHint,
@@ -42,6 +51,7 @@ export function NotifyControls({
   const settings = useNotify((s) => s.settings);
   const [level, setLevel] = useState<NotifyLevel>('all');
   const [mutedUntil, setMutedUntil] = useState<number | null>(null);
+  const [suppress, setSuppress] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -58,18 +68,24 @@ export function NotifyControls({
     if (current) {
       setLevel(current.level);
       setMutedUntil(current.mutedUntil && current.mutedUntil > Date.now() ? current.mutedUntil : null);
+      setSuppress(current.suppressEveryone);
     } else if (settings) {
       setLevel(channelId !== undefined ? channelLevel(channelId) : serverLevel(serverId!));
       setMutedUntil(null);
+      const inheritedServer = channelId !== undefined ? serverOfChannel(channelId) : undefined;
+      setSuppress(
+        inheritedServer !== undefined ? serverSuppressEveryone(inheritedServer) : false,
+      );
     }
   }, [current, settings, serverId, channelId]);
 
-  const save = async (nextLevel: NotifyLevel, nextMute: number | null) => {
+  const save = async (nextLevel: NotifyLevel, nextMute: number | null, nextSuppress: boolean) => {
     setPending(true);
     setError(null);
     try {
-      if (serverId !== undefined) await setServerNotify(serverId, nextLevel, nextMute);
-      else await setChannelNotify(channelId!, nextLevel, nextMute);
+      if (serverId !== undefined)
+        await setServerNotify(serverId, nextLevel, nextMute, nextSuppress);
+      else await setChannelNotify(channelId!, nextLevel, nextMute, nextSuppress);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -80,7 +96,7 @@ export function NotifyControls({
   const mute = (minutes: number | null) => {
     const until = minutes === null ? null : Date.now() + minutes * 60_000;
     setMutedUntil(until);
-    void save(level, until);
+    void save(level, until, suppress);
   };
 
   return (
@@ -103,7 +119,7 @@ export function NotifyControls({
               disabled={pending}
               onChange={() => {
                 setLevel(opt.value);
-                void save(opt.value, mutedUntil);
+                void save(opt.value, mutedUntil, suppress);
               }}
               className="mt-1"
             />
@@ -111,6 +127,22 @@ export function NotifyControls({
           </label>
         ))}
       </fieldset>
+
+      <label className="flex items-start gap-2 rounded px-1 py-1 text-sm hover:bg-zinc-700/40">
+        <input
+          type="checkbox"
+          checked={suppress}
+          disabled={pending}
+          onChange={(e) => {
+            setSuppress(e.target.checked);
+            void save(level, mutedUntil, e.target.checked);
+          }}
+          className="mt-1"
+        />
+        <span title="Не получать уведомления от @everyone и @here даже при праве автора">
+          Глушить @everyone и @here
+        </span>
+      </label>
 
       <div>
         <span className="mb-1 block text-xs font-semibold uppercase text-zinc-400">
@@ -138,7 +170,7 @@ export function NotifyControls({
                 disabled={pending}
                 className="rounded bg-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-600 disabled:opacity-60"
               >
-                {m < 60 ? `${m} мин` : m < 1440 ? `${m / 60} ч` : m < 10080 ? `${m / 1440} дн` : '7 дн'}
+                {muteLabel(m)}
               </button>
             ))
           )}

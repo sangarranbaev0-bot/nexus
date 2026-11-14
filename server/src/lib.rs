@@ -5,6 +5,7 @@ pub mod error;
 pub mod events;
 mod friends;
 mod messages;
+mod notifications;
 pub mod permissions;
 pub mod presence;
 pub mod protocol;
@@ -98,6 +99,7 @@ pub fn app(state: AppState) -> Router {
         .merge(messages::routes())
         .merge(reactions::routes())
         .merge(reads::routes())
+        .merge(notifications::routes())
         .merge(dms::routes())
         .merge(friends::routes())
         .merge(attachments::routes())

@@ -7,4 +7,12 @@ export type Message = { id: number, channelId: number, authorId: number, authorU
 /**
  * Unix-время в мс.
  */
-createdAt: number, editedAt: number | null, attachments: Array<Attachment>, reactions: Array<Reaction>, replyTo: ReplyPreview | null, pinned: boolean, };
+createdAt: number, editedAt: number | null, attachments: Array<Attachment>, reactions: Array<Reaction>, replyTo: ReplyPreview | null, pinned: boolean, 
+/**
+ * Тип системного события (`memberJoin`, `channelCreate`, `roleUpdate`, `welcome`); `null` — обычное.
+ */
+systemKind: string | null, 
+/**
+ * Дополнительные данные события (имя канала/роль).
+ */
+systemDetail: string | null, };

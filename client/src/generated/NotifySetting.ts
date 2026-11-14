@@ -4,5 +4,6 @@ import type { NotifyLevel } from "./NotifyLevel";
 /**
  * Настройка уведомлений для сервера или канала (ровно одно из двух полей задано).
  * `mutedUntil` — Unix-время в мс, до которого уведомления подавлены полностью.
+ * `suppressEveryone` глушит @everyone/@here, даже если у автора есть право.
  */
-export type NotifySetting = { serverId: number | null, channelId: number | null, level: NotifyLevel, mutedUntil: number | null, };
+export type NotifySetting = { serverId: number | null, channelId: number | null, level: NotifyLevel, mutedUntil: number | null, suppressEveryone: boolean, };

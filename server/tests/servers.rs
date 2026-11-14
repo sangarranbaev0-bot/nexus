@@ -268,3 +268,89 @@ async fn validation_and_unlimited_invites() {
     .await;
     assert_eq!(r.status, StatusCode::OK);
 }
+
+#[tokio::test]
+async fn wave_posts_system_message() {
+    let app = test_app().await;
+    let (owner, _) = register_user(&app).await;
+    let (member, _) = register_user(&app).await;
+
+    let r = call(
+        &app,
+        "POST",
+        "/api/servers",
+        Some(json!({ "name": "Wave Club" })),
+        Some(&owner),
+        None,
+    )
+    .await;
+    let sid = r.body["id"].as_i64().unwrap();
+    let system_cid = r.body["systemChannelId"].as_i64().unwrap();
+    let r = call(
+        &app,
+        "POST",
+        &format!("/api/servers/{sid}/invites"),
+        None,
+        Some(&owner),
+        None,
+    )
+    .await;
+    let code = r.body["code"].as_str().unwrap();
+    call(
+        &app,
+        "POST",
+        &format!("/api/invites/{code}/join"),
+        None,
+        Some(&member),
+        None,
+    )
+    .await;
+
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            &format!("/api/servers/{sid}/wave"),
+            None,
+            Some(&member),
+            None
+        )
+        .await
+        .status,
+        StatusCode::NO_CONTENT
+    );
+
+    let r = call(
+        &app,
+        "GET",
+        &format!("/api/channels/{system_cid}/messages"),
+        None,
+        Some(&owner),
+        None,
+    )
+    .await;
+    assert!(
+        r.body
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["systemKind"] == "wave"),
+        "{}",
+        r.body
+    );
+
+    let (outsider, _) = register_user(&app).await;
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            &format!("/api/servers/{sid}/wave"),
+            None,
+            Some(&outsider),
+            None
+        )
+        .await
+        .status,
+        StatusCode::NOT_FOUND
+    );
+}

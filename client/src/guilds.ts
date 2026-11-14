@@ -166,6 +166,10 @@ export const createInvite = (serverId: number, req: CreateInviteRequest = {}) =>
 
 export const listMembers = (serverId: number) => api<Member[]>(`/api/servers/${serverId}/members`);
 
+/** «Помахать» — короткое событие в системный канал сервера. */
+export const wave = (serverId: number) =>
+  api(`/api/servers/${serverId}/wave`, { method: 'POST' });
+
 export const setMemberRole = (serverId: number, userId: number, role: Role) =>
   api(`/api/servers/${serverId}/members/${userId}`, { method: 'PATCH', body: { role } });
 

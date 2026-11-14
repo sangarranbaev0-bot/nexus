@@ -30,8 +30,10 @@ import {
 } from "./guilds";
 import { P } from "./permissions";
 import { Modal, errorMessage } from "./Modal";
+import { NotificationCenter } from "./NotificationCenter";
 import { NotifyControls } from "./NotifyControls";
-import { loadNotifySettings } from "./notify";
+import { NotifyWordsDialog } from "./NotifyWords";
+import { loadNotifications, loadNotifySettings } from "./notify";
 import { ServerSettingsDialog } from "./Settings";
 import { presenceView } from "./presence";
 import { logout, useSession } from "./session";
@@ -74,6 +76,7 @@ export function AppLayout() {
     loadServers().catch((e) => setLoadError(errorMessage(e)));
     loadDms().catch((e) => setLoadError(errorMessage(e)));
     loadNotifySettings().catch(() => {});
+    loadNotifications().catch(() => {});
   }, []);
   useEffect(() => {
     if (serverId && servers?.some((s) => s.id === serverId)) {
@@ -186,16 +189,19 @@ export function AppLayout() {
             </>
           )}
           {isHome && !dm && <span>Друзья</span>}
-          {server && (
-            <button
-              onClick={() => setDialog("notify")}
-              title="Уведомления"
-              aria-label="Настройки уведомлений"
-              className="ml-auto rounded px-2 py-1 text-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
-            >
-              🔔
-            </button>
-          )}
+          <div className="ml-auto flex items-center gap-1">
+            <NotificationCenter />
+            {server && (
+              <button
+                onClick={() => setDialog("notify")}
+                title="Настройки уведомлений"
+                aria-label="Настройки уведомлений канала"
+                className="rounded px-2 py-1 text-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+              >
+                🔕
+              </button>
+            )}
+          </div>
         </header>
         {server && channel?.kind === "voice" ? (
           <VoiceStage
@@ -701,6 +707,7 @@ const connectionView = {
 function ConnectionStatus() {
   const { status, latencyMs, idle } = useSocket();
   const user = useSession((s) => s.user);
+  const [wordsOpen, setWordsOpen] = useState(false);
   const view =
     status === "open"
       ? presenceView[idle ? "idle" : "online"]
@@ -719,11 +726,20 @@ function ConnectionStatus() {
         </div>
       </div>
       <button
+        onClick={() => setWordsOpen(true)}
+        title="Слова-триггеры"
+        aria-label="Слова-триггеры"
+        className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+      >
+        Aa
+      </button>
+      <button
         onClick={() => void logout()}
         className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
       >
         Выйти
       </button>
+      {wordsOpen && <NotifyWordsDialog onClose={() => setWordsOpen(false)} />}
     </footer>
   );
 }
