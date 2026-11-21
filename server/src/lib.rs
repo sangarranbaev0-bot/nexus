@@ -32,7 +32,7 @@ use diesel_async::{
     pooled_connection::{AsyncDieselConnectionManager, deadpool::Pool},
 };
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
-use tower_http::trace::TraceLayer;
+use tower_http::{trace::TraceLayer, cors::{CorsLayer, Any}};
 
 use protocol::{HealthResponse, now_ms};
 
@@ -97,6 +97,10 @@ pub async fn run_migrations(pool: &DbPool) -> anyhow::Result<()> {
 }
 
 pub fn app(state: AppState) -> Router {
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
     Router::new()
         .route("/api/health", get(health))
         .route("/ws", get(ws::handler))
@@ -117,6 +121,7 @@ pub fn app(state: AppState) -> Router {
         .merge(voice::routes())
         .merge(automod::routes())
         .merge(stickers::routes())
+        .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
