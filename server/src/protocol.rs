@@ -27,6 +27,159 @@ pub struct User {
     pub id: i64,
     pub email: String,
     pub username: String,
+    pub about: String,
+    pub banner_url: String,
+    pub pronouns: String,
+    #[ts(type = "number | null")]
+    pub accent_color: Option<i32>,
+    pub status_text: String,
+    pub status_emoji: String,
+    /// Unix-время в мс; `null` — бессрочно.
+    #[ts(type = "number | null")]
+    pub status_expires_at: Option<i64>,
+    #[ts(type = "string")]
+    pub activity_name: String,
+    #[ts(type = "string")]
+    pub activity_type: String,
+    #[ts(type = "string")]
+    pub notify_mode: String,
+    pub dnd: bool,
+    pub two_factor_enabled: bool,
+    #[serde(default)]
+    pub badge: String,
+}
+
+/// Частичное обновление профиля.
+#[derive(Deserialize, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateProfileRequest {
+    #[serde(default)]
+    #[ts(optional)]
+    pub about: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub banner_url: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub pronouns: Option<String>,
+    #[serde(default)]
+    #[ts(optional, type = "number | null")]
+    pub accent_color: Option<Option<i32>>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub status_text: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub status_emoji: Option<String>,
+    #[serde(default)]
+    #[ts(optional, type = "number | null")]
+    pub status_expires_at: Option<Option<i64>>,
+    #[serde(default)]
+    pub activity_name: Option<String>,
+    #[serde(default)]
+    pub activity_type: Option<String>,
+    #[serde(default)]
+    pub notify_mode: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub dnd: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub badge: Option<String>,
+}
+
+/// Тикет поддержки на сервере.
+#[derive(Serialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Ticket {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub server_id: i64,
+    #[ts(type = "number")]
+    pub creator_id: i64,
+    pub status: String,
+    pub title: String,
+    #[ts(type = "number")]
+    pub created_at: i64,
+    #[ts(type = "number | null")]
+    pub closed_at: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Note {
+    #[ts(type = "number")]
+    pub target_id: i64,
+    pub note: String,
+    pub nickname: String,
+}
+
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateNoteRequest {
+    #[serde(default)]
+    pub note: String,
+    #[serde(default)]
+    pub nickname: String,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Session {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub device_label: String,
+    pub user_agent: String,
+    pub ip: String,
+    #[ts(type = "number")]
+    pub created_at: i64,
+    #[ts(type = "number")]
+    pub expires_at: i64,
+    #[ts(type = "number | null")]
+    pub last_used_at: Option<i64>,
+    pub revoked: bool,
+    pub current: bool,
+}
+
+#[derive(Serialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TwoFactorSetup {
+    pub secret: String,
+    pub uri: String,
+    pub recovery_codes: Vec<String>,
+}
+
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TwoFactorCode {
+    pub code: String,
+}
+
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct LoginWithCode {
+    pub email: String,
+    pub password: String,
+    #[serde(default)]
+    pub code: String,
+    #[serde(default)]
+    pub recovery_code: String,
+}
+
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportResponse {
+    pub data: String,
 }
 
 #[derive(Serialize, Deserialize, TS)]
@@ -162,6 +315,11 @@ pub enum ServerMessage {
         #[ts(type = "number")]
         server_id: i64,
     },
+    /// Набор своих эмодзи сервера изменился: клиент перечитывает их.
+    EmojisChanged {
+        #[ts(type = "number")]
+        server_id: i64,
+    },
     /// Вошёл в голос или изменил флаги (микрофон, камера, экран).
     VoiceState {
         participant: VoiceParticipant,
@@ -212,6 +370,8 @@ pub struct Message {
     #[ts(type = "number")]
     pub author_id: i64,
     pub author_username: String,
+    #[serde(default)]
+    pub author_badge: String,
     pub content: String,
     /// Unix-время в мс.
     #[ts(type = "number")]
@@ -228,6 +388,27 @@ pub struct Message {
     pub system_detail: Option<String>,
     /// Блок «Переслано от»; `null` — сообщение не пересланное.
     pub forwarded_from: Option<ForwardPreview>,
+    /// Корень ветки в форум-канале; `null` — обычное сообщение.
+    #[ts(type = "number | null")]
+    pub thread_root_id: Option<i64>,
+    pub thread_archived: bool,
+    pub thread_locked: bool,
+    #[ts(type = "boolean")]
+    pub has_embed: bool,
+}
+
+/// Свой эмодзи сервера: рисуется по `:name:` в сообщениях.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Emoji {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub server_id: i64,
+    pub name: String,
+    /// Подписанная ссылка на PNG; действует 1–2 суток.
+    pub url: String,
 }
 
 /// Снимок исходного сообщения в пересланной копии.
@@ -243,6 +424,83 @@ pub struct ForwardPreview {
     pub content: String,
     #[ts(type = "number | null")]
     pub channel_id: Option<i64>,
+}
+
+/// Превью ссылки (OpenGraph): извлекается бэком при отправке сообщения.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct EmbedPreview {
+    pub url: String,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub image_url: Option<String>,
+    pub site_name: Option<String>,
+}
+
+/// Стикерпак (коллекция стикеров сервера).
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct StickerPack {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub server_id: i64,
+    pub name: String,
+    pub description: String,
+    #[ts(type = "number")]
+    pub created_by: i64,
+    #[ts(type = "number")]
+    pub created_at: i64,
+}
+
+/// Стикер внутри пака.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Sticker {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub pack_id: i64,
+    pub name: String,
+    pub emoji: String,
+    pub content_type: String,
+    #[ts(type = "number")]
+    pub size_bytes: i64,
+    pub storage_key: String,
+    pub tags: Vec<String>,
+    #[ts(type = "number")]
+    pub position: i64,
+    #[ts(type = "number")]
+    pub created_at: i64,
+}
+
+/// Запрос на создание стикерпака (admin-only).
+#[derive(Deserialize, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateStickerPackRequest {
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+/// Запрос на добавление стикера в пак (admin-only).
+#[derive(Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateStickerRequest {
+    pub name: String,
+    pub emoji: String,
+    pub content_type: String,
+    #[ts(type = "number")]
+    pub size_bytes: i64,
+    pub storage_key: String,
+    pub tags: Vec<String>,
+    #[ts(type = "number")]
+    pub position: i32,
 }
 
 /// Краткая цитата сообщения, на которое отвечают.
@@ -307,6 +565,215 @@ pub struct ForwardRequest {
     pub channel_id: i64,
 }
 
+/// Параметры поиска сообщений.
+#[derive(Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SearchParams {
+    /// Текстовый запрос (поддерживает фильтры from:, has:, before:, after:).
+    pub q: String,
+    /// Максимальное количество результатов (1-100).
+    #[serde(default)]
+    #[ts(optional, type = "number")]
+    pub limit: Option<i64>,
+    /// Искать до этого ID сообщения (exclusive).
+    #[serde(default)]
+    #[ts(optional, type = "number")]
+    pub before: Option<i64>,
+    /// Искать после этого ID сообщения (exclusive).
+    #[serde(default)]
+    #[ts(optional, type = "number")]
+    pub after: Option<i64>,
+}
+
+/// Результат поиска: сообщение + контекст (канал/сервер).
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SearchResult {
+    #[ts(type = "number")]
+    pub message_id: i64,
+    #[ts(type = "number")]
+    pub channel_id: i64,
+    #[ts(type = "number")]
+    pub server_id: Option<i64>,
+    pub channel_name: String,
+    pub message: Message,
+}
+
+/// Вопрос онбординга: за правильный ответ выдаётся роль.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct OnboardingQuestion {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub server_id: i64,
+    pub question: String,
+    #[ts(type = "number")]
+    pub role_id: i64,
+    pub position: i32,
+    pub answered: bool,
+}
+
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateOnboardingQuestionRequest {
+    pub question: String,
+    #[ts(type = "number")]
+    pub role_id: i64,
+}
+
+/// Событие сервера.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ServerEvent {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub server_id: i64,
+    pub name: String,
+    pub description: String,
+    /// Unix-время в мс.
+    #[ts(type = "number")]
+    pub starts_at: i64,
+    #[ts(type = "number | null")]
+    pub channel_id: Option<i64>,
+    #[ts(type = "number")]
+    pub creator_id: i64,
+    pub interested_count: i32,
+    pub interested: bool,
+}
+
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateServerEventRequest {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    /// Unix-время в мс.
+    #[ts(type = "number")]
+    pub starts_at: i64,
+    #[serde(default)]
+    #[ts(optional, type = "number | null")]
+    pub channel_id: Option<Option<i64>>,
+    /// Отправить напоминание участникам, отметившим «Интересно», за час до начала.
+    #[serde(default)]
+    pub reminder: bool,
+}
+
+/// Тег форум-ветки.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ThreadTag {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub channel_id: i64,
+    pub name: String,
+    #[ts(type = "number | null")]
+    pub color: Option<i32>,
+}
+
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateThreadTagRequest {
+    pub name: String,
+    #[serde(default)]
+    #[ts(optional, type = "number | null")]
+    pub color: Option<Option<i32>>,
+}
+
+/// Шаблон сервера для создания нового.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ServerTemplate {
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub rules: String,
+    #[serde(default)]
+    pub banner_url: String,
+    #[serde(default)]
+    pub channels: Vec<TemplateChannel>,
+    #[serde(default)]
+    pub roles: Vec<TemplateRole>,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TemplateChannel {
+    pub name: String,
+    pub kind: ChannelKind,
+    pub is_forum: bool,
+}
+
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TemplateRole {
+    pub name: String,
+    #[ts(type = "number | null")]
+    pub color: Option<i32>,
+    #[ts(type = "number")]
+    pub permissions: i64,
+    pub position: i32,
+    pub hoist: bool,
+    pub mentionable: bool,
+}
+
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateFromTemplateRequest {
+    pub template: ServerTemplate,
+}
+
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PruneResponse {
+    pub removed: i32,
+}
+
+/// Параметры поиска участников сервера.
+#[derive(Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MemberSearchParams {
+    pub q: String,
+    #[serde(default)]
+    #[ts(optional, type = "number")]
+    pub limit: Option<i64>,
+}
+
+/// Ответ поиска участников.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MemberSearchResponse {
+    pub results: Vec<Member>,
+    pub has_more: bool,
+}
+
+/// Ответ поиска: список результатов + есть ли ещё.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SearchResponse {
+    pub results: Vec<SearchResult>,
+    pub has_more: bool,
+}
+
 pub fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -361,6 +828,69 @@ pub struct Server {
     /// Канал событий сервера (вход, создание канала, роли); `null` — не задан.
     #[ts(type = "number | null")]
     pub system_channel_id: Option<i64>,
+    /// Голосовой AFK-канал; `null` — не задан.
+    #[ts(type = "number | null")]
+    pub afk_channel_id: Option<i64>,
+    /// Описание сервера (Markdown).
+    pub description: String,
+    /// Правила сервера (Markdown).
+    pub rules: String,
+    /// URL баннера сервера; пустая строка — нет.
+    pub banner_url: String,
+    /// Канал объявлений; `null` — не задан.
+    #[ts(type = "number | null")]
+    pub announcement_channel_id: Option<i64>,
+}
+
+/// Частичное обновление настроек сервера (только owner/admin).
+#[derive(Deserialize, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateServerRequest {
+    #[serde(default)]
+    #[ts(optional, type = "number | null")]
+    pub system_channel_id: Option<Option<i64>>,
+    #[serde(default)]
+    #[ts(optional, type = "number | null")]
+    pub afk_channel_id: Option<Option<i64>>,
+    #[serde(default)]
+    #[ts(optional, type = "number | null")]
+    pub announcement_channel_id: Option<Option<i64>>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub description: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub rules: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub banner_url: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub name: Option<String>,
+}
+
+/// Роль, выдаваемая за реакцию на сообщение.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ReactionRole {
+    #[ts(type = "number")]
+    pub message_id: i64,
+    pub emoji: String,
+    #[ts(type = "number")]
+    pub role_id: i64,
+    #[ts(type = "number")]
+    pub server_id: i64,
+}
+
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateReactionRoleRequest {
+    pub emoji: String,
+    #[ts(type = "number")]
+    pub role_id: i64,
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone)]
@@ -377,8 +907,16 @@ pub struct Channel {
     /// Категория канала; `null` — без категории.
     #[ts(type = "number | null")]
     pub category_id: Option<i64>,
-    /// Непрочитанные чужие сообщения, максимум 100 (клиент покажет «99+»).
+    /// Форум-канал: сообщения являются ветками.
+    pub is_forum: bool,
+    /// Непрочитанные чужие сообщения, максимум 100 (клиент пишет «99+»).
     pub unread_count: i32,
+    /// Описание канала (тема).
+    pub topic: String,
+    ///Slowmode в секундах; 0 — без ограничений.
+    pub slowmode_seconds: i32,
+    /// Флаг NSFW-канала.
+    pub nsfw: bool,
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -388,6 +926,7 @@ pub enum ChannelKind {
     #[default]
     Text,
     Voice,
+    Stage,
 }
 
 impl ChannelKind {
@@ -395,14 +934,15 @@ impl ChannelKind {
         match self {
             ChannelKind::Text => "text",
             ChannelKind::Voice => "voice",
+            ChannelKind::Stage => "stage",
         }
     }
 
     pub fn parse(s: &str) -> Self {
-        if s == "voice" {
-            ChannelKind::Voice
-        } else {
-            ChannelKind::Text
+        match s {
+            "voice" => ChannelKind::Voice,
+            "stage" => ChannelKind::Stage,
+            _ => ChannelKind::Text,
         }
     }
 }
@@ -445,6 +985,21 @@ pub struct Member {
     #[ts(type = "Array<number>")]
     pub role_ids: Vec<i64>,
     pub status: Presence,
+    pub nickname: String,
+    pub avatar_url: String,
+    /// До время отключения связи (NULL — активен). Unix-время в мс.
+    #[ts(type = "number | null")]
+    pub communication_disabled_until: Option<i64>,
+}
+
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateMemberProfileRequest {
+    #[serde(default)]
+    pub nickname: String,
+    #[serde(default)]
+    pub avatar_url: String,
 }
 
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq)]
@@ -495,12 +1050,16 @@ pub struct CreateServerRequest {
 }
 
 #[derive(Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct CreateChannelRequest {
     pub name: String,
     #[serde(default)]
     #[ts(optional)]
     pub kind: Option<ChannelKind>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub is_forum: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, TS, Default)]
@@ -518,6 +1077,33 @@ pub struct CreateInviteRequest {
 #[ts(export)]
 pub struct UpdateMemberRequest {
     pub role: Role,
+}
+
+/// Запись о бане (кирке/таймауте).
+#[derive(Serialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BanInfo {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub user_id: i64,
+    pub username: String,
+    #[ts(type = "number")]
+    pub actor_id: i64,
+    pub actor_username: String,
+    pub reason: String,
+    #[ts(type = "number")]
+    pub created_at: i64,
+}
+
+/// Тело POST/PATCH `/api/servers/{id}/members/{user_id}/ban`.
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BanRequest {
+    #[serde(default)]
+    pub reason: String,
 }
 
 /// Пользовательская роль сервера. `position` больше — старше.
@@ -629,6 +1215,18 @@ pub struct UpdateChannelRequest {
     pub category_id: Option<i64>,
     #[serde(default)]
     pub position: Option<i32>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub is_forum: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub topic: Option<String>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub slowmode_seconds: Option<i32>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub nsfw: Option<bool>,
 }
 
 /// Переопределение прав канала для роли или участника.
@@ -784,6 +1382,14 @@ pub struct BlockedUser {
     pub username: String,
 }
 
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TimeoutRequest {
+    #[ts(type = "number")]
+    pub seconds: i64,
+}
+
 /// Порог уведомлений: все сообщения, только @упоминания или ничего.
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -905,4 +1511,41 @@ pub struct NotifyWord {
 pub struct AddNotifyWord {
     pub word: String,
     pub case_sensitive: bool,
+}
+
+/// Статистика сервера для дашборда.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ServerStats {
+    #[ts(type = "number")]
+    pub member_count: i64,
+    #[ts(type = "number")]
+    pub channel_count: i64,
+    #[ts(type = "number")]
+    pub message_count_24h: i64,
+    #[ts(type = "number")]
+    pub online_count: i64,
+}
+
+/// Автоправило модерации.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AutoModRule {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub pattern: String,
+    pub action: String,
+    pub note: String,
+}
+
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateAutoModRuleRequest {
+    pub pattern: String,
+    pub action: String,
+    #[serde(default)]
+    pub note: Option<String>,
 }

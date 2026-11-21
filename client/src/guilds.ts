@@ -1,6 +1,19 @@
 import { create } from 'zustand';
 import { api } from './api';
 import type { AuditEntry } from './generated/AuditEntry';
+import type { CreateReactionRoleRequest } from './generated/CreateReactionRoleRequest';
+import type { CreateOnboardingQuestionRequest } from './generated/CreateOnboardingQuestionRequest';
+import type { CreateServerEventRequest } from './generated/CreateServerEventRequest';
+import type { CreateThreadTagRequest } from './generated/CreateThreadTagRequest';
+import type { CreateFromTemplateRequest } from './generated/CreateFromTemplateRequest';
+import type { Message } from './generated/Message';
+import type { OnboardingQuestion } from './generated/OnboardingQuestion';
+import type { PruneResponse } from './generated/PruneResponse';
+import type { ServerEvent } from './generated/ServerEvent';
+import type { ServerTemplate } from './generated/ServerTemplate';
+import type { ThreadTag } from './generated/ThreadTag';
+import type { MemberSearchResponse } from './generated/MemberSearchResponse';
+import type { ReactionRole } from './generated/ReactionRole';
 import type { Category } from './generated/Category';
 import type { Channel } from './generated/Channel';
 import type { ChannelKind } from './generated/ChannelKind';
@@ -10,13 +23,21 @@ import type { Invite } from './generated/Invite';
 import type { Member } from './generated/Member';
 import type { Overwrite } from './generated/Overwrite';
 import type { Role } from './generated/Role';
+import type { Ticket } from './generated/Ticket';
 import type { RoleInfo } from './generated/RoleInfo';
 import type { Server } from './generated/Server';
 import type { UpdateChannelRequest } from './generated/UpdateChannelRequest';
 import type { UpdateRoleRequest } from './generated/UpdateRoleRequest';
 import type { UpsertOverwriteRequest } from './generated/UpsertOverwriteRequest';
+import type { BanInfo } from './generated/BanInfo';
+import type { BanRequest } from './generated/BanRequest';
+import type { EmbedPreview } from './generated/EmbedPreview';
 
 import { P, hasPerm } from './permissions';
+import type { StickerPack } from './generated/StickerPack';
+import type { Sticker } from './generated/Sticker';
+import type { CreateStickerPackRequest } from './generated/CreateStickerPackRequest';
+import type { CreateStickerRequest } from './generated/CreateStickerRequest';
 
 interface GuildsState {
   /** `null` — ещё не загружено. */
@@ -139,6 +160,105 @@ export async function createServer(name: string) {
   return server;
 }
 
+/** Обновляет системный/AFK-каналы; список серверов перечитываем, чтобы подтянуть изменения. */
+export async function setMemberProfile(serverId: number, body: { nickname: string; avatarUrl: string }) {
+  await api(`/api/servers/${serverId}/members/me`, { method: 'PUT', body });
+}
+
+export async function listOnboarding(serverId: number) {
+  return api<OnboardingQuestion[]>(`/api/servers/${serverId}/onboarding`);
+}
+export async function createOnboarding(serverId: number, body: CreateOnboardingQuestionRequest) {
+  await api(`/api/servers/${serverId}/onboarding`, { method: 'POST', body });
+}
+export async function deleteOnboarding(serverId: number, questionId: number) {
+  await api(`/api/servers/${serverId}/onboarding/${questionId}`, { method: 'DELETE' });
+}
+export async function answerOnboarding(serverId: number, questionId: number) {
+  await api(`/api/servers/${serverId}/onboarding/${questionId}/answer`, { method: 'POST' });
+}
+export async function listEvents(serverId: number) {
+  return api<ServerEvent[]>(`/api/servers/${serverId}/events`);
+}
+export async function createEvent(serverId: number, body: CreateServerEventRequest) {
+  await api(`/api/servers/${serverId}/events`, { method: 'POST', body });
+}
+export async function deleteEvent(serverId: number, eventId: number) {
+  await api(`/api/servers/${serverId}/events/${eventId}`, { method: 'DELETE' });
+}
+export async function toggleInterest(serverId: number, eventId: number) {
+  await api(`/api/servers/${serverId}/events/${eventId}/interest`, { method: 'POST' });
+}
+export async function listTags(serverId: number) {
+  return api<ThreadTag[]>(`/api/servers/${serverId}/tags`);
+}
+export async function createTag(serverId: number, body: CreateThreadTagRequest) {
+  await api(`/api/servers/${serverId}/tags`, { method: 'POST', body });
+}
+export async function deleteTag(serverId: number, tagId: number) {
+  await api(`/api/servers/${serverId}/tags/${tagId}`, { method: 'DELETE' });
+}
+export async function getTemplate(serverId: number) {
+  return api<ServerTemplate>(`/api/servers/${serverId}/template`);
+}
+export async function createFromTemplate(template: ServerTemplate) {
+  return api<Server>(`/api/servers/template`, { method: 'POST', body: { template } });
+}
+export async function pruneMembers(serverId: number, days: number) {
+  return api<PruneResponse>(`/api/servers/${serverId}/prune?days=${days}`, { method: 'POST' });
+}
+export async function listThreads(channelId: number) {
+  return api<Message[]>(`/api/channels/${channelId}/threads`);
+}
+export async function createThread(channelId: number, content: string) {
+  return api<Message>(`/api/channels/${channelId}/threads`, { method: 'POST', body: { content } });
+}
+export async function updateThread(messageId: number, body: { archived?: boolean; locked?: boolean }) {
+  await api(`/api/messages/${messageId}/thread`, { method: 'PATCH', body });
+}
+export async function loadReplies(rootId: number) {
+  return api<Message[]>(`/api/messages/${rootId}/replies`);
+}
+
+export async function listReactionRoles(serverId: number) {
+  return api<ReactionRole[]>(`/api/servers/${serverId}/reaction-roles`);
+}
+
+export async function createReactionRole(serverId: number, messageId: number, body: CreateReactionRoleRequest) {
+  await api(`/api/servers/${serverId}/messages/${messageId}/reaction-roles`, { method: 'POST', body });
+}
+
+export async function removeReactionRole(serverId: number, messageId: number, emoji: string, roleId: number) {
+  await api(
+    `/api/servers/${serverId}/reaction-roles/${messageId}/${encodeURIComponent(emoji)}/${roleId}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function searchMembers(serverId: number, q: string) {
+  return api<MemberSearchResponse>(
+    `/api/servers/${serverId}/members/search?q=${encodeURIComponent(q)}&limit=50`,
+  );
+}
+
+export async function listTickets(serverId: number) {
+  return api<Ticket[]>(`/api/servers/${serverId}/tickets`);
+}
+
+export async function createTicket(serverId: number, title: string) {
+  return api<Ticket>(`/api/servers/${serverId}/tickets`, { method: 'POST', body: { title } });
+}
+
+export async function updateTicket(serverId: number, ticketId: number, body: { status?: string; title?: string }) {
+  return api<Ticket>(`/api/servers/${serverId}/tickets/${ticketId}`, { method: 'PATCH', body });
+}
+
+export async function updateServer(serverId: number, body: import('./generated/UpdateServerRequest').UpdateServerRequest) {
+  await api(`/api/servers/${serverId}`, { method: 'PATCH', body });
+  const servers = await api<Server[]>('/api/servers');
+  useGuilds.setState({ servers });
+}
+
 /** Принимает код или ссылку целиком: берём последний сегмент. */
 export async function joinInvite(codeOrLink: string) {
   const code = codeOrLink.trim().split('/').pop() ?? '';
@@ -147,10 +267,15 @@ export async function joinInvite(codeOrLink: string) {
   return server;
 }
 
-export async function createChannel(serverId: number, name: string, kind: ChannelKind = 'text') {
+export async function createChannel(
+  serverId: number,
+  name: string,
+  kind: ChannelKind = 'text',
+  isForum = false,
+) {
   const channel = await api<Channel>(`/api/servers/${serverId}/channels`, {
     method: 'POST',
-    body: { name, kind },
+    body: { name, kind, is_forum: isForum },
   });
   await loadChannels(serverId);
   return channel;
@@ -165,6 +290,22 @@ export const createInvite = (serverId: number, req: CreateInviteRequest = {}) =>
   api<Invite>(`/api/servers/${serverId}/invites`, { method: 'POST', body: req });
 
 export const listMembers = (serverId: number) => api<Member[]>(`/api/servers/${serverId}/members`);
+
+export async function listBans(serverId: number) {
+  return api<BanInfo[]>(`/api/servers/${serverId}/bans`);
+}
+
+export async function banMember(serverId: number, userId: number, req: BanRequest) {
+  await api(`/api/servers/${serverId}/members/${userId}/ban`, { method: 'POST', body: req });
+}
+
+export async function unbanMember(serverId: number, userId: number) {
+  await api(`/api/servers/${serverId}/members/${userId}/ban`, { method: 'DELETE' });
+}
+
+export async function kickMember(serverId: number, userId: number, req: BanRequest) {
+  await api(`/api/servers/${serverId}/members/${userId}/kick`, { method: 'POST', body: req });
+}
 
 /** «Помахать» — короткое событие в системный канал сервера. */
 export const wave = (serverId: number) =>
@@ -208,19 +349,55 @@ export function bumpUnread(channelId: number) {
 
 /** Канал прочитан (здесь или в другой вкладке). */
 export function clearUnread(serverId: number, channelId: number) {
-  const channel = useGuilds.getState().channels[serverId]?.find((c) => c.id === channelId);
-  if (!channel) return reloadServersSoon();
-  if (channel.unreadCount === 0) return;
-  useGuilds.setState((s) => ({
-    channels: {
-      ...s.channels,
-      [serverId]: s.channels[serverId]?.map((c) => (c.id === channelId ? { ...c, unreadCount: 0 } : c)),
-    },
-    servers:
-      s.servers?.map((x) =>
-        x.id === serverId ? { ...x, unreadCount: Math.max(0, x.unreadCount - channel.unreadCount) } : x,
-      ) ?? null,
-  }));
+    const channel = useGuilds.getState().channels[serverId]?.find((c) => c.id === channelId);
+    if (!channel) return reloadServersSoon();
+    if (channel.unreadCount === 0) return;
+    useGuilds.setState((s) => ({
+        channels: {
+            ...s.channels,
+            [serverId]: s.channels[serverId]?.map((c) => (c.id === channelId ? { ...c, unreadCount: 0 } : c)),
+        },
+        servers:
+            s.servers?.map((x) =>
+                x.id === serverId ? { ...x, unreadCount: Math.max(0, x.unreadCount - channel.unreadCount) } : x,
+            ) ?? null,
+    }));
+}
+
+export async function loadEmbed(messageId: number) {
+    return api<EmbedPreview | null>(`/api/messages/${messageId}/embed`);
 }
 
 export const formatBadge = (n: number) => (n >= 100 ? '99+' : String(n));
+
+export async function listStickerPacks(serverId: number) {
+    return api<StickerPack[]>(`/api/servers/${serverId}/stickers/packages`);
+}
+
+export async function createStickerPack(serverId: number, req: CreateStickerPackRequest) {
+    return api<StickerPack>(`/api/servers/${serverId}/stickers/packages`, { method: 'POST', body: JSON.stringify(req) });
+}
+
+export async function getStickerPack(serverId: number, packId: number) {
+    return api<StickerPack>(`/api/servers/${serverId}/stickers/packages/${packId}`);
+}
+
+export async function deleteStickerPack(serverId: number, packId: number) {
+    return api<void>(`/api/servers/${serverId}/stickers/packages/${packId}`, { method: 'DELETE' });
+}
+
+export async function createSticker(serverId: number, packId: number, req: CreateStickerRequest) {
+    return api<Sticker>(`/api/servers/${serverId}/stickers/packages/${packId}/stickers`, { method: 'POST', body: JSON.stringify(req) });
+}
+
+export async function deleteSticker(serverId: number, stickerId: number) {
+    return api<void>(`/api/servers/${serverId}/stickers/${stickerId}`, { method: 'DELETE' });
+}
+
+export async function listChannelStickers(channelId: number) {
+    return api<Sticker[]>(`/api/channels/${channelId}/stickers`);
+}
+
+export async function listPackStickers(serverId: number, packId: number) {
+    return api<Sticker[]>(`/api/servers/${serverId}/stickers/packages/${packId}/stickers`);
+}

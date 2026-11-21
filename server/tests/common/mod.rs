@@ -65,6 +65,7 @@ pub async fn call(
     auth: Option<&str>,
     cookie: Option<&str>,
 ) -> Resp {
+    nexus_server::rate_limit::reset();
     let mut req = Request::builder().method(method).uri(uri);
     if let Some(t) = auth {
         req = req.header(header::AUTHORIZATION, format!("Bearer {t}"));

@@ -6,7 +6,16 @@ import { AppLayout } from './AppLayout';
 import { AuthPage } from './AuthPage';
 import { restoreSession, useSession } from './session';
 
+// Применяем сохранённую тему до первого рендера, чтобы не было «вспышки» и светлая тема работала сразу.
+const initialTheme = localStorage.getItem('nexus-theme') ?? 'auto';
+const initialDark = initialTheme === 'dark' || (initialTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+document.documentElement.classList.toggle('nexus-dark', initialDark);
+document.documentElement.classList.toggle('nexus-light', !initialDark);
+
 void restoreSession();
+if ("serviceWorker" in navigator) {
+  void navigator.serviceWorker.register("/service-worker.js");
+}
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const status = useSession((s) => s.status);

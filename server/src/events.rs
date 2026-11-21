@@ -60,6 +60,9 @@ pub enum Notice {
     RolesChanged {
         server_id: i64,
     },
+    EmojisChanged {
+        server_id: i64,
+    },
     MemberJoined {
         server_id: i64,
         user_id: i64,
@@ -328,6 +331,16 @@ async fn handle(state: &AppState, payload: &str) {
                 Event::ToServer {
                     server_id,
                     json: to_json(&ServerMessage::RolesChanged { server_id }),
+                },
+            );
+            Ok(())
+        }
+        Notice::EmojisChanged { server_id } => {
+            send(
+                state,
+                Event::ToServer {
+                    server_id,
+                    json: to_json(&ServerMessage::EmojisChanged { server_id }),
                 },
             );
             Ok(())

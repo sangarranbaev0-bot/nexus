@@ -11,7 +11,7 @@ export type ServerMessage = { "type": "hello",
 /**
  * Глобальный id подключения (строка присутствия), уникален между экземплярами.
  */
-connId: number, userId: number, } | { "type": "pong", sentAt: number, serverTime: number, } | { "type": "error", message: string, } | { "type": "messageCreated", message: Message, } | { "type": "messageUpdated", message: Message, } | { "type": "messageDeleted", channelId: number, messageId: number, } | { "type": "typing", channelId: number, userId: number, username: string, } | { "type": "channelsChanged", serverId: number, } | { "type": "rolesChanged", serverId: number, } | { "type": "voiceState", participant: VoiceParticipant, } | { "type": "voiceLeft", channelId: number, userId: number, } | { "type": "voiceSignal", fromUserId: number, data: unknown, } | { "type": "presenceChanged", userId: number, status: Presence, } | { "type": "channelRead", 
+connId: number, userId: number, } | { "type": "pong", sentAt: number, serverTime: number, } | { "type": "error", message: string, } | { "type": "messageCreated", message: Message, } | { "type": "messageUpdated", message: Message, } | { "type": "messageDeleted", channelId: number, messageId: number, } | { "type": "typing", channelId: number, userId: number, username: string, } | { "type": "channelsChanged", serverId: number, } | { "type": "rolesChanged", serverId: number, } | { "type": "emojisChanged", serverId: number, } | { "type": "voiceState", participant: VoiceParticipant, } | { "type": "voiceLeft", channelId: number, userId: number, } | { "type": "voiceSignal", fromUserId: number, data: unknown, } | { "type": "presenceChanged", userId: number, status: Presence, } | { "type": "channelRead", 
 /**
  * `null` — личные сообщения.
  */

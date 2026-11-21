@@ -45,8 +45,16 @@ struct ChannelRow {
     kind: String,
     #[diesel(sql_type = diesel::sql_types::Nullable<BigInt>)]
     category_id: Option<i64>,
+    #[diesel(sql_type = diesel::sql_types::Bool)]
+    is_forum: bool,
     #[diesel(sql_type = Int4)]
     unread_count: i32,
+    #[diesel(sql_type = Text)]
+    topic: String,
+    #[diesel(sql_type = Int4)]
+    slowmode_seconds: i32,
+    #[diesel(sql_type = diesel::sql_types::Bool)]
+    nsfw: bool,
 }
 
 pub async fn channels_with_unread(
@@ -55,12 +63,12 @@ pub async fn channels_with_unread(
     server_id: i64,
 ) -> AppResult<Vec<Channel>> {
     let rows: Vec<ChannelRow> = diesel::sql_query(format!(
-        "SELECT c.id, c.server_id, c.name, c.position, c.kind, c.category_id, {UNREAD} AS unread_count
-         FROM channels c
-         JOIN members mem ON mem.server_id = c.server_id AND mem.user_id = $1
-         LEFT JOIN read_states rs ON rs.channel_id = c.id AND rs.user_id = $1
-         WHERE c.server_id = $2
-         ORDER BY c.position, c.id"
+        "SELECT c.id, c.server_id, c.name, c.position, c.kind, c.category_id, c.is_forum, {UNREAD} AS unread_count, c.topic, c.slowmode_seconds, c.nsfw
+          FROM channels c
+          JOIN members mem ON mem.server_id = c.server_id AND mem.user_id = $1
+          LEFT JOIN read_states rs ON rs.channel_id = c.id AND rs.user_id = $1
+          WHERE c.server_id = $2
+          ORDER BY c.position, c.id"
     ))
     .bind::<BigInt, _>(user_id)
     .bind::<BigInt, _>(server_id)
@@ -75,7 +83,11 @@ pub async fn channels_with_unread(
             position: r.position,
             kind: ChannelKind::parse(&r.kind),
             category_id: r.category_id,
+            is_forum: r.is_forum,
             unread_count: r.unread_count,
+            topic: r.topic,
+            slowmode_seconds: r.slowmode_seconds,
+            nsfw: r.nsfw,
         })
         .collect())
 }
@@ -94,6 +106,16 @@ struct ServerRow {
     unread_count: i32,
     #[diesel(sql_type = Nullable<BigInt>)]
     system_channel_id: Option<i64>,
+    #[diesel(sql_type = Nullable<BigInt>)]
+    afk_channel_id: Option<i64>,
+    #[diesel(sql_type = Text)]
+    description: String,
+    #[diesel(sql_type = Text)]
+    rules: String,
+    #[diesel(sql_type = Text)]
+    banner_url: String,
+    #[diesel(sql_type = Nullable<BigInt>)]
+    announcement_channel_id: Option<i64>,
 }
 
 pub async fn servers_with_unread(
@@ -101,7 +123,8 @@ pub async fn servers_with_unread(
     user_id: i64,
 ) -> AppResult<Vec<Server>> {
     let rows: Vec<ServerRow> = diesel::sql_query(format!(
-        "SELECT s.id, s.name, s.owner_id, mem.role, s.system_channel_id,
+        "SELECT s.id, s.name, s.owner_id, mem.role, s.system_channel_id, s.afk_channel_id,
+                 s.description, s.rules, s.banner_url, s.announcement_channel_id,
                 COALESCE((SELECT sum({UNREAD})
                           FROM channels c
                           LEFT JOIN read_states rs ON rs.channel_id = c.id AND rs.user_id = $1
@@ -127,6 +150,11 @@ pub async fn servers_with_unread(
             my_permissions,
             unread_count: r.unread_count,
             system_channel_id: r.system_channel_id,
+            afk_channel_id: r.afk_channel_id,
+            description: r.description,
+            rules: r.rules,
+            banner_url: r.banner_url,
+            announcement_channel_id: r.announcement_channel_id,
         });
     }
     Ok(servers)

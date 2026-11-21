@@ -3,4 +3,4 @@
 /**
  * Частичное обновление канала. `categoryId: 0` убирает канал из категории.
  */
-export type UpdateChannelRequest = { name: string | null, categoryId: number, position: number | null, };
+export type UpdateChannelRequest = { name: string | null, categoryId: number, position: number | null, isForum?: boolean, topic?: string, slowmodeSeconds?: number, nsfw?: boolean, };

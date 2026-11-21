@@ -7,10 +7,14 @@ use axum::{
 use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use diesel::sql_types::{Array, BigInt, Text};
+use regex::Regex;
+use reqwest::header::ACCEPT;
+use serde::Deserialize;
 use std::collections::HashMap;
+use std::sync::RwLock;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use diesel_async::{AsyncConnection, AsyncPgConnection, RunQueryDsl};
-use serde::Deserialize;
 
 use crate::{
     AppState, attachments,
@@ -19,10 +23,10 @@ use crate::{
     events::{Notice, notify},
     permissions,
     protocol::{
-        Attachment, ChannelKind, ForwardPreview, ForwardRequest, Message, MessageContent,
-        MessageEdit, Reaction, ReplyPreview,
+        Attachment, ChannelKind, EmbedPreview, ForwardPreview, ForwardRequest, Message, MessageContent,
+        MessageEdit, Reaction, ReplyPreview, SearchParams, SearchResponse, SearchResult,
     },
-    schema::{message_edits, messages, users},
+    schema::{attachments as attachment_rows, channels, message_edits, messages, users},
     servers::{ChannelAccess, channel_access},
 };
 
@@ -33,17 +37,20 @@ const MAX_PAGE: i64 = 100;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/channels/{id}/messages", get(list).post(create))
+        .route("/api/channels/{id}/messages/search", get(search))
         .route("/api/channels/{id}/pins", get(pins))
         .route("/api/messages/{id}", patch(update).delete(remove))
         .route("/api/messages/{id}/pin", put(pin).delete(unpin))
         .route("/api/messages/{id}/edits", get(edits))
         .route("/api/messages/{id}/forward", post(forward))
+        .route("/api/messages/{id}/embed", get(embed_preview))
 }
 
 type Row = (
     i64,
     i64,
     i64,
+    String,
     String,
     String,
     DateTime<Utc>,
@@ -57,6 +64,10 @@ type Row = (
     Option<i64>,
     Option<String>,
     Option<String>,
+    Option<i64>,
+    bool,
+    bool,
+    bool,
 );
 
 type Columns = (
@@ -64,6 +75,7 @@ type Columns = (
     messages::channel_id,
     messages::author_id,
     users::username,
+    users::badge,
     messages::content,
     messages::created_at,
     messages::edited_at,
@@ -76,6 +88,10 @@ type Columns = (
     messages::forwarded_author_id,
     messages::forwarded_author,
     messages::forwarded_content,
+    messages::thread_root_id,
+    messages::thread_archived,
+    messages::thread_locked,
+    messages::has_embed,
 );
 
 fn columns() -> Columns {
@@ -84,6 +100,7 @@ fn columns() -> Columns {
         messages::channel_id,
         messages::author_id,
         users::username,
+        users::badge,
         messages::content,
         messages::created_at,
         messages::edited_at,
@@ -96,7 +113,11 @@ fn columns() -> Columns {
         messages::forwarded_author_id,
         messages::forwarded_author,
         messages::forwarded_content,
-    )
+            messages::thread_root_id,
+            messages::thread_archived,
+            messages::thread_locked,
+            messages::has_embed,
+        )
 }
 
 fn to_message(
@@ -105,6 +126,7 @@ fn to_message(
         channel_id,
         author_id,
         author_username,
+        author_badge,
         content,
         created,
         edited,
@@ -117,6 +139,10 @@ fn to_message(
         forwarded_author_id,
         forwarded_author,
         forwarded_content,
+        thread_root_id,
+        thread_archived,
+        thread_locked,
+        has_embed,
     ): Row,
     attachments: &mut HashMap<i64, Vec<Attachment>>,
     reactions: Vec<Reaction>,
@@ -127,23 +153,28 @@ fn to_message(
         channel_id,
         author_id,
         author_username,
+        author_badge,
         content,
         created_at: created.timestamp_millis(),
         edited_at: edited.map(|t| t.timestamp_millis()),
         attachments: attachments.remove(&id).unwrap_or_default(),
         reactions,
         reply_to,
-        pinned: pinned_at.is_some(),
-        system_kind,
-        system_detail,
-        forwarded_from: forwarded_author.map(|author_username| ForwardPreview {
-            message_id: forwarded_from_id,
-            author_id: forwarded_author_id,
-            author_username,
-            content: forwarded_content.unwrap_or_default(),
-            channel_id: forwarded_channel_id,
-        }),
-    }
+         pinned: pinned_at.is_some(),
+         system_kind,
+         system_detail,
+         forwarded_from: forwarded_author.map(|author_username| ForwardPreview {
+             message_id: forwarded_from_id,
+             author_id: forwarded_author_id,
+             author_username,
+             content: forwarded_content.unwrap_or_default(),
+             channel_id: forwarded_channel_id,
+         }),
+         thread_root_id,
+          thread_archived,
+          thread_locked,
+          has_embed,
+      }
 }
 
 #[derive(QueryableByName)]
@@ -191,13 +222,13 @@ async fn with_extras(
     let ids: Vec<i64> = rows.iter().map(|r| r.0).collect();
     let mut files = attachments::for_messages(conn, key, &ids).await?;
     let mut reactions = reactions_for(conn, &ids).await?;
-    let reply_ids: Vec<i64> = rows.iter().filter_map(|r| r.7).collect();
+    let reply_ids: Vec<i64> = rows.iter().filter_map(|r| r.8).collect();
     let replies = reply_previews(conn, &reply_ids).await?;
     Ok(rows
         .into_iter()
         .map(|r| {
             let reactions = reactions.remove(&r.0).unwrap_or_default();
-            let reply_to = r.7.and_then(|id| replies.get(&id).cloned());
+            let reply_to = r.8.and_then(|id| replies.get(&id).cloned());
             to_message(r, &mut files, reactions, reply_to)
         })
         .collect())
@@ -264,7 +295,7 @@ pub async fn load_message(
 }
 
 /// Текст до 2000 символов; пустой допустим, только если в сообщении есть файлы.
-fn validate(content: &str, has_files: bool) -> AppResult<String> {
+pub fn validate(content: &str, has_files: bool) -> AppResult<String> {
     let content = content.trim();
     if (content.is_empty() && !has_files) || content.chars().count() > MAX_LEN {
         return Err(AppError::bad_request("message must be 1-2000 characters"));
@@ -313,6 +344,102 @@ async fn list(
     let mut rows: Vec<Row> = query.load(&mut conn).await?;
     rows.reverse();
     Ok(Json(with_extras(&mut conn, &state.file_key, rows).await?))
+}
+
+/// Поиск сообщений в канале с фильтрами.
+async fn search(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(channel_id): Path<i64>,
+    Query(params): Query<SearchParams>,
+) -> AppResult<Json<SearchResponse>> {
+    let limit = params.limit.unwrap_or(50).clamp(1, 100);
+    let mut conn = state.pool.get().await?;
+    let access = channel_access(&mut conn, channel_id, user_id).await?;
+    if let Some(server_id) = access.server_id {
+        permissions::require_channel_permission(
+            &mut conn,
+            server_id,
+            user_id,
+            channel_id,
+            permissions::VIEW_CHANNEL,
+        )
+        .await?;
+    }
+
+    // Разбор фильтров: несколько токенов работают вместе, например `from:ann has:file отчёт`.
+    let mut author: Option<String> = None;
+    let mut has_file = false;
+    let mut has_link = false;
+    let mut terms: Vec<String> = Vec::new();
+    for token in params.q.split_whitespace() {
+        if let Some(name) = token.strip_prefix("from:").filter(|s| !s.is_empty()) {
+            author = Some(name.to_string());
+        } else if token == "has:file" || token == "has:attachment" {
+            has_file = true;
+        } else if token == "has:link" {
+            has_link = true;
+        } else {
+            terms.push(token.to_string());
+        }
+    }
+
+    let mut query = messages::table
+        .inner_join(users::table)
+        .filter(messages::channel_id.eq(channel_id))
+        .order(messages::id.desc())
+        .select(columns())
+        .into_boxed();
+
+    if let Some(name) = author {
+        query = query.filter(users::username.ilike(name));
+    }
+    if has_file {
+        // EXISTS по таблице вложений: не зависит от текста сообщения и не даёт ложных срабатываний.
+        query =
+            query
+                .filter(diesel::dsl::exists(attachment_rows::table.filter(
+                    attachment_rows::message_id.eq(messages::id.nullable()),
+                )));
+    }
+    if has_link {
+        query = query.filter(messages::content.ilike("%http%"));
+    }
+    for term in terms {
+        query = query.filter(messages::content.ilike(format!("%{}%", term)));
+    }
+    if let Some(before) = params.before {
+        query = query.filter(messages::id.lt(before));
+    }
+    if let Some(after) = params.after {
+        query = query.filter(messages::id.gt(after));
+    }
+    // Берём на одну строку больше, чтобы has_more был точен без второго запроса COUNT.
+    let mut rows: Vec<Row> = query.limit(limit + 1).load(&mut conn).await?;
+    let has_more = rows.len() as i64 > limit;
+    rows.truncate(limit as usize);
+    rows.reverse();
+
+    let channel_name: String = channels::table
+        .find(channel_id)
+        .select(channels::name)
+        .first(&mut conn)
+        .await
+        .unwrap_or_default();
+
+    let messages = with_extras(&mut conn, &state.file_key, rows).await?;
+    let results = messages
+        .into_iter()
+        .map(|message| SearchResult {
+            message_id: message.id,
+            channel_id,
+            server_id: access.server_id,
+            channel_name: channel_name.clone(),
+            message,
+        })
+        .collect();
+
+    Ok(Json(SearchResponse { results, has_more }))
 }
 
 /// Закреплённые сообщения канала, свежие сверху.
@@ -402,8 +529,10 @@ async fn create(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
     Path(channel_id): Path<i64>,
+    headers: axum::http::HeaderMap,
     Json(req): Json<MessageContent>,
 ) -> AppResult<(StatusCode, Json<Message>)> {
+    crate::rate_limit::messages(&headers).map_err(|(code, msg)| AppError(code, msg))?;
     let mut files = req.attachment_ids.unwrap_or_default();
     files.sort_unstable();
     files.dedup();
@@ -413,6 +542,16 @@ async fn create(
     let content = validate(&req.content, !files.is_empty())?;
     let mut conn = state.pool.get().await?;
     let access = channel_access(&mut conn, channel_id, user_id).await?;
+    if access.server_id.is_some() {
+        let mentions = content.chars().filter(|c| *c == '@').count();
+        if mentions > 5 {
+            return Err(AppError::bad_request("too many mentions"));
+        }
+        let links = content.matches("http://").count() + content.matches("https://").count();
+        if links > 3 {
+            return Err(AppError::bad_request("too many links"));
+        }
+    }
     if access.kind == ChannelKind::Voice {
         return Err(AppError::bad_request("voice channels have no messages"));
     }
@@ -456,8 +595,50 @@ async fn create(
         }
     }
 
+    // Применить правила автомодерации сервера
+    if let Some(sid) = server_id {
+        #[derive(diesel::QueryableByName)]
+        struct AutomodRow {
+            #[diesel(sql_type = Text)]
+            pattern: String,
+            #[diesel(sql_type = Text)]
+            action: String,
+            #[diesel(sql_type = Text)]
+            note: String,
+        }
+        let rules: Vec<AutomodRow> = diesel::sql_query(
+            "SELECT pattern, action, COALESCE(note,'') AS note FROM automod_rules WHERE server_id=$1 ORDER BY id",
+        )
+        .bind::<BigInt, _>(sid)
+        .load(&mut conn)
+        .await?;
+
+        for rule in &rules {
+            let lower_pattern = rule.pattern.to_lowercase();
+            let lower_content = content.to_lowercase();
+            // Try regex first; fall back to simple substring match on failure
+            let is_match = match Regex::new(&format!("(?i){}", regex::escape(&rule.pattern))) {
+                Ok(re) => re.is_match(&content),
+                Err(_) => lower_content.contains(&lower_pattern),
+            };
+            if is_match {
+                if rule.action == "delete" {
+                    return Err(AppError::bad_request(format!(
+                        "сообщение нарушает правило модерации: {}",
+                        if rule.note.is_empty() { "нарушение правил".to_string() } else { rule.note.clone() }
+                    )));
+                }
+                tracing::info!(
+                    "automod warn: user {} channel {} matched rule",
+                    user_id, channel_id,
+                );
+            }
+        }
+    }
+
     // Сообщение и привязка файлов — одна транзакция: чужой или уже занятый файл откатывает всё.
     let content_for_tx = content.clone();
+    let has_embed = !extract_urls(&content).is_empty();
     let id = conn
         .transaction(async move |conn| -> AppResult<i64> {
             let id: i64 = diesel::insert_into(messages::table)
@@ -466,6 +647,7 @@ async fn create(
                     messages::author_id.eq(user_id),
                     messages::content.eq(&content_for_tx),
                     messages::reply_to_id.eq(req.reply_to_id),
+                    messages::has_embed.eq(has_embed),
                 ))
                 .returning(messages::id)
                 .get_result(conn)
@@ -771,6 +953,146 @@ async fn remove(
     drop(conn);
     attachments::delete_objects(&state, &keys).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Кэш превью ссылок: url → (превью, unix-время в мс).
+type EmbedCache = RwLock<HashMap<String, (EmbedPreview, u64)>>;
+static EMBED_CACHE: once_cell::sync::Lazy<EmbedCache> =
+    once_cell::sync::Lazy::new(|| RwLock::new(HashMap::new()));
+
+const EMBED_TTL_MS: u64 = 10 * 60 * 1_000;
+
+fn extract_urls(content: &str) -> Vec<String> {
+    static RE: once_cell::sync::Lazy<Regex> =
+        once_cell::sync::Lazy::new(|| Regex::new(r#"https?://[^\s<>"')},;:]+"#).unwrap());
+    RE.find_iter(content)
+        .map(|m| m.as_str().to_string())
+        .take(1)
+        .collect()
+}
+
+async fn fetch_embed(url: &str) -> Option<EmbedPreview> {
+    if url.starts_with("http://") || url.starts_with("https://") {
+        // Уже абсолютный.
+    } else {
+        return None;
+    }
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (NexusChat Bot/1.0)")
+        .redirect(reqwest::redirect::Policy::limited(3))
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .ok()?;
+    let resp = client.get(url).header(ACCEPT, "text/html").send().await.ok()?;
+    let body = resp.text().await.ok()?;
+    if !body.contains("<meta") {
+        return None;
+    }
+    let title = extract_meta_attr(&body, "og:title", Some("title"))
+        .or_else(|| extract_title_tag(&body));
+    let desc = extract_meta_attr(&body, "og:description", Some("description"));
+    let image = extract_meta_attr(&body, "og:image", Some("image"));
+    let site_name = extract_meta_attr(&body, "og:site_name", None);
+    Some(EmbedPreview {
+        url: url.to_string(),
+        title,
+        description: desc,
+        image_url: image,
+        site_name,
+    })
+}
+
+fn extract_meta_attr(html: &str, prop: &str, _attr: Option<&str>) -> Option<String> {
+    let needle = format!("property=\"{}\"", prop);
+    let i = html.find(&needle)?;
+    let rest = &html[i + needle.len()..];
+    let quote = if let Some(i) = rest.find("content=") {
+        let after = &rest[i + 8..];
+        after.find('"').map(|j| &after[..j])
+    } else if let Some(i) = rest.find("content='") {
+        let after = &rest[i + 9..];
+        after.find('\'').map(|j| &after[..j])
+    } else if let Some(i) = rest.find("content=\"") {
+        let after = &rest[i + 10..];
+        after.find('"').map(|j| &after[..j])
+    } else {
+        None
+    }?;
+    quote.trim().to_string().into()
+}
+
+fn extract_title_tag(html: &str) -> Option<String> {
+    let open = html.find("<title")?;
+    let close = html[open..].find("</title>")?;
+    let tag_end = html[open..].find('>')?;
+    Some(html[open + tag_end + 1..open + close].trim().to_string())
+}
+
+/// Извлекает OpenGraph-превью для первого URL в сообщении.
+async fn embed_preview(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(message_id): Path<i64>,
+) -> AppResult<Json<Option<EmbedPreview>>> {
+    let mut conn = state.pool.get().await?;
+    let (_, _, access) = locate(&mut conn, message_id, user_id).await?;
+    let server_id = access.server_id;
+    let channel_id: i64 = messages::table
+        .find(message_id)
+        .select(messages::channel_id)
+        .first(&mut conn)
+        .await
+        .optional()?
+        .ok_or_else(|| AppError::not_found("message"))?;
+    if let Some(server_id) = server_id {
+        permissions::require_channel_permissions(
+            &mut conn, server_id, user_id, channel_id,
+            permissions::VIEW_CHANNEL | permissions::READ_MESSAGE_HISTORY,
+        )
+        .await?;
+    }
+    let content: String = messages::table
+        .find(message_id)
+        .select(messages::content)
+        .first(&mut conn)
+        .await
+        .optional()?
+        .ok_or_else(|| AppError::not_found("message"))?;
+    let urls = extract_urls(&content);
+    if urls.is_empty() {
+        return Ok(Json(None));
+    }
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    // Проверяем кэш (без удержания блокировки по await).
+    let mut cached = None;
+    {
+        let cache = EMBED_CACHE.read().map_err(|_| AppError::bad_request("cache lock"))?;
+        for url in &urls {
+            if let Some((prev, ts)) = cache.get(url)
+                && now_ms - ts < EMBED_TTL_MS {
+                    cached = Some(prev.clone());
+                    break;
+                }
+        }
+    }
+    if let Some(cached) = cached {
+        return Ok(Json(Some(cached)));
+    }
+    // Загружаем первое невалидное/отсутствующее превью.
+    for url in &urls {
+        if let Some(embed) = fetch_embed(url).await {
+            // Обновляем кэш.
+            {
+                let mut cache = EMBED_CACHE.write().map_err(|_| AppError::bad_request("cache lock"))?;
+                cache.insert(url.clone(), (embed.clone(), now_ms));
+            }
+            return Ok(Json(Some(embed)));
+        }
+    }
+    Ok(Json(None))
 }
 
 #[cfg(test)]

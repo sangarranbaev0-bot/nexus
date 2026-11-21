@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use axum::{Json, Router, extract::State, routing::get};
 use diesel::{
     prelude::*,
-    sql_types::{BigInt, Bool, Text},
+    sql_types::{BigInt, Bool, Nullable, Text},
 };
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 
@@ -205,6 +205,59 @@ pub async fn set_flags(
         .await?;
     let server_id = channel_access(conn, channel_id, user_id).await?.server_id;
     notify_state(conn, user_id, server_id).await
+}
+
+/// Перемещает неактивного пользователя в AFK-канал сервера (если он задан).
+/// Возврат из AFK при снятии idle не делается: пользователь выбирает канал сам.
+pub async fn set_afk(conn: &mut AsyncPgConnection, user_id: i64, idle: bool) -> AppResult<()> {
+    if !idle {
+        return Ok(());
+    }
+    let Some((channel_id, _)) = current(conn, user_id).await? else {
+        return Ok(());
+    };
+    #[derive(QueryableByName)]
+    struct AfkRow {
+        #[diesel(sql_type = Nullable<BigInt>)]
+        server_id: Option<i64>,
+        #[diesel(sql_type = Nullable<BigInt>)]
+        afk_channel_id: Option<i64>,
+    }
+    let row: AfkRow = diesel::sql_query(
+        "SELECT c.server_id, s.afk_channel_id FROM voice_states v \
+         JOIN channels c ON c.id = v.channel_id \
+         LEFT JOIN servers s ON s.id = c.server_id WHERE v.user_id = $1",
+    )
+    .bind::<BigInt, _>(user_id)
+    .load(conn)
+    .await?
+    .into_iter()
+    .next()
+    .unwrap_or(AfkRow {
+        server_id: None,
+        afk_channel_id: None,
+    });
+    let Some(server_id) = row.server_id else {
+        return Ok(());
+    };
+    let Some(afk_id) = row.afk_channel_id.filter(|id| *id != channel_id) else {
+        return Ok(());
+    };
+    let kind: String = channels::table
+        .find(afk_id)
+        .select(channels::kind)
+        .first(conn)
+        .await?;
+    if kind != ChannelKind::Voice.as_str() {
+        return Ok(());
+    }
+    // Права на AFK-канал не проверяем: это служебное перемещение внутри сервера.
+    diesel::update(voice_states::table.find(user_id))
+        .set(voice_states::channel_id.eq(afk_id))
+        .execute(conn)
+        .await?;
+    notify_left(conn, user_id, channel_id).await?;
+    notify_state(conn, user_id, Some(server_id)).await
 }
 
 /// Выход из голоса этим подключением (кнопка «Отключиться» или закрытая вкладка).

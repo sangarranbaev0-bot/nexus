@@ -8,7 +8,7 @@ export const useDms = create<{ dms: DmChannel[] | null }>(() => ({ dms: null }))
 
 export async function loadDms() {
   const dms = await api<DmChannel[]>('/api/dms');
-  rememberStatuses(dms.map((d) => ({ userId: d.userId, username: d.username, role: 'member', roleIds: [], status: d.status })));
+  rememberStatuses(dms.map((d) => ({ userId: d.userId, username: d.username, role: 'member', roleIds: [], status: d.status, nickname: '', avatarUrl: '', communicationDisabledUntil: null })));
   useDms.setState({ dms });
 }
 

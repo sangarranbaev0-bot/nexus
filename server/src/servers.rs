@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::{delete, get, patch, post},
 };
@@ -16,28 +16,65 @@ use crate::{
     permissions,
     presence::STATUS_SQL,
     protocol::{
-        Channel, ChannelKind, CreateChannelRequest, CreateInviteRequest, CreateServerRequest,
-        Invite, Member, Presence, Role, Server, UpdateMemberRequest,
+        BanInfo, BanRequest, Channel, ChannelKind, CreateChannelRequest, CreateInviteRequest,
+        CreateServerRequest, Invite, Member, MemberSearchParams, MemberSearchResponse,
+        Presence, Role, Server, Ticket, TimeoutRequest, UpdateMemberRequest, UpdateServerRequest,
     },
     reads,
-    schema::{channels, dm_participants, invites, members, roles, servers, users},
+    schema::{bans, channels, dm_participants, invites, members, roles, servers, tickets, users},
 };
 
 const DEFAULT_CHANNEL: &str = "общий";
 const DEFAULT_VOICE_CHANNEL: &str = "голосовой";
 const INVITE_CODE_LEN: usize = 8;
+type TicketRow = (
+    i64,
+    i64,
+    i64,
+    String,
+    String,
+    DateTime<Utc>,
+    Option<DateTime<Utc>>,
+);
 
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/servers", get(list_servers).post(create_server))
+        .route("/api/servers/{id}", patch(update_server))
         .route(
             "/api/servers/{id}/channels",
             get(list_channels).post(create_channel),
         )
         .route("/api/servers/{id}/members", get(list_members))
+        .route("/api/servers/{id}/members/search", get(search_members))
         .route("/api/servers/{id}/members/{user_id}", patch(update_member))
+        .route(
+            "/api/servers/{id}/members/{user_id}/ban",
+            post(ban_member).delete(unban_member),
+        )
+        .route(
+            "/api/servers/{id}/members/{user_id}/kick",
+            post(kick_member),
+        )
+        .route(
+            "/api/servers/{id}/members/{user_id}/timeout",
+            patch(timeout_member),
+        )
+        .route(
+            "/api/servers/{id}/members/{user_id}/timeout",
+            delete(timeout_member_sunset),
+        )
+        .route("/api/servers/{id}/bans", get(list_bans))
         .route("/api/servers/{id}/wave", post(wave))
         .route("/api/servers/{id}/invites", post(create_invite))
+        .route(
+            "/api/servers/{id}/tickets",
+            get(list_tickets).post(create_ticket),
+        )
+        .route(
+            "/api/servers/{id}/tickets/{ticket_id}",
+            patch(update_ticket),
+        )
         .route("/api/channels/{id}", delete(delete_channel))
         .route("/api/invites/{code}/join", post(join_by_invite))
 }
@@ -137,7 +174,7 @@ pub async fn channel_access(
     }
 }
 
-fn validate_server_name(name: &str) -> AppResult<String> {
+pub fn validate_server_name(name: &str) -> AppResult<String> {
     let name = name.trim();
     if !(2..=100).contains(&name.chars().count()) {
         return Err(AppError::bad_request(
@@ -240,6 +277,11 @@ async fn create_server(
                 my_permissions: permissions::ALL,
                 unread_count: 0,
                 system_channel_id,
+                afk_channel_id: None,
+                description: String::new(),
+                rules: String::new(),
+                banner_url: String::new(),
+                announcement_channel_id: None,
             })
         })
         .await?;
@@ -301,6 +343,7 @@ async fn create_channel(
         .await?;
     let position = last.map_or(0, |p| p + 1);
     let kind = req.kind.unwrap_or_default();
+    let is_forum = req.is_forum.unwrap_or(false);
     let id: i64 = diesel::insert_into(channels::table)
         .values((
             channels::server_id.eq(server_id),
@@ -333,7 +376,11 @@ async fn create_channel(
         position,
         kind,
         category_id: None,
+        is_forum,
         unread_count: 0,
+        topic: String::new(),
+        slowmode_seconds: 0,
+        nsfw: false,
     };
     Ok((StatusCode::CREATED, Json(channel)))
 }
@@ -361,6 +408,141 @@ async fn wave(
     crate::messages::post_system(&mut conn, server_id, system_id, user_id, "wave", None, "")
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(serde::Deserialize)]
+struct CreateTicketRequest {
+    title: String,
+}
+
+#[derive(serde::Deserialize)]
+struct UpdateTicketRequest {
+    #[serde(default)]
+    status: Option<String>,
+    #[serde(default)]
+    title: Option<String>,
+}
+
+fn ticket_to_protocol(
+    (id, server_id, creator_id, status, title, created_at, closed_at): TicketRow,
+) -> Ticket {
+    Ticket {
+        id,
+        server_id,
+        creator_id,
+        status,
+        title,
+        created_at: created_at.timestamp_millis(),
+        closed_at: closed_at.map(|t| t.timestamp_millis()),
+    }
+}
+
+async fn list_tickets(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(server_id): Path<i64>,
+) -> AppResult<Json<Vec<Ticket>>> {
+    let mut conn = state.pool.get().await?;
+    role_in(&mut conn, server_id, user_id).await?;
+    let rows: Vec<TicketRow> = tickets::table
+        .filter(tickets::server_id.eq(server_id))
+        .order(tickets::created_at.desc())
+        .select((
+            tickets::id,
+            tickets::server_id,
+            tickets::creator_id,
+            tickets::status,
+            tickets::title,
+            tickets::created_at,
+            tickets::closed_at,
+        ))
+        .load(&mut conn)
+        .await?;
+    Ok(Json(rows.into_iter().map(ticket_to_protocol).collect()))
+}
+
+async fn create_ticket(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(server_id): Path<i64>,
+    Json(req): Json<CreateTicketRequest>,
+) -> AppResult<Json<Ticket>> {
+    let title = req.title.trim().to_string();
+    if title.chars().count() > 500 {
+        return Err(AppError::bad_request("title is too long"));
+    }
+    let mut conn = state.pool.get().await?;
+    role_in(&mut conn, server_id, user_id).await?;
+    let id: i64 = diesel::insert_into(tickets::table)
+        .values((
+            tickets::server_id.eq(server_id),
+            tickets::creator_id.eq(user_id),
+            tickets::title.eq(title),
+        ))
+        .returning(tickets::id)
+        .get_result(&mut conn)
+        .await?;
+    let row: TicketRow = tickets::table
+        .find(id)
+        .select((
+            tickets::id,
+            tickets::server_id,
+            tickets::creator_id,
+            tickets::status,
+            tickets::title,
+            tickets::created_at,
+            tickets::closed_at,
+        ))
+        .first(&mut conn)
+        .await?;
+    Ok(Json(ticket_to_protocol(row)))
+}
+
+async fn update_ticket(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path((server_id, ticket_id)): Path<(i64, i64)>,
+    Json(req): Json<UpdateTicketRequest>,
+) -> AppResult<Json<Ticket>> {
+    let mut conn = state.pool.get().await?;
+    role_in(&mut conn, server_id, user_id).await?;
+    if let Some(status) = req.status {
+        if !["open", "closed", "resolved"].contains(&status.as_str()) {
+            return Err(AppError::bad_request("invalid ticket status"));
+        }
+        let closed_at = if status == "closed" || status == "resolved" {
+            Some(Utc::now())
+        } else {
+            None
+        };
+        diesel::update(tickets::table.find(ticket_id))
+            .set((tickets::status.eq(status), tickets::closed_at.eq(closed_at)))
+            .execute(&mut conn)
+            .await?;
+    }
+    if let Some(title) = req.title {
+        if title.chars().count() > 500 {
+            return Err(AppError::bad_request("title is too long"));
+        }
+        diesel::update(tickets::table.find(ticket_id))
+            .set(tickets::title.eq(title))
+            .execute(&mut conn)
+            .await?;
+    }
+    let row: TicketRow = tickets::table
+        .find(ticket_id)
+        .select((
+            tickets::id,
+            tickets::server_id,
+            tickets::creator_id,
+            tickets::status,
+            tickets::title,
+            tickets::created_at,
+            tickets::closed_at,
+        ))
+        .first(&mut conn)
+        .await?;
+    Ok(Json(ticket_to_protocol(row)))
 }
 
 async fn delete_channel(
@@ -392,6 +574,10 @@ struct MemberRow {
     role_ids: Vec<i64>,
     #[diesel(sql_type = diesel::sql_types::Text)]
     status: String,
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    nickname: String,
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    avatar_url: String,
 }
 
 async fn list_members(
@@ -408,7 +594,7 @@ async fn list_members(
                     FROM member_roles mr JOIN roles r ON r.id = mr.role_id
                     WHERE mr.server_id = mem.server_id AND mr.user_id = mem.user_id
                 ), '{{}}') AS role_ids,
-                {STATUS_SQL} AS status
+                mem.nickname, mem.avatar_url, {STATUS_SQL} AS status
          FROM members mem JOIN users u ON u.id = mem.user_id
          WHERE mem.server_id = $1
          ORDER BY mem.joined_at"
@@ -425,10 +611,60 @@ async fn list_members(
                     role: Role::parse(&r.role)?,
                     role_ids: r.role_ids,
                     status: Presence::parse(&r.status),
+                    nickname: r.nickname,
+                    avatar_url: r.avatar_url,
+                    communication_disabled_until: None,
                 })
             })
             .collect(),
     ))
+}
+async fn search_members(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(server_id): Path<i64>,
+    Query(params): Query<MemberSearchParams>,
+) -> AppResult<Json<MemberSearchResponse>> {
+    let limit = params.limit.unwrap_or(50).clamp(1, 100);
+    let mut conn = state.pool.get().await?;
+    role_in(&mut conn, server_id, user_id).await?;
+    let q = params.q.trim();
+    let rows: Vec<MemberRow> = diesel::sql_query(format!(
+        "SELECT u.id AS user_id, u.username, mem.role,
+                COALESCE((
+                    SELECT array_agg(mr.role_id ORDER BY r.position DESC, r.id)
+                    FROM member_roles mr JOIN roles r ON r.id = mr.role_id
+                    WHERE mr.server_id = mem.server_id AND mr.user_id = mem.user_id
+                ), '{{}}') AS role_ids,
+                mem.nickname, mem.avatar_url, {STATUS_SQL} AS status
+         FROM members mem JOIN users u ON u.id = mem.user_id
+         WHERE mem.server_id = $1 AND (u.username ILIKE $2 OR u.email ILIKE $2)
+         ORDER BY u.username
+         LIMIT $3"
+    ))
+    .bind::<diesel::sql_types::BigInt, _>(server_id)
+    .bind::<diesel::sql_types::Text, _>(format!("%{}%", q))
+    .bind::<diesel::sql_types::BigInt, _>(limit + 1)
+    .load(&mut conn)
+    .await?;
+    let has_more = rows.len() as i64 > limit;
+    let results = rows
+        .into_iter()
+        .take(limit as usize)
+        .filter_map(|r| {
+            Some(Member {
+                user_id: r.user_id,
+                username: r.username,
+                role: Role::parse(&r.role)?,
+                role_ids: r.role_ids,
+                status: Presence::parse(&r.status),
+                nickname: r.nickname,
+                avatar_url: r.avatar_url,
+                communication_disabled_until: None,
+            })
+        })
+        .collect();
+    Ok(Json(MemberSearchResponse { results, has_more }))
 }
 
 async fn update_member(
@@ -633,11 +869,293 @@ async fn join_by_invite(
         // Вступивший не получает историю как непрочитанную.
         unread_count: 0,
         system_channel_id,
+        afk_channel_id: None,
+        description: String::new(),
+        rules: String::new(),
+        banner_url: String::new(),
+        announcement_channel_id: None,
     }))
 }
 
-#[cfg(test)]
+/// Обновляет системный и AFK-каналы сервера. Канал должен быть текстовым/голосовым
+/// соответственно и принадлежать этому серверу.
+async fn update_server(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(server_id): Path<i64>,
+    Json(req): Json<UpdateServerRequest>,
+) -> AppResult<StatusCode> {
+    let mut conn = state.pool.get().await?;
+    require_role(&mut conn, server_id, user_id, Role::Admin).await?;
+
+    if let Some(system) = req.system_channel_id {
+        if let Some(id) = system {
+            let (owner, kind): (Option<i64>, String) = channels::table
+                .find(id)
+                .select((channels::server_id, channels::kind))
+                .first(&mut conn)
+                .await
+                .optional()?
+                .ok_or_else(|| AppError::bad_request("unknown channel"))?;
+            if owner != Some(server_id) || kind != ChannelKind::Text.as_str() {
+                return Err(AppError::bad_request(
+                    "system channel must be a text channel of this server",
+                ));
+            }
+        }
+        diesel::update(servers::table.find(server_id))
+            .set(servers::system_channel_id.eq(system))
+            .execute(&mut conn)
+            .await?;
+    }
+    if let Some(afk) = req.afk_channel_id {
+        if let Some(id) = afk {
+            let (owner, kind): (Option<i64>, String) = channels::table
+                .find(id)
+                .select((channels::server_id, channels::kind))
+                .first(&mut conn)
+                .await
+                .optional()?
+                .ok_or_else(|| AppError::bad_request("unknown channel"))?;
+            if owner != Some(server_id) || kind != ChannelKind::Voice.as_str() {
+                return Err(AppError::bad_request(
+                    "AFK channel must be a voice channel of this server",
+                ));
+            }
+        }
+        diesel::update(servers::table.find(server_id))
+            .set(servers::afk_channel_id.eq(afk))
+            .execute(&mut conn)
+            .await?;
+    }
+    if let Some(announcement) = req.announcement_channel_id {
+        if let Some(id) = announcement {
+            let (owner, kind): (Option<i64>, String) = channels::table
+                .find(id)
+                .select((channels::server_id, channels::kind))
+                .first(&mut conn)
+                .await
+                .optional()?
+                .ok_or_else(|| AppError::bad_request("unknown channel"))?;
+            if owner != Some(server_id) || kind != ChannelKind::Text.as_str() {
+                return Err(AppError::bad_request(
+                    "announcement channel must be a text channel of this server",
+                ));
+            }
+        }
+        diesel::update(servers::table.find(server_id))
+            .set(servers::announcement_channel_id.eq(announcement))
+            .execute(&mut conn)
+            .await?;
+    }
+    if let Some(description) = req.description {
+        if description.chars().count() > 2000 {
+            return Err(AppError::bad_request("description is too long"));
+        }
+        diesel::update(servers::table.find(server_id))
+            .set(servers::description.eq(description))
+            .execute(&mut conn)
+            .await?;
+    }
+    if let Some(rules) = req.rules {
+        if rules.chars().count() > 8000 {
+            return Err(AppError::bad_request("rules are too long"));
+        }
+        diesel::update(servers::table.find(server_id))
+            .set(servers::rules.eq(rules))
+            .execute(&mut conn)
+            .await?;
+    }
+    if let Some(banner_url) = req.banner_url {
+        if banner_url.chars().count() > 512 {
+            return Err(AppError::bad_request("banner URL is too long"));
+        }
+        diesel::update(servers::table.find(server_id))
+            .set(servers::banner_url.eq(banner_url))
+            .execute(&mut conn)
+            .await?;
+    }
+    if let Some(name) = req.name.clone() {
+        let name = validate_server_name(&name)?;
+        diesel::update(servers::table.find(server_id))
+            .set(servers::name.eq(name))
+            .execute(&mut conn)
+            .await?;
+    }
+    notify(&mut conn, &Notice::ChannelsChanged { server_id }).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Бан участника; заодно удаляем из members и пишем в audit_log.
+async fn ban_member(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path((server_id, target_id)): Path<(i64, i64)>,
+    Json(req): Json<BanRequest>,
+) -> AppResult<StatusCode> {
+    let mut conn = state.pool.get().await?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::BAN_MEMBERS)
+        .await?;
+    if target_id == user_id {
+        return Err(AppError::bad_request("нельзя забанить себя"));
+    }
+    diesel::delete(
+        members::table
+            .filter(members::server_id.eq(server_id))
+            .filter(members::user_id.eq(target_id)),
+    )
+    .execute(&mut conn)
+    .await?;
+    diesel::insert_into(bans::table)
+        .values((
+            bans::server_id.eq(server_id),
+            bans::user_id.eq(target_id),
+            bans::actor_id.eq(user_id),
+            bans::reason.eq(&req.reason),
+        ))
+        .on_conflict_do_nothing()
+        .execute(&mut conn)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn unban_member(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path((server_id, target_id)): Path<(i64, i64)>,
+) -> AppResult<StatusCode> {
+    let mut conn = state.pool.get().await?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::BAN_MEMBERS)
+        .await?;
+    diesel::delete(
+        bans::table
+            .filter(bans::server_id.eq(server_id))
+            .filter(bans::user_id.eq(target_id)),
+    )
+    .execute(&mut conn)
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn kick_member(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path((server_id, target_id)): Path<(i64, i64)>,
+) -> AppResult<StatusCode> {
+    let mut conn = state.pool.get().await?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::KICK_MEMBERS)
+        .await?;
+    diesel::delete(
+        members::table.filter(
+            members::server_id
+                .eq(server_id)
+                .and(members::user_id.eq(target_id)),
+        ),
+    )
+    .execute(&mut conn)
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn timeout_member(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path((server_id, target_id)): Path<(i64, i64)>,
+    Json(req): Json<TimeoutRequest>,
+) -> AppResult<StatusCode> {
+    let mut conn = state.pool.get().await?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::TIMEOUT_MEMBERS)
+        .await?;
+    if req.seconds == 0 {
+        diesel::sql_query(
+            "UPDATE members SET communication_disabled_until = NULL WHERE server_id = $1 AND user_id = $2",
+        )
+        .bind::<diesel::sql_types::BigInt, _>(server_id)
+        .bind::<diesel::sql_types::BigInt, _>(target_id)
+        .execute(&mut conn)
+        .await?;
+    } else {
+        diesel::sql_query(
+            "UPDATE members SET communication_disabled_until = now() + ($1 || ' seconds')::interval WHERE server_id = $2 AND user_id = $3",
+        )
+        .bind::<diesel::sql_types::BigInt, _>(req.seconds)
+        .bind::<diesel::sql_types::BigInt, _>(server_id)
+        .bind::<diesel::sql_types::BigInt, _>(target_id)
+        .execute(&mut conn)
+        .await?;
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn timeout_member_sunset(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path((server_id, target_id)): Path<(i64, i64)>,
+) -> AppResult<StatusCode> {
+    let mut conn = state.pool.get().await?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::TIMEOUT_MEMBERS)
+        .await?;
+    diesel::sql_query(
+        "UPDATE members SET communication_disabled_until = NULL WHERE server_id = $1 AND user_id = $2",
+    )
+    .bind::<diesel::sql_types::BigInt, _>(server_id)
+    .bind::<diesel::sql_types::BigInt, _>(target_id)
+    .execute(&mut conn)
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn list_bans(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(server_id): Path<i64>,
+) -> AppResult<Json<Vec<BanInfo>>> {
+    let mut conn = state.pool.get().await?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::BAN_MEMBERS)
+        .await?;
+    let ban_rows: Vec<(i64, i64, i64, String, chrono::DateTime<Utc>)> = bans::table
+        .filter(bans::server_id.eq(server_id))
+        .select((
+            bans::id,
+            bans::user_id,
+            bans::actor_id,
+            bans::reason,
+            bans::created_at,
+        ))
+        .order(bans::created_at.desc())
+        .load(&mut conn)
+        .await?;
+    let user_ids: Vec<i64> = ban_rows.iter().map(|r| r.1).collect();
+    let actor_ids: Vec<i64> = ban_rows.iter().map(|r| r.2).collect();
+    let all_ids: Vec<i64> = user_ids.iter().chain(actor_ids.iter()).copied().collect::<Vec<_>>();
+    let unique_ids: Vec<i64> = all_ids.into_iter().collect::<std::collections::HashSet<_>>()
+        .into_iter().collect();
+    let users: Vec<(i64, String)> = users::table
+        .filter(users::id.eq_any(unique_ids))
+        .select((users::id, users::username))
+        .load(&mut conn)
+        .await?;
+    let username_map: std::collections::HashMap<i64, String> =
+        users.into_iter().collect();
+    Ok(Json(
+        ban_rows
+            .into_iter()
+            .map(|(id, target_id, actor_id, reason, created_at)| BanInfo {
+                id,
+                user_id: target_id,
+                username: username_map.get(&target_id).cloned().unwrap_or_default(),
+                actor_id,
+                actor_username: username_map.get(&actor_id).cloned().unwrap_or_default(),
+                reason,
+                created_at: created_at.timestamp_millis(),
+            })
+            .collect(),
+    ))
+}
 mod tests {
+    // Allow unused-imports here: super::* brings normalize_channel_name, Role,
+    // invite_code and INVITE_CODE_LEN into scope for the unit tests below.
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

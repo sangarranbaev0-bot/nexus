@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { appendAccount } from './auth';
 import { api, refreshSession, setAccessToken } from './api';
 import { useDms } from './dms';
 import { resetFriends } from './friends';
@@ -18,6 +19,7 @@ export const useSession = create<SessionState>(() => ({ status: 'loading', user:
 const signIn = (auth: AuthResponse) => {
   setAccessToken(auth.accessToken);
   useSession.setState({ status: 'authed', user: auth.user });
+  appendAccount({ accessToken: auth.accessToken, user: auth.user });
 };
 
 export const signOutLocal = () => {
@@ -35,6 +37,17 @@ export async function restoreSession() {
   } catch {
     signOutLocal();
   }
+}
+
+export async function loginWithCode(req: import('./generated/LoginWithCode').LoginWithCode) {
+  const res = await fetch('/api/auth/login-2fa', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({ error: 'Неверный код' }))).error);
+  signIn(await res.json());
 }
 
 export async function login(req: LoginRequest) {

@@ -4,7 +4,7 @@ import type { ForwardPreview } from "./ForwardPreview";
 import type { Reaction } from "./Reaction";
 import type { ReplyPreview } from "./ReplyPreview";
 
-export type Message = { id: number, channelId: number, authorId: number, authorUsername: string, content: string, 
+export type Message = { id: number, channelId: number, authorId: number, authorUsername: string, authorBadge: string, content: string, 
 /**
  * Unix-время в мс.
  */
@@ -20,4 +20,8 @@ systemDetail: string | null,
 /**
  * Блок «Переслано от»; `null` — сообщение не пересланное.
  */
-forwardedFrom: ForwardPreview | null, };
+forwardedFrom: ForwardPreview | null, 
+/**
+ * Корень ветки в форум-канале; `null` — обычное сообщение.
+ */
+threadRootId: number | null, threadArchived: boolean, threadLocked: boolean, hasEmbed: boolean, };

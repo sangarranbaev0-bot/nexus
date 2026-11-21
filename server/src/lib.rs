@@ -1,6 +1,8 @@
 pub mod attachments;
 pub mod auth;
+mod community;
 mod dms;
+mod emojis;
 pub mod error;
 pub mod events;
 mod friends;
@@ -8,7 +10,10 @@ mod messages;
 mod notifications;
 pub mod permissions;
 pub mod presence;
+mod profile;
 pub mod protocol;
+pub mod rate_limit;
+mod reaction_roles;
 mod reactions;
 mod reads;
 mod roles;
@@ -16,6 +21,8 @@ pub mod schema;
 pub mod servers;
 pub mod voice;
 mod ws;
+mod automod;
+mod stickers;
 
 use std::sync::Arc;
 
@@ -94,16 +101,22 @@ pub fn app(state: AppState) -> Router {
         .route("/api/health", get(health))
         .route("/ws", get(ws::handler))
         .merge(auth::routes())
+        .merge(profile::routes())
+        .merge(community::routes())
         .merge(servers::routes())
         .merge(roles::routes())
         .merge(messages::routes())
         .merge(reactions::routes())
+        .merge(reaction_roles::routes())
         .merge(reads::routes())
         .merge(notifications::routes())
         .merge(dms::routes())
+        .merge(emojis::routes())
         .merge(friends::routes())
         .merge(attachments::routes())
         .merge(voice::routes())
+        .merge(automod::routes())
+        .merge(stickers::routes())
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

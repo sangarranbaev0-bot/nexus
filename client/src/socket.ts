@@ -13,6 +13,7 @@ import {
   serverOfChannel,
 } from './guilds';
 import { bumpFriends } from './friends';
+import { loadEmojis } from './emojis';
 import { pushNotification } from './notify';
 import { applyCreated, applyDeleted, applyTyping, applyUpdated, isViewing, resetMessages } from './messages';
 import { applyPresence, watchIdle } from './presence';
@@ -130,6 +131,9 @@ export function connectSocket(): () => void {
           void loadRoles(msg.serverId).catch(() => {});
           void loadChannels(msg.serverId).catch(() => {});
           void loadCategories(msg.serverId).catch(() => {});
+          break;
+case 'emojisChanged' as any:
+           void loadEmojis((msg as any).serverId).catch(() => {});
           break;
         case 'voiceState':
           onVoiceState(msg.participant);

@@ -6,8 +6,33 @@ diesel::table! {
         username -> Text,
         created_at -> Timestamptz,
         password_hash -> Text,
+        about -> Text,
+        banner_url -> Text,
+        pronouns -> Text,
+        accent_color -> Nullable<Int4>,
+        status_text -> Text,
+        status_emoji -> Text,
+        status_expires_at -> Nullable<Timestamptz>,
+        dnd -> Bool,
+        totp_secret -> Nullable<Text>,
+        two_factor_enabled -> Bool,
+        email_verified -> Bool,
+        activity_name -> Text,
+        activity_type -> Text,
+        notify_mode -> Text,
+        badge -> Text,
     }
 }
+
+diesel::table! {
+    auth_accounts (id) {
+        id -> Int8,
+        user_id -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::joinable!(auth_accounts -> users (user_id));
 
 diesel::table! {
     refresh_tokens (id) {
@@ -17,12 +42,17 @@ diesel::table! {
         expires_at -> Timestamptz,
         revoked_at -> Nullable<Timestamptz>,
         created_at -> Timestamptz,
+        user_agent -> Text,
+        ip -> Text,
+        last_used_at -> Nullable<Timestamptz>,
     }
 }
 
 diesel::joinable!(refresh_tokens -> users (user_id));
+
 diesel::allow_tables_to_appear_in_same_query!(
     users,
+    auth_accounts,
     refresh_tokens,
     servers,
     members,
@@ -40,13 +70,40 @@ diesel::allow_tables_to_appear_in_same_query!(
     categories,
     channel_overwrites,
     audit_log,
+    reaction_roles,
+    thread_tags,
+    onboarding_questions,
+    onboarding_answers,
+    server_events,
+    event_interests,
+    user_notes,
+    recovery_codes,
     friend_requests,
     friends,
     blocks,
     notify_settings,
     notifications,
     notification_words,
+    bans,
+    automod_rules,
+    sticker_packs,
+    stickers,
 );
+
+diesel::table! {
+    tickets (id) {
+        id -> Int8,
+        server_id -> Int8,
+        creator_id -> Int8,
+        status -> Text,
+        title -> Text,
+        created_at -> Timestamptz,
+        closed_at -> Nullable<Timestamptz>,
+    }
+}
+
+diesel::joinable!(tickets -> servers (server_id));
+diesel::joinable!(tickets -> users (creator_id));
 
 diesel::table! {
     servers (id) {
@@ -55,6 +112,11 @@ diesel::table! {
         owner_id -> Int8,
         created_at -> Timestamptz,
         system_channel_id -> Nullable<Int8>,
+        afk_channel_id -> Nullable<Int8>,
+        description -> Text,
+        rules -> Text,
+        banner_url -> Text,
+        announcement_channel_id -> Nullable<Int8>,
     }
 }
 
@@ -64,6 +126,9 @@ diesel::table! {
         user_id -> Int8,
         role -> Text,
         joined_at -> Timestamptz,
+        nickname -> Text,
+        avatar_url -> Text,
+        communication_disabled_until -> Nullable<Timestamptz>,
     }
 }
 
@@ -77,6 +142,10 @@ diesel::table! {
         dm_key -> Nullable<Text>,
         kind -> Text,
         category_id -> Nullable<Int8>,
+        is_forum -> Bool,
+        topic -> Text,
+        slowmode_seconds -> Int4,
+        nsfw -> Bool,
     }
 }
 
@@ -114,6 +183,10 @@ diesel::table! {
         forwarded_author_id -> Nullable<Int8>,
         forwarded_author -> Nullable<Text>,
         forwarded_content -> Nullable<Text>,
+        thread_root_id -> Nullable<Int8>,
+        thread_archived -> Bool,
+        thread_locked -> Bool,
+        has_embed -> Bool,
     }
 }
 
@@ -213,6 +286,95 @@ diesel::table! {
         actor_id -> Int8,
         created_at -> Timestamptz,
         read_at -> Nullable<Timestamptz>,
+    }
+}
+
+diesel::table! {
+    server_emojis (id) {
+        id -> Int8,
+        server_id -> Int8,
+        name -> Text,
+        content_type -> Text,
+        size_bytes -> Int8,
+        data -> Bytea,
+        created_by -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    thread_tags (id) {
+        id -> Int8,
+        channel_id -> Int8,
+        name -> Text,
+        color -> Nullable<Int4>,
+    }
+}
+
+diesel::table! {
+    onboarding_questions (id) {
+        id -> Int8,
+        server_id -> Int8,
+        question -> Text,
+        role_id -> Int8,
+        position -> Int4,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    onboarding_answers (question_id, user_id) {
+        question_id -> Int8,
+        user_id -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    server_events (id) {
+        id -> Int8,
+        server_id -> Int8,
+        name -> Text,
+        description -> Text,
+        starts_at -> Timestamptz,
+        channel_id -> Nullable<Int8>,
+        creator_id -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    user_notes (owner_id, target_id) {
+        owner_id -> Int8,
+        target_id -> Int8,
+        note -> Text,
+        nickname -> Text,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    recovery_codes (user_id, code_hash) {
+        user_id -> Int8,
+        code_hash -> Text,
+        used_at -> Nullable<Timestamptz>,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    event_interests (event_id, user_id) {
+        event_id -> Int8,
+        user_id -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    reaction_roles (message_id, emoji, role_id) {
+        message_id -> Int8,
+        emoji -> Text,
+        role_id -> Int8,
     }
 }
 
@@ -318,6 +480,54 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    bans (id) {
+        id -> Int8,
+        server_id -> Int8,
+        user_id -> Int8,
+        actor_id -> Int8,
+        reason -> Text,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    automod_rules (id) {
+        id -> Int8,
+        server_id -> Int8,
+        pattern -> Text,
+        action -> Text,
+        note -> Text,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    sticker_packs (id) {
+        id -> Int8,
+        server_id -> Int8,
+        name -> Text,
+        description -> Text,
+        created_by -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    stickers (id) {
+        id -> Int8,
+        pack_id -> Int8,
+        name -> Text,
+        emoji -> Text,
+        content_type -> Text,
+        size_bytes -> Int8,
+        storage_key -> Text,
+        tags -> Array<Text>,
+        position -> Int4,
+        created_at -> Timestamptz,
+    }
+}
+
 diesel::joinable!(roles -> servers (server_id));
 diesel::joinable!(member_roles -> roles (role_id));
 diesel::joinable!(categories -> servers (server_id));
@@ -326,3 +536,8 @@ diesel::joinable!(channel_overwrites -> roles (role_id));
 diesel::joinable!(channel_overwrites -> users (user_id));
 diesel::joinable!(audit_log -> servers (server_id));
 diesel::joinable!(audit_log -> users (actor_id));
+
+diesel::joinable!(automod_rules -> servers (server_id));
+diesel::joinable!(sticker_packs -> servers (server_id));
+diesel::joinable!(sticker_packs -> users (created_by));
+diesel::joinable!(stickers -> sticker_packs (pack_id));

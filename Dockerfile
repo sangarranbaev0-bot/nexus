@@ -1,20 +1,23 @@
 # Образ сервера NexusChat: Rust-сервер + собранный React-клиент, который он сам отдаёт.
 
-FROM node:22-bookworm-slim AS client
+FROM node:22-slim AS client
 WORKDIR /app/client
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY client/package.json client/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 COPY client/ ./
 RUN pnpm build
 
-FROM rust:1-bookworm AS server
+FROM rust:1.89-slim AS server
 WORKDIR /app/server
 COPY server/ ./
-RUN cargo build --release
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    cargo build --release
 
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM debian:trixie-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --uid 10001 nexus
 COPY --from=server /app/server/target/release/nexus-server /usr/local/bin/nexus-server
 COPY --from=client /app/client/dist /app/client

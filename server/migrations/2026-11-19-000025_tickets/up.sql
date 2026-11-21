@@ -1,0 +1,9 @@
+CREATE TABLE tickets (
+  id BIGSERIAL PRIMARY KEY,
+  server_id BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+  creator_id BIGINT NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'open',
+  title TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  closed_at TIMESTAMPTZ
+);

@@ -1,5 +1,39 @@
 @import 'tailwindcss';
 
+html.nexus-fs-14 { font-size: 14px; }
+html.nexus-fs-16 { font-size: 16px; }
+html.nexus-fs-18 { font-size: 18px; }
+html.nexus-compact { gap: 0.5rem; }
+
+html.nexus-dark, html.nexus-dark body { background-color: #09090b; color: #e4e4e7; }
+html.nexus-dark .bg-zinc-950 { background-color: #09090b; }
+html.nexus-dark .bg-zinc-900 { background-color: #18181b; }
+html.nexus-dark .bg-zinc-800 { background-color: #27272a; }
+html.nexus-dark .text-zinc-100 { color: #f4f4f5; }
+html.nexus-dark .text-zinc-400 { color: #a1a1aa; }
+html.nexus-dark .text-zinc-500 { color: #71717a; }
+html.nexus-dark .text-white { color: #f4f4f5; }
+html.nexus-dark .border-zinc-800 { border-color: #3f3f46; }
+html.nexus-dark .border-zinc-700 { border-color: #52525b; }
+html.nexus-dark .hover\:bg-zinc-800:hover { background-color: #27272a; }
+html.nexus-dark .hover\:bg-zinc-700:hover { background-color: #3f3f46; }
+html.nexus-dark .hover\:bg-indigo-500:hover { background-color: #6366f1; }
+
+/* Светлая тема: зеркальный набор правил для корректного отображения без .nexus-dark. */
+html.nexus-light, html.nexus-light body { background-color: #ffffff; color: #18181b; }
+html.nexus-light .bg-zinc-950 { background-color: #ffffff; }
+html.nexus-light .bg-zinc-900 { background-color: #f4f4f5; }
+html.nexus-light .bg-zinc-800 { background-color: #e4e4e7; }
+html.nexus-light .text-zinc-100 { color: #18181b; }
+html.nexus-light .text-zinc-400 { color: #71717a; }
+html.nexus-light .text-zinc-500 { color: #a1a1aa; }
+html.nexus-light .text-white { color: #18181b; }
+html.nexus-light .border-zinc-800 { border-color: #d4d4d8; }
+html.nexus-light .border-zinc-700 { border-color: #a1a1aa; }
+html.nexus-light .hover\:bg-zinc-800:hover { background-color: #e4e4e7; }
+html.nexus-light .hover\:bg-zinc-700:hover { background-color: #d4d4d8; }
+html.nexus-light .hover\:bg-indigo-500:hover { background-color: #6366f1; }
+
 /* Видимый фокус для клавиатуры; мышь и касание его не вызывают. */
 :focus-visible {
   outline: 2px solid var(--color-indigo-400);

@@ -1,0 +1,48 @@
+ALTER TABLE channels ADD COLUMN is_forum BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE messages
+  ADD COLUMN thread_root_id BIGINT REFERENCES messages(id) ON DELETE CASCADE,
+  ADD COLUMN thread_archived BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN thread_locked BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE TABLE thread_tags (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  channel_id BIGINT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  color INTEGER,
+  UNIQUE (channel_id, name)
+);
+
+CREATE TABLE onboarding_questions (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  server_id BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+  question TEXT NOT NULL,
+  role_id BIGINT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE onboarding_answers (
+  question_id BIGINT NOT NULL REFERENCES onboarding_questions(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (question_id, user_id)
+);
+
+CREATE TABLE server_events (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  server_id BIGINT NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  starts_at TIMESTAMPTZ NOT NULL,
+  channel_id BIGINT REFERENCES channels(id) ON DELETE SET NULL,
+  creator_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE event_interests (
+  event_id BIGINT NOT NULL REFERENCES server_events(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  reminded_at TIMESTAMPTZ,
+  PRIMARY KEY (event_id, user_id)
+);

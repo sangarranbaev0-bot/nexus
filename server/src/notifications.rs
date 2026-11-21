@@ -354,6 +354,24 @@ async fn load_settings(
             );
         }
     }
+    #[derive(diesel::QueryableByName)]
+    struct DndRow {
+        #[diesel(sql_type = BigInt)]
+        id: i64,
+    }
+    let dnd: Vec<DndRow> =
+        diesel::sql_query("SELECT id FROM users WHERE id = ANY($1) AND dnd = TRUE")
+            .bind::<Array<BigInt>, _>(user_ids.to_vec())
+            .load(conn)
+            .await?;
+    for r in dnd {
+        let entry = result.entry(r.id).or_insert(Setting {
+            level: NotifyLevel::None,
+            muted: false,
+            suppress_everyone: false,
+        });
+        entry.muted = true;
+    }
     Ok(result)
 }
 

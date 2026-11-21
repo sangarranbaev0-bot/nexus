@@ -1,0 +1,2 @@
+ALTER TABLE users
+  ADD COLUMN notify_mode TEXT NOT NULL DEFAULT 'all';

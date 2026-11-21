@@ -18,12 +18,12 @@ use crate::{
     AppState,
     error::{AppError, AppResult},
     protocol::{AuthResponse, LoginRequest, RegisterRequest, User},
-    schema::{refresh_tokens, users},
+    schema::{auth_accounts, refresh_tokens, users},
 };
 
 const ACCESS_TTL_SECS: i64 = 15 * 60;
 const REFRESH_TTL_DAYS: i64 = 30;
-const REFRESH_COOKIE: &str = "refresh_token";
+pub(crate) const REFRESH_COOKIE: &str = "refresh_token";
 const REFRESH_PATH: &str = "/api/auth";
 
 pub struct JwtKeys {
@@ -90,17 +90,31 @@ pub fn routes() -> Router<AppState> {
         .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(login))
         .route("/api/auth/refresh", post(refresh))
+        .route("/api/auth/accounts", get(accounts))
         .route("/api/auth/logout", post(logout))
         .route("/api/me", get(me))
 }
 
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = users, check_for_backend(diesel::pg::Pg))]
-struct UserRow {
+pub(crate) struct UserRow {
     id: i64,
     email: String,
     username: String,
-    password_hash: String,
+    pub(crate) password_hash: String,
+    about: String,
+    banner_url: String,
+    pronouns: String,
+    accent_color: Option<i32>,
+    status_text: String,
+    status_emoji: String,
+    status_expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    dnd: bool,
+    two_factor_enabled: bool,
+    activity_name: String,
+    activity_type: String,
+    notify_mode: String,
+    badge: String,
 }
 
 impl From<UserRow> for User {
@@ -109,6 +123,19 @@ impl From<UserRow> for User {
             id: r.id,
             email: r.email,
             username: r.username,
+            about: r.about,
+            banner_url: r.banner_url,
+            pronouns: r.pronouns,
+            accent_color: r.accent_color,
+            status_text: r.status_text,
+            status_emoji: r.status_emoji,
+            status_expires_at: r.status_expires_at.map(|t| t.timestamp_millis()),
+            dnd: r.dnd,
+            two_factor_enabled: r.two_factor_enabled,
+            activity_name: r.activity_name,
+            activity_type: r.activity_type,
+            notify_mode: r.notify_mode,
+            badge: r.badge,
         }
     }
 }
@@ -133,11 +160,49 @@ fn validate(req: &RegisterRequest) -> AppResult<()> {
     Ok(())
 }
 
+#[derive(Serialize)]
+struct AccountView {
+    id: i64,
+    user_id: i64,
+    username: String,
+    created_at: i64,
+}
+
+async fn accounts(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+) -> AppResult<Json<Vec<AccountView>>> {
+    let mut conn = state.pool.get().await?;
+    let rows: Vec<(i64, String, chrono::DateTime<chrono::Utc>)> = auth_accounts::table
+        .inner_join(users::table)
+        .filter(auth_accounts::user_id.eq(user_id))
+        .order(auth_accounts::created_at.asc())
+        .select((
+            auth_accounts::id,
+            users::username,
+            auth_accounts::created_at,
+        ))
+        .load(&mut conn)
+        .await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|(id, username, created_at)| AccountView {
+                id,
+                user_id,
+                username,
+                created_at: created_at.timestamp_millis(),
+            })
+            .collect(),
+    ))
+}
+
 async fn register(
     State(state): State<AppState>,
     jar: CookieJar,
+    headers: axum::http::HeaderMap,
     Json(mut req): Json<RegisterRequest>,
 ) -> AppResult<(StatusCode, CookieJar, Json<AuthResponse>)> {
+    crate::rate_limit::auth(&headers).map_err(|(code, msg)| AppError(code, msg))?;
     req.email = req.email.trim().to_lowercase();
     req.username = req.username.trim().to_string();
     validate(&req)?;
@@ -165,6 +230,11 @@ async fn register(
             }
             e => e.into(),
         })?;
+    diesel::insert_into(auth_accounts::table)
+        .values(auth_accounts::user_id.eq(row.id))
+        .on_conflict_do_nothing()
+        .execute(&mut conn)
+        .await?;
 
     let (jar, body) = start_session(&state, jar, row.into()).await?;
     Ok((StatusCode::CREATED, jar, body))
@@ -178,8 +248,10 @@ static DUMMY_HASH: LazyLock<String> =
 async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
+    headers: axum::http::HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> AppResult<(CookieJar, Json<AuthResponse>)> {
+    crate::rate_limit::auth(&headers).map_err(|(code, msg)| AppError(code, msg))?;
     let email = req.email.trim().to_lowercase();
     let mut conn = state.pool.get().await?;
     let row: Option<UserRow> = users::table
@@ -197,7 +269,19 @@ async fn login(
     let ok = tokio::task::spawn_blocking(move || bcrypt::verify(password, &hash)).await??;
 
     match row {
-        Some(row) if ok => start_session(&state, jar, row.into()).await,
+        Some(row) if ok && row.two_factor_enabled => {
+            Err(AppError(StatusCode::FORBIDDEN, "2fa required".into()))
+        }
+        Some(row) if ok => {
+            let mut conn = state.pool.get().await?;
+            diesel::insert_into(auth_accounts::table)
+                .values(auth_accounts::user_id.eq(row.id))
+                .on_conflict_do_nothing()
+                .execute(&mut conn)
+                .await?;
+            drop(conn);
+            start_session(&state, jar, row.into()).await
+        }
         _ => Err(AppError(
             StatusCode::UNAUTHORIZED,
             "invalid email or password".into(),
@@ -267,7 +351,7 @@ async fn me(State(state): State<AppState>, AuthUser(user_id): AuthUser) -> AppRe
 }
 
 /// Выдаёт новую пару: access в теле ответа, refresh в httpOnly cookie.
-async fn start_session(
+pub(crate) async fn start_session(
     state: &AppState,
     jar: CookieJar,
     user: User,
@@ -297,7 +381,7 @@ async fn start_session(
     Ok((jar.add(cookie), Json(AuthResponse { access_token, user })))
 }
 
-fn sha256_hex(s: &str) -> String {
+pub(crate) fn sha256_hex(s: &str) -> String {
     hex::encode(Sha256::digest(s.as_bytes()))
 }
 

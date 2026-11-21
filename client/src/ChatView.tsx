@@ -1,8 +1,12 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import type { Attachment } from './generated/Attachment';
 import type { Message } from './generated/Message';
 import type { MessageEdit } from './generated/MessageEdit';
-import { uploadFile } from './api';
+import type { SearchResponse } from './generated/SearchResponse';
+import type { SearchResult } from './generated/SearchResult';
+import type { Sticker } from './generated/Sticker';
+import { api, uploadFile } from './api';
+import { ContextMenu } from './ContextMenu';
 import {
   activeView,
   deleteMessage,
@@ -19,11 +23,13 @@ import {
   toggleReaction,
   useMessages,
 } from './messages';
-import { Modal, errorMessage, ghostButton, inputClass } from './Modal';import { Markdown } from './Markdown';
+import { Modal, errorMessage, ghostButton, inputClass, primaryButton } from './Modal';
+import { Markdown } from './Markdown';
 import { EmojiPicker } from './EmojiPicker';
+import { StickerPicker } from './StickerPicker';
 import { useSession } from './session';
 import { sendTyping } from './socket';
-import { useGuilds } from './guilds';
+import { createThread, listThreads, loadReplies, loadEmbed, updateThread, useGuilds } from './guilds';
 import { dmTitle, useDms } from './dms';
 
 const MAX_LEN = 2000;
@@ -37,6 +43,16 @@ export interface ChatTarget {
   label: string;
   /** Непрочитанных на момент открытия: по нему рисуем линию «НОВОЕ». */
   unread?: number;
+  /** Сервер id: позволяет показывать поиск в ЛС тоже. */
+  serverId?: number;
+  /** Форум-канал: вместо ленты показываем ветки. */
+  isForum?: boolean;
+}
+
+/** Один результат поиска: сообщение + представитель канала. */
+export interface SearchHit {
+  message: Message;
+  channelLabel: string;
 }
 
 export function ChatView({
@@ -54,6 +70,12 @@ export function ChatView({
   const log = useMessages((s) => s.logs[channel.id]);
   const [error, setError] = useState<string | null>(null);
   const [showPins, setShowPins] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchHit[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [hasMoreSearch, setHasMoreSearch] = useState(false);
 
   useEffect(() => {
     setError(null);
@@ -64,6 +86,49 @@ export function ChatView({
   const [dragging, setDragging] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const initialUnread = useRef(channel.unread ?? 0).current;
+  const channels = useGuilds((s) => s.channels);
+
+  // Search effect
+  useEffect(() => {
+    if (!searchVisible || !searchQuery.trim()) {
+      setSearchResults([]);
+      setHasMoreSearch(false);
+      setSearchError(null);
+      setSearchLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSearchLoading(true);
+    setSearchError(null);
+    
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api<SearchResponse>(
+          `/api/channels/${channel.id}/messages/search?q=${encodeURIComponent(searchQuery)}&limit=50`,
+        );
+        if (!cancelled) {
+          setSearchResults(res.results.map((r: SearchResult) => ({
+            message: r.message,
+            channelLabel: r.channelName,
+          })));
+          setHasMoreSearch(res.hasMore);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setSearchError(errorMessage(e));
+        }
+      } finally {
+        if (!cancelled) {
+          setSearchLoading(false);
+        }
+      }
+    }, 300); // debounce
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchVisible, searchQuery, channel.id]);
 
   return (
     <div
@@ -85,17 +150,46 @@ export function ChatView({
           Отпустите, чтобы прикрепить к {channel.label}
         </div>
       )}
-      <MessageList
-        channel={channel}
-        canModerate={canModerate}
-        canPin={canPin}
-        onRead={onRead}
-        items={log?.items}
-        hasMore={!!log?.hasMore}
-        unread={initialUnread}
-        onError={setError}
-        onReply={setReplyTo}
+      {channel.isForum ? (
+        <ForumThreads channel={channel} onError={setError} />
+      ) : (
+        <MessageList
+          channel={channel}
+          canModerate={canModerate}
+          canPin={canPin}
+          onRead={onRead}
+          items={log?.items}
+          hasMore={!!log?.hasMore}
+          unread={initialUnread}
+          onError={setError}
+          onReply={setReplyTo}
+        />
+      )}
+      <SearchBar
+        visible={searchVisible}
+        query={searchQuery}
+        onToggle={() => {
+          setSearchVisible((v) => !v);
+          setSearchQuery('');
+          setSearchResults([]);
+          setSearchError(null);
+        }}
+        onQueryChange={setSearchQuery}
+        loading={searchLoading}
+        error={searchError}
+        results={searchResults}
+        hasMore={hasMoreSearch}
+        onJump={(id) => requestAnimationFrame(() => jumpToMessage(id))}
       />
+      <button
+        type="button"
+        onClick={() => setSearchVisible((v) => !v)}
+        title="Поиск в канале (Ctrl+F)"
+        className="absolute top-2 right-14 z-10 rounded bg-zinc-900/80 px-2 py-1 text-xs text-zinc-300 backdrop-blur hover:bg-zinc-800"
+        aria-label="Поиск"
+      >
+        🔍
+      </button>
       <button
         type="button"
         onClick={() => setShowPins(true)}
@@ -282,6 +376,7 @@ function MessageItem({
   const [editing, setEditing] = useState(false);
   const [history, setHistory] = useState<MessageEdit[] | null>(null);
   const [forwarding, setForwarding] = useState(false);
+  const [ctx, setCtx] = useState<{ x: number; y: number } | null>(null);
   const mine = m.authorId === me?.id;
 
   const remove = async () => {
@@ -302,12 +397,20 @@ function MessageItem({
   };
 
   return (
-    <article id={`msg-${m.id}`} tabIndex={0} className="group relative px-4 py-1 hover:bg-zinc-900/30 focus:bg-zinc-900/30">
+    <article
+      id={`msg-${m.id}`}
+      tabIndex={0}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setCtx({ x: e.clientX, y: e.clientY });
+      }}
+      className="group relative px-4 py-1 hover:bg-zinc-900/30 focus:bg-zinc-900/30"
+    >
       {m.systemKind && <SystemMessage message={m} />}
       {!m.systemKind && (
         <>
       <header className="flex items-baseline gap-2">
-        <span className="font-medium text-indigo-300">{m.authorUsername}</span>
+        <span className="font-medium text-indigo-300">{m.authorUsername}{m.authorBadge ? ` · ${m.authorBadge}` : ''}</span>
         <time className="text-xs text-zinc-500" dateTime={new Date(m.createdAt).toISOString()}>
           {formatTime(m.createdAt)}
         </time>
@@ -334,6 +437,23 @@ function MessageItem({
         )
       )}
       <Attachments files={m.attachments} />
+      {m.hasEmbed && <EmbedBlock messageId={m.id} />}
+      {ctx && (
+        <ContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          onClose={() => setCtx(null)}
+          items={[
+            { label: 'Ответить', onClick: () => { onReply(m); setCtx(null); } },
+            { label: 'Переслать', onClick: () => { setForwarding(true); setCtx(null); } },
+            { label: 'ID', onClick: () => { void navigator.clipboard?.writeText(String(m.id)); setCtx(null); } },
+            ...(canPin ? [{ label: m.pinned ? 'Открепить' : 'Закрепить', onClick: () => { void togglePin(); setCtx(null); } }] : []),
+            ...(mine ? [{ label: 'Изменить', onClick: () => { setEditing(true); setCtx(null); } }] : []),
+            ...(m.editedAt !== null ? [{ label: 'История', onClick: () => { void loadEdits(m.id).then(setHistory, (e) => onError(errorMessage(e))); setCtx(null); } }] : []),
+            ...((mine || canModerate) ? [{ label: 'Удалить', danger: true, onClick: () => { void remove(); setCtx(null); } }] : []),
+          ]}
+        />
+      )}
       <ReactionBar message={m} me={me?.id} onError={onError} />
       {!editing && (
         <div className="absolute -top-3 right-4 hidden gap-1 rounded bg-zinc-900 p-0.5 shadow group-focus-within:flex group-hover:flex">
@@ -342,6 +462,13 @@ function MessageItem({
           </button>
           <button onClick={() => setForwarding(true)} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
             Переслать
+          </button>
+          <button
+            onClick={() => void navigator.clipboard?.writeText(String(m.id))}
+            className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700"
+            title="Копировать ID сообщения"
+          >
+            ID
           </button>
           {canPin && (
             <button onClick={togglePin} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
@@ -530,6 +657,42 @@ function ForwardQuote({ from }: { from: NonNullable<Message['forwardedFrom']> })
         {from.content ? <Markdown text={from.content} /> : '📎 вложение'}
       </div>
     </div>
+  );
+}
+
+function EmbedBlock({ messageId }: { messageId: number }) {
+  const [embed, setEmbed] = useState<{ url: string; title: string | null; description: string | null; imageUrl: string | null; siteName: string | null } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    loadEmbed(messageId).then((data) => {
+      setEmbed(data ?? null);
+    }).catch((e) => setErr(errorMessage(e)));
+  }, [messageId]);
+  if (err) return null;
+  if (!embed) return <div className="mt-1 text-xs text-zinc-500 italic">Загрузка превью...</div>;
+  return (
+    <a
+      href={embed.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-1 flex max-w-md gap-3 rounded border border-zinc-700 bg-zinc-800/60 p-3 hover:border-indigo-500/50 hover:bg-zinc-800"
+    >
+      {embed.imageUrl && (
+        <img src={embed.imageUrl} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded object-cover" />
+      )}
+      <div className="min-w-0">
+        {embed.siteName && (
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">{embed.siteName}</div>
+        )}
+        {embed.title && (
+          <div className="truncate text-sm font-semibold text-indigo-300">{embed.title}</div>
+        )}
+        {embed.description && (
+          <div className="line-clamp-2 text-xs text-zinc-400">{embed.description}</div>
+        )}
+        <div className="mt-1 truncate text-[10px] text-zinc-500">{embed.url}</div>
+      </div>
+    </a>
   );
 }
 
@@ -743,10 +906,11 @@ function Composer({
   replyTo: Message | null;
   onCancelReply: () => void;
 }) {
-  const [value, setValue] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState<Pending[]>([]);
-  const [emojiOpen, setEmojiOpen] = useState(false);
+const [value, setValue] = useState('');
+const [error, setError] = useState<string | null>(null);
+const [pending, setPending] = useState<Pending[]>([]);
+const [emojiOpen, setEmojiOpen] = useState(false);
+const [stickerOpen, setStickerOpen] = useState(false);
   const lastTyping = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const textInput = useRef<HTMLTextAreaElement>(null);
@@ -765,6 +929,12 @@ function Composer({
       el?.focus();
       if (el) el.selectionStart = el.selectionEnd = start + emoji.length;
     });
+  };
+
+    const insertSticker = (sticker: Sticker) => {
+    // Add sticker as an attachment in the message
+    setPending((prev) => [...prev, { key: `sticker-${Date.now()}`, file: null as any, progress: 100, preview: `/storage/${sticker.storageKey}` }]);
+    setStickerOpen(false);
   };
 
   const update = (key: string, patch: Partial<Pending>) =>
@@ -914,6 +1084,24 @@ function Composer({
           </div>
           <button
             type="button"
+            onClick={() => setStickerOpen((v) => !v)}
+            title="Стикер"
+            aria-label="Стикер"
+            className="px-2 py-2.5 text-lg text-zinc-400 hover:text-zinc-100"
+          >
+            📄
+          </button>
+          {stickerOpen && (
+            <div className="absolute bottom-full left-0 z-20 mb-2">
+              <StickerPicker
+                channelId={channel.id}
+                onPick={insertSticker}
+                onClose={() => setStickerOpen(false)}
+              />
+            </div>
+          )}
+          <button
+            type="button"
             onClick={() => fileInput.current?.click()}
             title="Прикрепить файл"
             aria-label="Прикрепить файл"
@@ -1059,5 +1247,181 @@ function TypingIndicator({ channelId }: { channelId: number }) {
     <p aria-live="polite" className="h-6 truncate px-4 text-xs text-zinc-400">
       {text}
     </p>
+  );
+}
+
+interface SearchBarProps {
+  visible: boolean;
+  query: string;
+  onToggle: () => void;
+  onQueryChange: (q: string) => void;
+  loading: boolean;
+  error: string | null;
+  results: SearchHit[];
+  hasMore: boolean;
+  onJump: (id: number) => void;
+}
+
+function SearchBar({
+  visible,
+  query,
+  onToggle,
+  onQueryChange,
+  loading,
+  error,
+  results,
+  hasMore,
+  onJump,
+}: SearchBarProps) {
+  if (!visible) return null;
+
+  return (
+    <div className="absolute inset-0 z-5 flex flex-col bg-zinc-900/95 backdrop-blur">
+      <div className="flex items-center gap-2 px-4 py-2">
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') onToggle();
+            if (e.key === 'Enter' && results[0]) onJump(results[0].message.id);
+          }}
+          placeholder="Поиск: from:user has:link ключевое слово"
+          className="w-full rounded bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="rounded px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-700"
+          aria-label="Закрыть поиск"
+        >
+          Закрыть
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="px-4 py-2 text-sm text-red-400">
+          {error}
+        </p>
+      )}
+      {loading && (
+        <p className="px-4 py-2 text-sm text-zinc-400">Поиск…</p>
+      )}
+      {!loading && !error && results.length === 0 && query && (
+        <p className="px-4 py-2 text-sm text-zinc-400">Нет сообщений по запросу.</p>
+      )}
+      {results.length > 0 && (
+        <div className="flex-1 overflow-y-auto px-2 pb-4">
+          <ul className="space-y-1">
+            {results.map((r) => (
+              <li key={r.message.id}>
+                <button
+                  type="button"
+                  onClick={() => onJump(r.message.id)}
+                  className="w-full rounded px-3 py-2 text-left hover:bg-zinc-800"
+                >
+                  <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <span className="font-medium text-zinc-300">{r.message.authorUsername}</span>
+                    <span>#{r.channelLabel}</span>
+                    <span>{new Date(r.message.createdAt).toLocaleString('ru-RU')}</span>
+                  </div>
+                  <div className="mt-0.5 truncate text-sm text-zinc-300">
+                    <Markdown text={r.message.content} />
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function ForumThreads({ channel, onError }: { channel: ChatTarget; onError: (e: string) => void }) {
+  const [items, setItems] = useState<Message[]>([]);
+  const [text, setText] = useState("");
+  const [open, setOpen] = useState<number | null>(null);
+  const [replies, setReplies] = useState<Map<number, Message[]>>(new Map());
+  const reload = () => listThreads(channel.id).then(setItems, (e) => onError(errorMessage(e)));
+
+  useEffect(() => { void reload(); }, [channel.id]);
+
+  const toggleThread = async (id: number) => {
+    const next = open === id ? null : id;
+    setOpen(next);
+    if (next !== null && !replies.has(id)) {
+      try {
+        const list = await loadReplies(id);
+        setReplies((m) => new Map(m).set(id, list));
+      } catch (err) { onError(errorMessage(err)); }
+    }
+  };
+
+  const create = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    try {
+      await createThread(channel.id, text);
+      setText("");
+      await reload();
+    } catch (err) { onError(errorMessage(err)); }
+  };
+
+  const change = async (id: number, key: "archived" | "locked", value: boolean) => {
+    try {
+      await updateThread(id, { [key]: value });
+      await reload();
+    } catch (err) { onError(errorMessage(err)); }
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex-1 overflow-y-auto px-4 py-2">
+        {items.length === 0 && <p className="text-zinc-400">Пока нет веток. Создайте первую.</p>}
+        <ul className="space-y-2">
+          {items.map((m) => (
+            <li key={m.id} className="rounded border border-zinc-700 bg-zinc-900 p-3">
+              <div className="flex items-center gap-2 text-xs text-zinc-500">
+                <span className="font-medium text-zinc-300">{m.authorUsername}</span>
+                <span>{new Date(m.createdAt).toLocaleString("ru-RU")}</span>
+                {m.threadArchived && <span className="rounded bg-zinc-700 px-1">архив</span>}
+                {m.threadLocked && <span className="rounded bg-zinc-700 px-1">закрыта</span>}
+                <span className="text-zinc-600">· {replies.get(m.id)?.length ?? '…'} отв.</span>
+              </div>
+              <button onClick={() => void toggleThread(m.id)} className="mt-1 block w-full text-left text-sm">
+                <Markdown text={m.content} />
+              </button>
+              {open === m.id && (
+                <>
+                  <div className="mt-2 border-t border-zinc-700 pt-2">
+                    {replies.has(m.id) && replies.get(m.id)!.length === 0
+                      ? <p className="text-xs text-zinc-500">Пока нет ответов.</p>
+                      : replies.get(m.id)?.map((r) => (
+                        <div key={r.id} className="mb-1 rounded bg-zinc-800 px-2 py-1 text-xs">
+                          <span className="font-medium text-zinc-300">{r.authorUsername}</span>
+                          {' — '}<Markdown text={r.content} />
+                        </div>
+                      ))}
+                  </div>
+                  <div className="mt-2 flex gap-2 border-t border-zinc-700 pt-2 text-xs">
+                    <button onClick={() => void change(m.id, "archived", !m.threadArchived)} className="text-indigo-400">
+                      {m.threadArchived ? "Разархивировать" : "В архив"}
+                    </button>
+                    <button onClick={() => void change(m.id, "locked", !m.threadLocked)} className="text-indigo-400">
+                      {m.threadLocked ? "Открыть" : "Закрыть"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+      <form onSubmit={create} className="flex gap-2 border-t border-zinc-700 p-3">
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Новая ветка в ${channel.label}`} className={inputClass} />
+        <button className={primaryButton} disabled={!text.trim()}>Создать</button>
+      </form>
+    </div>
   );
 }

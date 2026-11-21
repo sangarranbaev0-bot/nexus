@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate } from 'react-router';
-import { login, register, useSession } from './session';
+import { login, loginWithCode, register, useSession } from './session';
 
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const status = useSession((s) => s.status);
@@ -16,10 +16,12 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     const form = new FormData(e.currentTarget);
     const email = String(form.get('email'));
     const password = String(form.get('password'));
+    const code = String(form.get('code') ?? '');
     setPending(true);
     setError(null);
     try {
       if (isRegister) await register({ email, password, username: String(form.get('username')) });
+      else if (code) await loginWithCode({ email, password, code, recoveryCode: '' });
       else await login({ email, password });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Что-то пошло не так, попробуйте ещё раз');
@@ -49,6 +51,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           minLength={isRegister ? 8 : undefined}
           autoComplete={isRegister ? 'new-password' : 'current-password'}
         />
+
+        {!isRegister && <Field label="Код 2FA (если включён)" name="code" autoComplete="one-time-code" />}
 
         {error && (
           <p role="alert" className="text-sm text-red-400">

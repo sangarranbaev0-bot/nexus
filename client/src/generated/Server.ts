@@ -16,4 +16,24 @@ unreadCount: number,
 /**
  * Канал событий сервера (вход, создание канала, роли); `null` — не задан.
  */
-systemChannelId: number | null, };
+systemChannelId: number | null, 
+/**
+ * Голосовой AFK-канал; `null` — не задан.
+ */
+afkChannelId: number | null, 
+/**
+ * Описание сервера (Markdown).
+ */
+description: string, 
+/**
+ * Правила сервера (Markdown).
+ */
+rules: string, 
+/**
+ * URL баннера сервера; пустая строка — нет.
+ */
+bannerUrl: string, 
+/**
+ * Канал объявлений; `null` — не задан.
+ */
+announcementChannelId: number | null, };

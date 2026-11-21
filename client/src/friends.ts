@@ -25,7 +25,7 @@ export const useFriends = create<FriendsState>(() => ({
 
 export async function loadFriends() {
   const friends = await api<Friend[]>('/api/friends');
-  rememberStatuses(friends.map((f) => ({ userId: f.userId, username: f.username, role: 'member', roleIds: [], status: f.status })));
+  rememberStatuses(friends.map((f) => ({ userId: f.userId, username: f.username, role: 'member', roleIds: [], status: f.status, nickname: '', avatarUrl: '', communicationDisabledUntil: null })));
   useFriends.setState({ friends });
 }
 

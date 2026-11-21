@@ -6,4 +6,8 @@ export type Member = { userId: number, username: string, role: Role,
 /**
  * Назначенные пользовательские роли (без `@everyone`).
  */
-roleIds: Array<number>, status: Presence, };
+roleIds: Array<number>, status: Presence, nickname: string, avatarUrl: string, 
+/**
+ * До время отключения связи (NULL — активен). Unix-время в мс.
+ */
+communicationDisabledUntil: number | null, };

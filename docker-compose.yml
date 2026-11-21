@@ -9,6 +9,25 @@ services:
       - '127.0.0.1:5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U nexus -d nexuschat']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  db-init:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '-c']
+    command:
+      - |
+        set -e
+        PSQL="psql -v ON_ERROR_STOP=1 --username nexus --dbname nexuschat"
+        $$PSQL -c "CREATE DATABASE nexuschat_v032;" 2>/dev/null || true
+        echo "database nexuschat_v032 ready"
+    restart: 'no'
 
   minio:
     image: cgr.dev/chainguard/minio:latest
@@ -22,10 +41,17 @@ services:
       - '127.0.0.1:9001:9001'
     volumes:
       - miniodata:/data
+    healthcheck:
+      test: ['CMD-SHELL', '/bin/mc alias set local http://localhost:9000 nexus nexus-secret-key >/dev/null 2>&1 && /bin/mc ready local']
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   minio-init:
     image: curlimages/curl
-    depends_on: [minio]
+    depends_on:
+      minio:
+        condition: service_healthy
     environment:
       KEY: nexus-secret-key
     entrypoint: ['/bin/sh', '-c']
@@ -35,28 +61,34 @@ services:
 
   app:
     build: .
-    profiles: [app]
     restart: unless-stopped
     ports:
       - '127.0.0.1:3001:3001'
     environment:
-      DATABASE_URL: postgres://nexus:nexus@postgres:5432/nexuschat
+      DATABASE_URL: postgres://nexus:nexus@postgres:5432/nexuschat_v032
       JWT_SECRET: please-change-me-to-a-real-random-string-of-32-or-more-chars
       S3_ENDPOINT: http://minio:9000
       S3_BUCKET: nexuschat
       S3_ACCESS_KEY: nexus
       S3_SECRET_KEY: nexus-secret-key
       RUST_LOG: info
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://localhost:3001/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     depends_on:
       postgres:
-        condition: service_started
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully
 
   # Публичный адрес https://….trycloudflare.com для других людей (меняется при перезапуске).
   tunnel:
     image: cloudflare/cloudflared:latest
-    profiles: [app]
     restart: unless-stopped
     command: tunnel --no-autoupdate --url http://app:3001
     depends_on: [app]

@@ -701,6 +701,34 @@ async fn update_channel(
         ))
         .execute(&mut conn)
         .await?;
+    if let Some(is_forum) = req.is_forum {
+        diesel::sql_query("UPDATE channels SET is_forum = $1 WHERE id = $2")
+            .bind::<diesel::sql_types::Bool, _>(is_forum)
+            .bind::<diesel::sql_types::BigInt, _>(channel_id)
+            .execute(&mut conn)
+            .await?;
+    }
+    if let Some(topic) = &req.topic {
+        diesel::sql_query("UPDATE channels SET topic = $1 WHERE id = $2")
+            .bind::<diesel::sql_types::Text, _>(topic)
+            .bind::<diesel::sql_types::BigInt, _>(channel_id)
+            .execute(&mut conn)
+            .await?;
+    }
+    if let Some(slowmode_seconds) = req.slowmode_seconds {
+        diesel::sql_query("UPDATE channels SET slowmode_seconds = $1 WHERE id = $2")
+            .bind::<diesel::sql_types::Int4, _>(slowmode_seconds)
+            .bind::<diesel::sql_types::BigInt, _>(channel_id)
+            .execute(&mut conn)
+            .await?;
+    }
+    if let Some(nsfw) = req.nsfw {
+        diesel::sql_query("UPDATE channels SET nsfw = $1 WHERE id = $2")
+            .bind::<diesel::sql_types::Bool, _>(nsfw)
+            .bind::<diesel::sql_types::BigInt, _>(channel_id)
+            .execute(&mut conn)
+            .await?;
+    }
     audit(
         &mut conn,
         server_id,

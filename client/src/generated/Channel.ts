@@ -7,6 +7,22 @@ export type Channel = { id: number, serverId: number, name: string, position: nu
  */
 categoryId: number | null, 
 /**
- * Непрочитанные чужие сообщения, максимум 100 (клиент покажет «99+»).
+ * Форум-канал: сообщения являются ветками.
  */
-unreadCount: number, };
+isForum: boolean, 
+/**
+ * Непрочитанные чужие сообщения, максимум 100 (клиент пишет «99+»).
+ */
+unreadCount: number, 
+/**
+ * Описание канала (тема).
+ */
+topic: string, 
+/**
+ *Slowmode в секундах; 0 — без ограничений.
+ */
+slowmodeSeconds: number, 
+/**
+ * Флаг NSFW-канала.
+ */
+nsfw: boolean, };

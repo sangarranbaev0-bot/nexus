@@ -174,7 +174,8 @@ async fn on_client_message(state: &AppState, conn: &mut Conn, text: &str) -> Opt
         Ok(ClientMessage::SetIdle { idle }) => {
             let result = async {
                 let mut db = state.pool.get().await?;
-                presence::set_idle(&mut db, conn.presence_row, conn.user_id, idle).await
+                presence::set_idle(&mut db, conn.presence_row, conn.user_id, idle).await?;
+                voice::set_afk(&mut db, conn.user_id, idle).await
             }
             .await;
             if let Err(e) = result {

@@ -1,0 +1,2 @@
+ALTER TABLE servers
+  ADD COLUMN afk_channel_id BIGINT REFERENCES channels(id) ON DELETE SET NULL;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { Link, NavLink, Navigate, useNavigate, useParams } from "react-router";
 import { ChatView } from "./ChatView";
 import { ChannelSettingsDialog } from "./ChannelSettings";
@@ -8,6 +8,8 @@ import {
   InviteDialog,
   MembersDialog,
   NewDmDialog,
+  OnboardingDialog,
+  EventsDialog,
   StatusDot,
 } from "./Dialogs";
 import { clearDmUnread, dmTitle, loadDms, useDms } from "./dms";
@@ -26,18 +28,24 @@ import {
   loadCategories,
   loadChannels,
   loadServers,
+  updateServer,
   useGuilds,
 } from "./guilds";
+import { ContextMenu } from "./ContextMenu";
 import { P } from "./permissions";
 import { Modal, errorMessage } from "./Modal";
 import { NotificationCenter } from "./NotificationCenter";
 import { NotifyControls } from "./NotifyControls";
+import { UserSettingsDialog } from "./UserSettings";
 import { NotifyWordsDialog } from "./NotifyWords";
 import { loadNotifications, loadNotifySettings } from "./notify";
 import { ServerSettingsDialog } from "./Settings";
 import { presenceView } from "./presence";
 import { logout, useSession } from "./session";
+import { useAccounts, type Account } from "./auth";
+import { setAccessToken } from "./api";
 import { connectSocket, useSocket } from "./socket";
+import { loadAllEmojis } from "./emojis";
 
 type Dialog =
   | "addServer"
@@ -46,6 +54,9 @@ type Dialog =
   | "members"
   | "newDm"
   | "settings"
+  | "userSettings"
+  | "onboarding"
+  | "events"
   | "notify"
   | null;
 
@@ -55,6 +66,7 @@ export function AppLayout() {
   const serverId = isHome ? undefined : Number(params.serverId) || undefined;
   const channelId = Number(params.channelId) || undefined;
   const servers = useGuilds((s) => s.servers);
+  const navigate = useNavigate();
   const channels = useGuilds((s) =>
     serverId ? s.channels[serverId] : undefined,
   );
@@ -79,6 +91,9 @@ export function AppLayout() {
     loadNotifications().catch(() => {});
   }, []);
   useEffect(() => {
+    if (servers) loadAllEmojis(servers.map((s) => s.id)).catch(() => {});
+  }, [servers]);
+  useEffect(() => {
     if (serverId && servers?.some((s) => s.id === serverId)) {
       loadChannels(serverId).catch((e) => setLoadError(errorMessage(e)));
       loadCategories(serverId).catch((e) => setLoadError(errorMessage(e)));
@@ -89,6 +104,30 @@ export function AppLayout() {
   const channel = channels?.find((c) => c.id === channelId);
   const dm = isHome ? dms?.find((d) => d.id === channelId) : undefined;
   const voiceLabel = useVoiceLabel();
+
+  useEffect(() => {
+    const unread = servers?.reduce((sum, s) => sum + s.unreadCount, 0) ?? 0;
+    const total = unread + (dms?.reduce((sum, d) => sum + d.unreadCount, 0) ?? 0);
+    document.title = total ? `(${total}) NexusChat` : "NexusChat";
+  }, [servers, dms]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.altKey) return;
+      if (e.key >= "1" && e.key <= "9") {
+        const target = (servers ?? [])[Number(e.key) - 1];
+        if (target) {
+          e.preventDefault();
+          navigate(`/channels/${target.id}`);
+        }
+      } else if (e.key.toLowerCase() === "n" && serverId && server) {
+        e.preventDefault();
+        setDialog("createChannel");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [servers, serverId, server, navigate]);
 
   // Неполный или устаревший адрес ведём на первый доступный сервер и канал, без серверов — в ЛС.
   if (!isHome && servers) {
@@ -146,17 +185,17 @@ export function AppLayout() {
             <div className="flex-1" />
           )}
           <VoicePanel label={voiceLabel} />
-          <ConnectionStatus />
+          <ConnectionStatus onSettings={() => setDialog("userSettings")} />
         </aside>
       </div>
 
-      <main className="flex min-w-0 flex-1 flex-col bg-zinc-800">
+      <main className="flex min-w-0 flex-1 flex-col bg-zinc-900">
         {loadError && (
           <p role="alert" className="bg-red-900/60 px-4 py-2 text-sm">
             {loadError}
           </p>
         )}
-        <header className="flex h-12 items-center gap-2 border-b border-zinc-900 px-4 font-semibold">
+        <header className="flex h-12 items-center gap-2 border-b border-zinc-700 px-4 font-semibold">
           <button
             onClick={() => setNavOpen(true)}
             aria-label="Открыть меню"
@@ -168,7 +207,7 @@ export function AppLayout() {
           {channel && (
             <>
               <span className="text-zinc-500">
-                {channel.kind === "voice" ? "🔊" : "#"}
+                {channel.kind === "stage" ? "🎤" : channel.kind === "voice" ? "🔊" : "#"}
               </span>
               {channel.name}
             </>
@@ -204,16 +243,34 @@ export function AppLayout() {
           </div>
         </header>
         {server && channel?.kind === "voice" ? (
-          <VoiceStage
-            key={channel.id}
-            channelId={channel.id}
-            serverId={server.id}
-            label={`🔊 ${channel.name}`}
-          />
+          <div className="flex min-h-0 flex-1">
+            <VoiceStage
+              key={channel.id}
+              channelId={channel.id}
+              serverId={server.id}
+              label={`🔊 ${channel.name}`}
+            />
+            {(() => {
+              const chatChannel = channels?.find((c) => c.id === server.systemChannelId && c.kind === 'text')
+                ?? channels?.find((c) => c.kind === 'text');
+              if (!chatChannel) return null;
+              return (
+                <aside className="hidden w-80 shrink-0 border-l border-zinc-800 lg:block" aria-label="Чат голосового канала">
+                  <ChatView
+                    key={chatChannel.id}
+                    channel={{ id: chatChannel.id, label: `#${chatChannel.name}` }}
+                    canModerate={can(server, P.MANAGE_MESSAGES)}
+                    canPin={can(server, P.PIN_MESSAGES)}
+                    onRead={() => clearUnread(server.id, chatChannel.id)}
+                  />
+                </aside>
+              );
+            })()}
+          </div>
         ) : server && channel ? (
           <ChatView
             key={channel.id}
-            channel={{ id: channel.id, label: `#${channel.name}`, unread: channel.unreadCount }}
+                    channel={{ id: channel.id, label: `#${channel.name}`, unread: channel.unreadCount, isForum: channel.isForum }}
             canModerate={can(server, P.MANAGE_MESSAGES)}
             canPin={can(server, P.PIN_MESSAGES)}
             onRead={() => clearUnread(server.id, channel.id)}
@@ -248,9 +305,16 @@ export function AppLayout() {
       {server && dialog === "invite" && (
         <InviteDialog server={server} onClose={() => setDialog(null)} />
       )}
-      {server && dialog === "members" && (
-        <MembersDialog server={server} onClose={() => setDialog(null)} />
-      )}
+        {server && dialog === "members" && (
+          <MembersDialog server={server} onClose={() => setDialog(null)} />
+        )}
+        {server && dialog === "onboarding" && (
+          <OnboardingDialog server={server} onClose={() => setDialog(null)} />
+        )}
+        {server && dialog === "events" && (
+          <EventsDialog server={server} onClose={() => setDialog(null)} />
+        )}
+      {dialog === "userSettings" && <UserSettingsDialog onClose={() => setDialog(null)} />}
       {server && dialog === "settings" && (
         <ServerSettingsDialog server={server} onClose={() => setDialog(null)} />
       )}
@@ -276,13 +340,13 @@ export function AppLayout() {
 function DmList({ dms, onNew }: { dms: DmChannel[]; onNew: () => void }) {
   return (
     <>
-      <header className="flex h-12 items-center border-b border-zinc-950 px-3">
+      <header className="flex h-12 items-center border-b border-zinc-700 px-3">
         <h2 className="flex-1 truncate font-semibold">Личные сообщения</h2>
         <button
           onClick={onNew}
           title="Написать сообщение"
           aria-label="Написать сообщение"
-          className="rounded px-1.5 text-lg text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+          className="rounded px-1.5 text-lg text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
         >
           +
         </button>
@@ -307,8 +371,8 @@ function DmList({ dms, onNew }: { dms: DmChannel[]; onNew: () => void }) {
                   isActive
                     ? "bg-zinc-700/60 text-white"
                     : d.unreadCount > 0
-                      ? "font-semibold text-white hover:bg-zinc-800"
-                      : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                      ? "font-semibold text-white hover:bg-zinc-900"
+                      : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
                 }`
               }
             >
@@ -353,76 +417,181 @@ function ServerRail({
   onAdd: () => void;
 }) {
   const pill = "grid size-12 place-items-center font-semibold transition-all";
+  const [folders, setFolders] = useState<Record<string, number[]>>(() => {
+    try { return JSON.parse(localStorage.getItem('nexus-folders') ?? '{}'); } catch { return {}; }
+  });
+  const drag = useRef<number | null>(null);
+  const [ctx, setCtx] = useState<
+    { x: number; y: number; kind: "server" | "folder"; id?: number; name?: string } | null
+  >(null);
+  const persist = (next: Record<string, number[]>) => {
+    setFolders(next);
+    localStorage.setItem('nexus-folders', JSON.stringify(next));
+  };
+  const dropInto = (folder: string) => {
+    const id = drag.current;
+    if (!id) return;
+    const next = { ...folders };
+    for (const key of Object.keys(next)) next[key] = next[key].filter((x) => x !== id);
+    if (!next[folder]) next[folder] = [];
+    if (!next[folder].includes(id)) next[folder].push(id);
+    persist(next);
+    drag.current = null;
+  };
+  const unassign = () => {
+    const id = drag.current;
+    if (!id) return;
+    const next = { ...folders };
+    for (const key of Object.keys(next)) next[key] = next[key].filter((x) => x !== id);
+    persist(next);
+    drag.current = null;
+  };
+  const assigned = new Set(Object.values(folders).flat());
+  const createFolder = () => {
+    const name = prompt('Название папки');
+    if (name && !folders[name]) persist({ ...folders, [name]: [] });
+  };
+  const renameServer = async (id: number) => {
+    const name = prompt('Название сервера');
+    if (!name) return;
+    try { await updateServer(id, { name }); }
+    catch (e) { alert(errorMessage(e)); }
+  };
+  const renameFolder = () => {
+    if (!ctx?.name) return;
+    const next = { ...folders };
+    next[ctx.name] = next[ctx.name] ?? [];
+    const name = prompt('Название папки', ctx.name);
+    if (name && name !== ctx.name) {
+      if (next[name]) { alert('Папка с таким названием уже есть'); return; }
+      next[name] = next[ctx.name];
+      delete next[ctx.name];
+      persist(next);
+    }
+  };
+  const deleteFolder = () => {
+    if (!ctx?.name) return;
+    const next = { ...folders };
+    for (const id of next[ctx.name] ?? []) {
+      for (const key of Object.keys(next)) next[key] = next[key].filter((x) => x !== id);
+    }
+    delete next[ctx.name];
+    persist(next);
+  };
+  const serverPill = (s: Server) => (
+    <div
+      key={s.id}
+      className="relative"
+      draggable
+      onContextMenu={(e) => { e.preventDefault(); setCtx({ x: e.clientX, y: e.clientY, kind: 'server', id: s.id }); }}
+      onDragStart={() => { drag.current = s.id; }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        const from = drag.current;
+        if (!from || from === s.id) return;
+        const next = { ...folders };
+        for (const key of Object.keys(next)) {
+          const i = next[key].indexOf(from);
+          const j = next[key].indexOf(s.id);
+          if (i >= 0 && j >= 0) [next[key][i], next[key][j]] = [next[key][j], next[key][i]];
+        }
+        persist(next);
+        drag.current = null;
+      }}
+    >
+      <Link
+        to={`/channels/${s.id}`}
+        title={s.name}
+        aria-label={s.unreadCount ? `${s.name}, непрочитанных: ${formatBadge(s.unreadCount)}` : s.name}
+        aria-current={s.id === activeId ? "page" : undefined}
+        className={`${pill} ${
+          s.id === activeId
+            ? "rounded-2xl bg-indigo-500"
+            : "rounded-3xl bg-zinc-900 hover:rounded-2xl hover:bg-indigo-500"
+        }`}
+      >
+        {initials(s.name)}
+      </Link>
+      {s.unreadCount > 0 && (
+        <span aria-hidden className="absolute -right-1 -bottom-1 rounded-full border-4 border-zinc-700 bg-red-500 px-1.5 text-xs font-bold">
+          {formatBadge(s.unreadCount)}
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <nav
       aria-label="Серверы"
-      className="flex w-[72px] flex-col items-center gap-2 overflow-y-auto bg-zinc-950 py-3"
+      className="flex w-[72px] flex-col items-center gap-2 overflow-y-auto bg-black/5 border-r border-zinc-700 py-3"
     >
       <div className="relative">
         <Link
           to="/channels/@me"
           title="Личные сообщения"
-          aria-label={
-            dmUnread
-              ? `Личные сообщения, непрочитанных: ${formatBadge(dmUnread)}`
-              : "Личные сообщения"
-          }
+          aria-label={dmUnread ? `Личные сообщения, непрочитанных: ${formatBadge(dmUnread)}` : "Личные сообщения"}
           aria-current={homeActive ? "page" : undefined}
-          className={`${pill} text-xl ${
-            homeActive
-              ? "rounded-2xl bg-indigo-500"
-              : "rounded-3xl bg-zinc-800 hover:rounded-2xl hover:bg-indigo-500"
-          }`}
+          className={`${pill} text-xl ${homeActive ? "rounded-2xl bg-indigo-500" : "rounded-3xl bg-zinc-900 hover:rounded-2xl hover:bg-indigo-500"}`}
         >
           💬
         </Link>
         {dmUnread > 0 && (
-          <span
-            aria-hidden
-            className="absolute -right-1 -bottom-1 rounded-full border-4 border-zinc-950 bg-red-500 px-1.5 text-xs font-bold"
-          >
+          <span aria-hidden className="absolute -right-1 -bottom-1 rounded-full border-4 border-zinc-700 bg-red-500 px-1.5 text-xs font-bold">
             {formatBadge(dmUnread)}
           </span>
         )}
       </div>
       <hr className="w-8 border-zinc-800" />
-      {servers.map((s) => (
-        <div key={s.id} className="relative">
-          <Link
-            to={`/channels/${s.id}`}
-            title={s.name}
-            aria-label={
-              s.unreadCount
-                ? `${s.name}, непрочитанных: ${formatBadge(s.unreadCount)}`
-                : s.name
-            }
-            aria-current={s.id === activeId ? "page" : undefined}
-            className={`${pill} ${
-              s.id === activeId
-                ? "rounded-2xl bg-indigo-500"
-                : "rounded-3xl bg-zinc-800 hover:rounded-2xl hover:bg-indigo-500"
-            }`}
-          >
-            {initials(s.name)}
-          </Link>
-          {s.unreadCount > 0 && (
-            <span
-              aria-hidden
-              className="absolute -right-1 -bottom-1 rounded-full border-4 border-zinc-950 bg-red-500 px-1.5 text-xs font-bold"
-            >
-              {formatBadge(s.unreadCount)}
-            </span>
-          )}
+      {Object.entries(folders).map(([name, ids]) => (
+        <div
+          key={name}
+          title={name}
+          onContextMenu={(e) => { e.preventDefault(); setCtx({ x: e.clientX, y: e.clientY, kind: 'folder', name }); }}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => { e.preventDefault(); dropInto(name); }}
+          className={`${pill} rounded-2xl bg-zinc-900 text-xl text-amber-400`}
+        >
+          📁
         </div>
       ))}
+      <button onClick={createFolder} title="Создать папку" aria-label="Создать папку" className={`${pill} rounded-3xl bg-zinc-900 text-xl text-amber-500`}>📁+</button>
+      <div
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); unassign(); }}
+        title="Перетащите сюда, чтобы убрать из папки"
+        className="h-2 w-10 rounded bg-zinc-900/40"
+      />
+      {servers.filter((s) => !assigned.has(s.id)).map(serverPill)}
       <button
         onClick={onAdd}
         title="Добавить сервер"
         aria-label="Добавить сервер"
-        className={`${pill} rounded-3xl bg-zinc-800 text-2xl text-emerald-500 hover:rounded-2xl hover:bg-emerald-600 hover:text-white`}
+        className={`${pill} rounded-3xl bg-zinc-900 text-2xl text-emerald-500 hover:rounded-2xl hover:bg-emerald-600 hover:text-white`}
       >
         +
       </button>
+      {ctx && ctx.kind === "server" && (
+        <ContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          onClose={() => setCtx(null)}
+          items={[
+            { label: "Переименовать", onClick: () => { renameServer(ctx.id!); setCtx(null); } },
+          ]}
+        />
+      )}
+      {ctx && ctx.kind === "folder" && (
+        <ContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          onClose={() => setCtx(null)}
+          items={[
+            { label: "Переименовать", onClick: () => { renameFolder(); setCtx(null); } },
+            { label: "Удалить папку", danger: true, onClick: () => { deleteFolder(); setCtx(null); } },
+          ]}
+        />
+      )}
     </nav>
   );
 }
@@ -442,8 +611,21 @@ function ChannelList({
     can(server, P.MANAGE_ROLES) || can(server, P.VIEW_AUDIT_LOG) || manage;
   const categories = useGuilds((s) => s.categories[server.id]) ?? [];
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
+  const [search, setSearch] = useState('');
+  const [ctx, setCtx] = useState<{ x: number; y: number; channel: Channel } | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   const iconButton =
-    "rounded px-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100";
+    "rounded px-1.5 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100";
 
   const remove = async (c: Channel) => {
     if (!confirm(`Удалить канал #${c.name}? Это необратимо.`)) return;
@@ -458,10 +640,14 @@ function ChannelList({
   const sortedCategories = [...categories].sort(
     (a, b) => a.position - b.position || a.id - b.id,
   );
+  const q = search.trim().toLowerCase();
+  const visibleChannels = channels.filter(
+    (c) => !q || c.name.toLowerCase().includes(q),
+  );
   const byCategory = new Map<number | null, Channel[]>();
   byCategory.set(null, []);
   for (const category of sortedCategories) byCategory.set(category.id, []);
-  for (const channel of [...channels].sort(
+  for (const channel of [...visibleChannels].sort(
     (a, b) => a.position - b.position || a.id - b.id,
   )) {
     const key =
@@ -473,7 +659,7 @@ function ChannelList({
 
   return (
     <>
-      <header className="flex h-12 items-center gap-1 border-b border-zinc-950 px-3">
+      <header className="flex h-12 items-center gap-1 border-b border-zinc-700 px-3">
         <h2 className="flex-1 truncate font-semibold">{server.name}</h2>
         {canSettings && (
           <button
@@ -495,6 +681,22 @@ function ChannelList({
         </button>
         <button
           className={iconButton}
+          title="Онбординг"
+          aria-label="Онбординг"
+          onClick={() => onDialog("onboarding")}
+        >
+          📋
+        </button>
+        <button
+          className={iconButton}
+          title="События"
+          aria-label="События"
+          onClick={() => onDialog("events")}
+        >
+          📅
+        </button>
+        <button
+          className={iconButton}
           title="Пригласить"
           aria-label="Пригласить"
           onClick={() => onDialog("invite")}
@@ -502,6 +704,16 @@ function ChannelList({
           ✉️
         </button>
       </header>
+      {channels.length > 0 && (
+        <input
+          ref={searchRef}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Поиск каналов"
+          aria-label="Поиск каналов"
+          className="mb-1 w-full rounded bg-zinc-900 px-2 py-1.5 text-sm outline-none placeholder:text-zinc-500"
+        />
+      )}
       <div className="flex-1 overflow-y-auto px-2 pb-3">
         {channels.length === 0 && (
           <p className="px-2 py-3 text-sm text-zinc-500">Каналов пока нет.</p>
@@ -515,6 +727,7 @@ function ChannelList({
               manage={manage}
               onDelete={remove}
               onSettings={setEditingChannel}
+              onContextMenu={(e) => setCtx({ x: e.clientX, y: e.clientY, channel })}
             />
           ))}
         </div>
@@ -532,6 +745,7 @@ function ChannelList({
                   manage={manage}
                   onDelete={remove}
                   onSettings={setEditingChannel}
+                  onContextMenu={(e) => setCtx({ x: e.clientX, y: e.clientY, channel })}
                 />
               ))}
             </div>
@@ -540,12 +754,23 @@ function ChannelList({
         {manage && (
           <button
             onClick={() => onDialog("createChannel")}
-            className="mt-3 w-full rounded px-2 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+            className="mt-3 w-full rounded px-2 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
           >
             + Создать канал
           </button>
         )}
       </div>
+      {ctx && (
+        <ContextMenu
+          x={ctx.x}
+          y={ctx.y}
+          onClose={() => setCtx(null)}
+          items={[
+            { label: "Переименовать", onClick: () => { setEditingChannel(ctx.channel); setCtx(null); } },
+            { label: "Удалить", danger: true, onClick: () => { remove(ctx.channel); setCtx(null); } },
+          ]}
+        />
+      )}
       {editingChannel && (
         <ChannelSettingsDialog
           server={server}
@@ -563,20 +788,23 @@ function ChannelRow({
   manage,
   onDelete,
   onSettings,
+  onContextMenu,
 }: {
   serverId: number;
   channel: Channel;
   manage: boolean;
   onDelete: (c: Channel) => void;
   onSettings: (c: Channel) => void;
+  onContextMenu?: (e: ReactMouseEvent<HTMLElement>) => void;
 }) {
   return (
     <div className="group relative">
       <NavLink
         to={`/channels/${serverId}/${channel.id}`}
+        onContextMenu={onContextMenu}
         onClick={() => {
           if (
-            channel.kind === "voice" &&
+            (channel.kind === "voice" || channel.kind === "stage") &&
             useVoice.getState().current?.channelId !== channel.id
           )
             void joinVoice(channel.id, serverId);
@@ -591,13 +819,13 @@ function ChannelRow({
             isActive
               ? "bg-zinc-700/60 text-white"
               : channel.unreadCount > 0
-                ? "font-semibold text-white hover:bg-zinc-800"
-                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                ? "font-semibold text-white hover:bg-zinc-900"
+                : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
           }`
         }
       >
         <span className="mr-1.5 text-zinc-500">
-          {channel.kind === "voice" ? "🔊" : "#"}
+                {channel.kind === "stage" ? "🎤" : channel.kind === "voice" ? "🔊" : "#"}
         </span>
         <span className="flex-1 truncate">{channel.name}</span>
         {channel.unreadCount > 0 && (
@@ -629,7 +857,7 @@ function ChannelRow({
           </button>
         </>
       )}
-      {channel.kind === "voice" && <VoiceRoster channelId={channel.id} />}
+      {(channel.kind === "voice" || channel.kind === "stage") && <VoiceRoster channelId={channel.id} />}
     </div>
   );
 }
@@ -704,16 +932,26 @@ const connectionView = {
   closed: { dot: "bg-red-500", label: "Нет соединения" },
 } as const;
 
-function ConnectionStatus() {
+const ACTIVITY_ICONS: Record<string, string> = {
+  playing: "🎮", streaming: "🎥", listening: "🎧", watching: "👁️", custom: "", competing: "🏆",
+};
+
+function ConnectionStatus({ onSettings }: { onSettings: () => void }) {
   const { status, latencyMs, idle } = useSocket();
   const user = useSession((s) => s.user);
+  const accounts = useAccounts((a) => a);
+  const other = accounts.find((a) => a.user.id !== user?.id) ?? accounts[0];
   const [wordsOpen, setWordsOpen] = useState(false);
   const view =
     status === "open"
       ? presenceView[idle ? "idle" : "online"]
       : connectionView[status];
+  const switchAccount = (account: Account) => {
+    setAccessToken(account.accessToken);
+    useSession.setState({ status: "authed", user: account.user });
+  };
   return (
-    <footer className="flex items-center gap-2 bg-zinc-950/60 px-3 py-2 text-sm">
+    <footer className="flex items-center gap-2 bg-black/10 px-3 py-2 text-sm">
       <span
         className={`size-2.5 shrink-0 rounded-full ${view.dot}`}
         aria-hidden
@@ -724,18 +962,44 @@ function ConnectionStatus() {
           {view.label}
           {latencyMs !== null && ` · ${latencyMs} мс`}
         </div>
+        {user?.statusText && (
+          <div className="text-xs text-zinc-400">{user.statusEmoji} {user.statusText}</div>
+        )}
+        {user?.activityName && (
+          <div className="text-xs text-zinc-400" title={user.activityType}>
+            {ACTIVITY_ICONS[user.activityType] ?? ""} {user.activityName}
+          </div>
+        )}
       </div>
+      {other && (
+        <button
+          onClick={() => switchAccount(other)}
+          title="Аккаунты"
+          aria-label="Аккаунты"
+          className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+        >
+          {other.user.username}
+        </button>
+      )}
+      <button
+        onClick={onSettings}
+        title="Настройки пользователя"
+        aria-label="Настройки пользователя"
+        className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+      >
+        ⚙
+      </button>
       <button
         onClick={() => setWordsOpen(true)}
         title="Слова-триггеры"
         aria-label="Слова-триггеры"
-        className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+        className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
       >
         Aa
       </button>
       <button
         onClick={() => void logout()}
-        className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+        className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
       >
         Выйти
       </button>

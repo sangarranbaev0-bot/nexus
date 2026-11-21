@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useSession } from './session';
+import { useEmojis } from './emojis';
 
 /**
  * Безопасный рендер Discord-подобного Markdown: без HTML и dangerouslySetInnerHTML.
@@ -8,10 +9,20 @@ import { useSession } from './session';
  */
 export function Markdown({ text }: { text: string }) {
   const me = useSession((s) => s.user?.username);
-  return <div className="space-y-1 break-words whitespace-pre-wrap">{blocks(text, me)}</div>;
+  const byServer = useEmojis((s) => s.byServer);
+  const lookup = (name: string) => {
+    for (const list of Object.values(byServer)) {
+      const hit = list?.find((e) => e.name === name);
+      if (hit) return hit.url;
+    }
+    return undefined;
+  };
+  return <div className="space-y-1 break-words whitespace-pre-wrap">{blocks(text, me, lookup)}</div>;
 }
 
-function blocks(text: string, me?: string): ReactNode[] {
+type EmojiLookup = (name: string) => string | undefined;
+
+function blocks(text: string, me?: string, emoji?: EmojiLookup): ReactNode[] {
   const lines = text.split('\n');
   const out: ReactNode[] = [];
   let i = 0;
@@ -52,7 +63,7 @@ function blocks(text: string, me?: string): ReactNode[] {
               : 'font-semibold';
       out.push(
         <p key={key++} className={cls}>
-          {inline(heading[2], me)}
+          {inline(heading[2], me, emoji)}
         </p>,
       );
       i++;
@@ -67,7 +78,7 @@ function blocks(text: string, me?: string): ReactNode[] {
       }
       out.push(
         <blockquote key={key++} className="border-l-2 border-zinc-600 pl-2 text-zinc-300">
-          {inline(quote.join('\n'), me)}
+          {inline(quote.join('\n'), me, emoji)}
         </blockquote>,
       );
       continue;
@@ -82,7 +93,7 @@ function blocks(text: string, me?: string): ReactNode[] {
         items.push(lines[i].replace(re, ''));
         i++;
       }
-      const children = items.map((item, n) => <li key={n}>{inline(item, me)}</li>);
+      const children = items.map((item, n) => <li key={n}>{inline(item, me, emoji)}</li>);
       out.push(
         unordered ? (
           <ul key={key++} className="list-disc pl-5">
@@ -103,7 +114,7 @@ function blocks(text: string, me?: string): ReactNode[] {
     }
     out.push(
       <p key={key++} className="whitespace-pre-wrap">
-        {inline(paragraph.join('\n'), me)}
+        {inline(paragraph.join('\n'), me, emoji)}
       </p>,
     );
   }
@@ -128,7 +139,7 @@ const PAIRS: { open: string; close: string; tag: 'strong' | 'u' | 'del' | 'em' }
   { open: '*', close: '*', tag: 'em' },
 ];
 
-function inline(text: string, me?: string): ReactNode[] {
+function inline(text: string, me?: string, emoji?: EmojiLookup): ReactNode[] {
   const nodes: ReactNode[] = [];
   let buf = '';
   let i = 0;
@@ -161,7 +172,7 @@ function inline(text: string, me?: string): ReactNode[] {
       const end = text.indexOf('||', i + 2);
       if (end > i + 1) {
         flush();
-        nodes.push(<Spoiler key={key++}>{inline(text.slice(i + 2, end), me)}</Spoiler>);
+        nodes.push(<Spoiler key={key++}>{inline(text.slice(i + 2, end), me, emoji)}</Spoiler>);
         i = end + 2;
         continue;
       }
@@ -222,13 +233,33 @@ const ts = /^<t:(\d+)(?::([tTdDfFR]))?>/.exec(rest);
       }
     }
 
+    // Свои эмодзи сервера: :name: превращается в картинку, если такое имя загружено.
+    if (emoji && text[i] === ':' && (before === '' || /\s|[([{>]/.test(before))) {
+      const custom = /^:([a-z0-9_]{2,32}):/.exec(rest);
+      const url = custom && emoji(custom[1]);
+      if (custom && url) {
+        flush();
+        nodes.push(
+          <img
+            key={key++}
+            src={url}
+            alt={custom[0]}
+            title={custom[0]}
+            className="inline-block h-5 w-5 align-text-bottom"
+          />,
+        );
+        i += custom[0].length;
+        continue;
+      }
+    }
+
     let matched = false;
     for (const pair of PAIRS) {
       if (!text.startsWith(pair.open, i)) continue;
       const end = text.indexOf(pair.close, i + pair.open.length);
       if (end <= i + pair.open.length) continue;
       flush();
-      const inner = inline(text.slice(i + pair.open.length, end), me);
+      const inner = inline(text.slice(i + pair.open.length, end), me, emoji);
       const Tag = pair.tag;
       nodes.push(<Tag key={key++}>{inner}</Tag>);
       i = end + pair.close.length;

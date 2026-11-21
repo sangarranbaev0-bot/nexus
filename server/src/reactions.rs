@@ -26,7 +26,7 @@ pub fn routes() -> Router<AppState> {
 type MessagePath = (i64, String);
 
 /// Эмодзи-последовательность до 64 символов без пробелов и управляющих символов.
-fn validate(raw: &str) -> AppResult<&str> {
+pub fn validate(raw: &str) -> AppResult<&str> {
     let emoji = raw.trim();
     let len = emoji.chars().count();
     if len == 0 || len > 64 || emoji.chars().any(|c| c.is_control() || c.is_whitespace()) {
@@ -106,6 +106,11 @@ async fn remove(
     .bind::<Text, _>(&emoji)
     .execute(&mut conn)
     .await?;
+
+    if let Some(server_id) = access.server_id {
+        crate::reaction_roles::apply(&mut conn, server_id, message_id, &emoji, user_id, false)
+            .await?;
+    }
 
     notify(
         &mut conn,

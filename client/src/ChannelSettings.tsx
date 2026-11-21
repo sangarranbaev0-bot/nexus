@@ -89,6 +89,9 @@ function OverviewTab({
   const categories = useGuilds((s) => s.categories[server.id]) ?? [];
   const [name, setName] = useState(channel.name);
   const [categoryId, setCategoryId] = useState(channel.categoryId ?? 0);
+  const [topic, setTopic] = useState(channel.topic ?? '');
+  const [slowmodeSeconds, setSlowmodeSeconds] = useState(channel.slowmodeSeconds ?? 0);
+  const [nsfw, setNsfw] = useState(channel.nsfw ?? false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -106,6 +109,9 @@ function OverviewTab({
         name: trimmed === channel.name ? null : trimmed,
         categoryId,
         position: null,
+        topic: topic === (channel.topic ?? '') ? undefined : topic,
+        slowmodeSeconds: slowmodeSeconds === (channel.slowmodeSeconds ?? 0) ? undefined : slowmodeSeconds,
+        nsfw: nsfw === (channel.nsfw ?? false) ? undefined : nsfw,
       });
       onClose();
     } catch (err) {
@@ -162,6 +168,38 @@ function OverviewTab({
               </option>
             ))}
         </select>
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+          Тема
+        </span>
+        <input
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          className={inputClass}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+          Медленный режим (сек.)
+        </span>
+        <input
+          type="number"
+          value={slowmodeSeconds}
+          onChange={(e) => setSlowmodeSeconds(Number(e.target.value) || 0)}
+          className={inputClass}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+          NSFW
+        </span>
+        <input
+          type="checkbox"
+          checked={nsfw}
+          onChange={(e) => setNsfw(e.target.checked)}
+          className={inputClass}
+        />
       </label>
       {error && (
         <p role="alert" className="text-sm text-red-400">

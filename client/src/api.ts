@@ -80,7 +80,10 @@ export function refreshSession(): Promise<AuthResponse> {
 }
 
 /** JSON-запрос к API. При 401 один раз обновляет токен и повторяет запрос. */
-export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+export async function api<T>(
+  path: string,
+  init: { method?: string; body?: unknown; form?: FormData } = {},
+): Promise<T> {
   const send = () =>
     fetch(path, {
       method: init.method ?? 'GET',
@@ -88,7 +91,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
         ...(init.body !== undefined && { 'Content-Type': 'application/json' }),
         ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
       },
-      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      body: init.form ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
     });
 
   let res = await send();

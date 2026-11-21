@@ -1,7 +1,9 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import type { Invite } from "./generated/Invite";
 import type { Member } from "./generated/Member";
+import type { OnboardingQuestion } from "./generated/OnboardingQuestion";
+import type { ServerEvent } from "./generated/ServerEvent";
 import type { Server } from "./generated/Server";
 import {
   assignRoles,
@@ -12,10 +14,16 @@ import {
   joinInvite,
   listMembers,
   loadRoles,
+  setMemberProfile,
+  listOnboarding,
+  answerOnboarding,
+  listEvents,
+  toggleInterest,
   setMemberRole,
   useGuilds,
   wave,
 } from "./guilds";
+import { Markdown } from "./Markdown";
 import { P, colorToCss } from "./permissions";
 import { openDm, createGroup } from "./dms";
 import {
@@ -116,9 +124,10 @@ export function CreateChannelDialog({
   onClose: () => void;
 }) {
   const navigate = useNavigate();
-  const [kind, setKind] = useState<"text" | "voice">("text");
+  const [kind, setKind] = useState<"text" | "voice" | "stage">("text");
+  const [isForum, setIsForum] = useState(false);
   const { onSubmit, error, pending } = useSubmit(async (value) => {
-    const channel = await createChannel(server.id, value, kind);
+    const channel = await createChannel(server.id, value, kind, isForum);
     onClose();
     navigate(`/channels/${server.id}/${channel.id}`);
   });
@@ -134,6 +143,7 @@ export function CreateChannelDialog({
             [
               ["text", "# Текстовый"],
               ["voice", "🔊 Голосовой"],
+              ["stage", "🎤 Стади"],
             ] as const
           ).map(([k, title]) => (
             <label
@@ -151,13 +161,24 @@ export function CreateChannelDialog({
             </label>
           ))}
         </fieldset>
+        {kind === "text" && (
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isForum}
+              onChange={(e) => setIsForum(e.target.checked)}
+              className="rounded bg-zinc-800 border-zinc-600"
+            />
+            <span className="text-sm">Форум-канал (ветки)</span>
+          </label>
+        )}
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
             Название канала
           </span>
           <div className="flex items-center rounded bg-zinc-900 focus-within:ring-2 focus-within:ring-indigo-500">
             <span className="pl-3 text-zinc-500">
-              {kind === "voice" ? "🔊" : "#"}
+              {kind === "stage" ? "🎤" : kind === "voice" ? "🔊" : "#"}
             </span>
             <input
               name="value"
@@ -193,6 +214,7 @@ export function InviteDialog({
   const [invite, setInvite] = useState<Invite | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showRules, setShowRules] = useState(false);
 
   useEffect(() => {
     createInvite(server.id).then(setInvite, (err) =>
@@ -208,6 +230,31 @@ export function InviteDialog({
 
   return (
     <Modal title={`Пригласить на «${server.name}»`} onClose={onClose}>
+      {server.bannerUrl && (
+        <img
+          src={server.bannerUrl}
+          alt=""
+          className="mb-3 h-28 w-full rounded object-cover"
+        />
+      )}
+      {server.description && (
+        <div className="mb-3 text-sm text-zinc-300">
+          <Markdown text={server.description} />
+        </div>
+      )}
+      {server.rules && (
+        <button
+          onClick={() => setShowRules((v) => !v)}
+          className="mb-3 text-sm text-indigo-400 hover:underline"
+        >
+          {showRules ? "Скрыть правила" : "Показать правила"}
+        </button>
+      )}
+      {showRules && server.rules && (
+        <div className="mb-3 max-h-60 overflow-y-auto rounded bg-zinc-900 p-3 text-sm">
+          <Markdown text={server.rules} />
+        </div>
+      )}
       <p className="text-sm text-zinc-400">
         Отправьте другу этот код, чтобы он вступил на сервер.
       </p>
@@ -242,6 +289,7 @@ export function MembersDialog({
 }) {
   const me = useSession((s) => s.user);
   const [members, setMembers] = useState<Member[] | null>(null);
+  const [memberQuery, setMemberQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const isOwner = server.myRole === "owner";
   const manageRoles = can(server, P.MANAGE_ROLES);
@@ -249,6 +297,9 @@ export function MembersDialog({
   const [rolesFor, setRolesFor] = useState<number | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [savingRoles, setSavingRoles] = useState(false);
+  const [editProfile, setEditProfile] = useState(false);
+  const [nickname, setNickname] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
 
   const reload = () =>
     listMembers(server.id).then(
@@ -262,6 +313,17 @@ export function MembersDialog({
     void reload();
     void loadRoles(server.id).catch(() => {});
   }, [server.id]);
+
+  const visibleMembers = useMemo(() => {
+    const q = memberQuery.trim().toLowerCase();
+    if (!q) return members ?? [];
+    const rolesById = new Map((roles ?? []).map((r) => [r.id, r.name.toLowerCase()]));
+    return (members ?? []).filter(
+      (m) =>
+        m.username.toLowerCase().includes(q) ||
+        m.roleIds.some((id) => rolesById.get(id)?.includes(q)),
+    );
+  }, [members, memberQuery, roles]);
 
   const openRoles = (m: Member) => {
     const assignable = new Set(
@@ -321,13 +383,38 @@ export function MembersDialog({
 
   return (
     <Modal title="Участники" onClose={onClose}>
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex gap-2">
+        <input
+          value={memberQuery}
+          onChange={(e) => setMemberQuery(e.target.value)}
+          placeholder="Поиск по имени или роли"
+          aria-label="Поиск участников"
+          className="flex-1 rounded bg-zinc-900 px-3 py-1.5 text-sm outline-none placeholder:text-zinc-500"
+        />
+        <button onClick={() => {
+          const meMember = members?.find((m) => m.userId === me?.id);
+          setNickname(meMember?.nickname ?? "");
+          setAvatarUrl(meMember?.avatarUrl ?? "");
+          setEditProfile(true);
+        }} className="text-sm text-indigo-400 hover:underline">
+          Мой ник
+        </button>
         <button onClick={waveHello} className="text-sm text-indigo-400 hover:underline">
           👋 Помахать
         </button>
       </div>
+      {editProfile && (
+        <div className="mb-3 space-y-2 rounded bg-zinc-900 p-3">
+          <input value={nickname} onChange={(e) => setNickname(e.target.value)} className={inputClass} placeholder="Ник на сервере" />
+          <input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} className={inputClass} placeholder="Ссылка на аватар" />
+          <div className="flex gap-2">
+            <button onClick={() => void setMemberProfile(server.id, { nickname, avatarUrl }).then(() => { setEditProfile(false); return reload(); }, (e) => setError(errorMessage(e)))} className={primaryButton}>Сохранить</button>
+            <button onClick={() => setEditProfile(false)} className={ghostButton}>Отмена</button>
+          </div>
+        </div>
+      )}
       <ul className="max-h-80 divide-y divide-zinc-700 overflow-y-auto">
-        {members?.map((m) => (
+        {visibleMembers.map((m) => (
           <li key={m.userId} className="py-2">
             <div className="flex items-center gap-3">
               <StatusDot userId={m.userId} fallback={m.status} />
@@ -373,8 +460,8 @@ export function MembersDialog({
                   .map((r) => (
                     <span
                       key={r.id}
-                      style={{ color: colorToCss(r.color) }}
-                      className="rounded bg-zinc-700/70 px-1.5 py-0.5 text-xs"
+                      style={{ color: colorToCss(r.color), borderColor: colorToCss(r.color) }}
+                      className="rounded border-[3px] bg-zinc-700/70 px-1.5 py-0.5 text-xs"
                     >
                       {r.name}
                     </span>
@@ -542,6 +629,87 @@ export function NewDmDialog({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+
+export function OnboardingDialog({ server, onClose }: { server: Server; onClose: () => void }) {
+  const [items, setItems] = useState<OnboardingQuestion[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reload = () => listOnboarding(server.id).then(setItems, (e) => setError(errorMessage(e)));
+  useEffect(() => { void reload(); void loadRoles(server.id).catch(() => {}); }, [server.id]);
+  const roles = useGuilds((s) => s.roles[server.id]) ?? [];
+
+  const answer = async (id: number) => {
+    try { await answerOnboarding(server.id, id); await reload(); }
+    catch (e) { setError(errorMessage(e)); }
+  };
+
+  return (
+    <Modal title={`Онбординг · ${server.name}`} onClose={onClose}>
+      <p className="mb-3 text-sm text-zinc-400">Ответьте «Да», чтобы получить роль. Повторно answered вопросы не показываются.</p>
+      {error && <ErrorText error={error} />}
+      {items === null ? (
+        <p className="text-zinc-400">Загрузка…</p>
+      ) : items.length === 0 ? (
+        <p className="text-zinc-400">Вопросов пока нет.</p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((q) => (
+            <li key={q.id} className="flex items-center gap-2 rounded bg-zinc-900 p-3 text-sm">
+              <span className="flex-1">{q.question}</span>
+              <span className="text-xs text-zinc-400">{roles.find((r) => r.id === q.roleId)?.name}</span>
+              {q.answered ? (
+                <span className="text-xs text-emerald-400">получено</span>
+              ) : (
+                <button onClick={() => void answer(q.id)} className="text-sm text-indigo-400 hover:underline">Да</button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
+  );
+}
+
+export function EventsDialog({ server, onClose }: { server: Server; onClose: () => void }) {
+  const [items, setItems] = useState<ServerEvent[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reload = () => listEvents(server.id).then(setItems, (e) => setError(errorMessage(e)));
+  useEffect(() => { void reload(); }, [server.id]);
+
+  const interest = async (id: number) => {
+    try { await toggleInterest(server.id, id); await reload(); }
+    catch (e) { setError(errorMessage(e)); }
+  };
+
+  return (
+    <Modal title={`События · ${server.name}`} onClose={onClose}>
+      {error && <ErrorText error={error} />}
+      {items === null ? (
+        <p className="text-zinc-400">Загрузка…</p>
+      ) : items.length === 0 ? (
+        <p className="text-zinc-400">Ближайших событий нет.</p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((ev) => (
+            <li key={ev.id} className="rounded bg-zinc-900 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium">{ev.name}</span>
+                <span className="text-xs text-zinc-400">{new Date(ev.startsAt).toLocaleString("ru-RU")}</span>
+              </div>
+              {ev.description && <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-400">{ev.description}</p>}
+              <div className="mt-2 flex items-center gap-3 text-sm">
+                <button onClick={() => void interest(ev.id)} className="text-indigo-400 hover:underline">
+                  {ev.interested ? "✭ Интересно" : "☆ Интересно"}
+                </button>
+                <span className="text-zinc-500">{ev.interestedCount}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </Modal>
   );
 }

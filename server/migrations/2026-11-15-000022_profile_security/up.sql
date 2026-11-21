@@ -1,0 +1,39 @@
+ALTER TABLE users
+  ADD COLUMN about TEXT NOT NULL DEFAULT '',
+  ADD COLUMN banner_url TEXT NOT NULL DEFAULT '',
+  ADD COLUMN pronouns TEXT NOT NULL DEFAULT '',
+  ADD COLUMN accent_color INTEGER,
+  ADD COLUMN status_text TEXT NOT NULL DEFAULT '',
+  ADD COLUMN status_emoji TEXT NOT NULL DEFAULT '',
+  ADD COLUMN status_expires_at TIMESTAMPTZ,
+  ADD COLUMN dnd BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN totp_secret TEXT,
+  ADD COLUMN two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE members
+  ADD COLUMN nickname TEXT NOT NULL DEFAULT '',
+  ADD COLUMN avatar_url TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE refresh_tokens
+  ADD COLUMN user_agent TEXT NOT NULL DEFAULT '',
+  ADD COLUMN ip TEXT NOT NULL DEFAULT '',
+  ADD COLUMN device_label TEXT NOT NULL DEFAULT '',
+  ADD COLUMN last_used_at TIMESTAMPTZ;
+
+CREATE TABLE user_notes (
+  owner_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  target_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  note TEXT NOT NULL DEFAULT '',
+  nickname TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (owner_id, target_id)
+);
+
+CREATE TABLE recovery_codes (
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code_hash TEXT NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, code_hash)
+);
