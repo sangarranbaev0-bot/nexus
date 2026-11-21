@@ -8,6 +8,7 @@ anyhow = "1.0.104"
 axum = { version = "0.8.9", features = ["ws", "macros", "multipart"] }
 axum-extra = { version = "0.12.6", features = ["cookie", "multipart"] }
 bcrypt = "0.19.3"
+bytes = "1.12.2"
 chrono = "0.4.45"
 cookie = "0.18.2"
 diesel = { version = "2.3.14", default-features = false, features = ["chrono", "postgres_backend", "32-column-tables"] }

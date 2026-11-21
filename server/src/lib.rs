@@ -97,10 +97,35 @@ pub async fn run_migrations(pool: &DbPool) -> anyhow::Result<()> {
 }
 
 pub fn app(state: AppState) -> Router {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    // При кросс-доменном доступе (GitHub Pages → внешний сервер) заголовок Access-Control-Allow-Origin
+    // не может быть "*", если клиент запрашивает cookies (credentials: 'include'). Поэтому разрешаем
+    // только Origins из переменной CLIENT_ORIGINS (через запятую). Для локальной разработки оставим
+    // localhost; при пустой переменной — тоже разрешим любой origin (только для однодоменных сборок).
+    let cors = if let Ok(origins_csv) = std::env::var("CLIENT_ORIGINS") {
+        // При наличии CLIENT_ORIGINS разрешаем только указанные origin-ы.
+        // Разрешаем credentials, чтобы работало с cookies при кросс-доменном доступе.
+        let allowed: Vec<String> = origins_csv
+            .split(',')
+            .filter_map(|s| {
+                let s = s.trim();
+                (!s.is_empty()).then(|| s.to_string())
+            })
+            .collect();
+        assert!(!allowed.is_empty(), "CLIENT_ORIGINS is empty");
+        let values: Vec<_> = allowed.into_iter()
+            .map(|s| axum::http::HeaderValue::from_str(&s).expect("invalid origin in CLIENT_ORIGINS"))
+            .collect();
+        CorsLayer::new()
+            .allow_origin(values)
+            .allow_methods(Any)
+            .allow_headers(Any)
+            .allow_credentials(true)
+    } else {
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    };
     Router::new()
         .route("/api/health", get(health))
         .route("/ws", get(ws::handler))
