@@ -34,6 +34,14 @@ export const useSocket = create<SocketState>(() => ({ status: 'connecting', late
 const PING_EVERY_MS = 5000;
 const RECONNECT_MS = 2000;
 
+/** Адрес WebSocket-сервера. При сборке под GitHub Pages укажите VITE_WS_URL, иначе берётся относительный путь от origin. */
+const WS_BASE = (() => {
+  const env = import.meta.env.VITE_WS_URL;
+  if (env) return env;
+  // Подключаемся к тому же хосту, откуда загружена страница (GitHub Pages + сервер на одном узле).
+  return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`;
+})();
+
 function send(ws: WebSocket, msg: ClientMessage) {
   ws.send(JSON.stringify(msg));
 }
@@ -79,8 +87,7 @@ export function connectSocket(): () => void {
     }
     if (stopped) return;
 
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${proto}://${location.host}/ws`);
+    const socket = new WebSocket(`${WS_BASE}/ws`);
     ws = socket;
     current = socket;
 
@@ -132,8 +139,8 @@ export function connectSocket(): () => void {
           void loadChannels(msg.serverId).catch(() => {});
           void loadCategories(msg.serverId).catch(() => {});
           break;
-case 'emojisChanged' as any:
-           void loadEmojis((msg as any).serverId).catch(() => {});
+        case 'emojisChanged':
+           void loadEmojis(msg.serverId).catch(() => {});
           break;
         case 'voiceState':
           onVoiceState(msg.participant);
