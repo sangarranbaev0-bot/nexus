@@ -15,7 +15,9 @@ if (-not (Test-Path $ServerBin)) {
 Write-Host "Собираю артефакт..."
 
 # Создаём структуру бандла
-$BundleDir = Join-Path $OutDir "nexus-server-$($env:TAG_VERSION ?? 'v0.6.0')"
+$BundleName = "nexus-server"
+if ($env:TAG_VERSION) { $BundleBase = "$BundleName-$env:TAG_VERSION" } else { $BundleBase = "$BundleName-v0.6.0" }
+$BundleDir = Join-Path $OutDir $BundleBase
 New-Item -ItemType Directory -Force -Path $BundleDir | Out-Null
 Copy-Item $ServerBin (Join-Path $BundleDir "nexus-server.exe")
 
