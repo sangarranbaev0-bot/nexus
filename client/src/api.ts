@@ -67,7 +67,7 @@ let refreshing: Promise<AuthResponse> | null = null;
 
 /** Обновляет пару токенов по cookie. Параллельные вызовы делят один запрос. */
 export function refreshSession(): Promise<AuthResponse> {
-  refreshing ??= fetch('/api/auth/refresh', { method: 'POST' })
+  refreshing ??= fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' })
     .then((res) => parse<AuthResponse>(res))
     .then((auth) => {
       accessToken = auth.accessToken;
@@ -92,6 +92,7 @@ export async function api<T>(
         ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
       },
       body: init.form ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
+      credentials: 'include',
     });
 
   let res = await send();

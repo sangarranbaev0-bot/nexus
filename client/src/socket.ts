@@ -32,7 +32,10 @@ interface SocketState {
 export const useSocket = create<SocketState>(() => ({ status: 'connecting', latencyMs: null, idle: false }));
 
 const PING_EVERY_MS = 5000;
-const RECONNECT_MS = 2000;
+const RECONNECT_BASE_MS = 2000;
+const RECONNECT_MAX_MS = 30_000;
+const RECONNECT_BACKOFF = 1.5;
+const RECONNECT_FAIL_LIMIT = 8; // после ~45 с подряд — остановиться, чтобы не спамить логи
 
 /** Адрес WebSocket-сервера. При сборке под GitHub Pages укажите VITE_WS_URL, иначе берётся относительный путь от origin. */
 const WS_BASE = (() => {
@@ -72,6 +75,8 @@ export function connectSocket(): () => void {
   let rejected = false;
   let stopped = false;
   let connectedBefore = false;
+  let failedConsecutive = 0;
+  let reconnectDelayMs = RECONNECT_BASE_MS;
 
   const open = async () => {
     useSocket.setState({ status: 'connecting' });
@@ -91,7 +96,11 @@ export function connectSocket(): () => void {
     ws = socket;
     current = socket;
 
-    socket.onopen = () => send(socket, { type: 'auth', token: getAccessToken() ?? '' });
+    socket.onopen = () => {
+      failedConsecutive = 0;
+      reconnectDelayMs = RECONNECT_BASE_MS;
+      send(socket, { type: 'auth', token: getAccessToken() ?? '' });
+    };
 
     socket.onmessage = (event) => {
       const msg = JSON.parse(event.data) as ServerMessage;
@@ -174,7 +183,15 @@ export function connectSocket(): () => void {
     socket.onclose = () => {
       window.clearInterval(pingTimer);
       useSocket.setState({ status: 'closed', latencyMs: null });
-      if (!stopped) reconnectTimer = window.setTimeout(open, RECONNECT_MS);
+      if (stopped) return;
+      failedConsecutive += 1;
+      if (failedConsecutive >= RECONNECT_FAIL_LIMIT) {
+        // Слишком много неудач подряд — прекращаем попытки, пользователь перезагрузит страницу сам.
+        console.warn('[ws] connection failed repeatedly; stopping reconnects');
+        return;
+      }
+      reconnectTimer = window.setTimeout(open, reconnectDelayMs);
+      reconnectDelayMs = Math.min(reconnectDelayMs * RECONNECT_BACKOFF, RECONNECT_MAX_MS);
     };
   };
 
