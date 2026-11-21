@@ -54,8 +54,6 @@ jobs:
         run: pnpm install --frozen-lockfile && pnpm build
 
       - name: Bundle server zip
-        env:
-          TAG_VERSION: ${{ steps.ver.outputs.tag }}
         run: |
           mkdir -p releases
           pwsh scripts/server-bundle.ps1 releases
@@ -66,11 +64,40 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
           TAG: ${{ steps.ver.outputs.tag }}
         run: |
-          Zip="releases/nexus-server-windows-x64.zip"
-          Body="Сервер NexusChat для Windows (x64, без установщика).\n\nВерсия: $VERSION\n\nЗапустите \`run.bat\` после настройки \` .env\`."
-          # Удаляем старый файл, если тег уже существует
-          gh release delete "$TAG" --cleanup-tag --yes 2>/dev/null || true
-          gh release create "$TAG" \
-            --title "NexusChat Server $VERSION" \
-            --notes "$Body" \
-            "$Zip"
+          $Zip = "releases/nexus-server-windows-x64.zip"
+          $Repo = "${{ github.repository }}"
+          $Body = @"
+Сервер NexusChat для Windows (x64, без установщика).
+
+Версия: $env:VERSION
+
+Запустите \`run.bat\` после настройки \` .env\`.
+"@
+          # Удаляем старый тег-релиз если есть
+          try {
+            Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/tags/$env:TAG" `
+              -Headers @{"Authorization"="Bearer $env:GITHUB_TOKEN"; "Accept"="application/vnd.github.v3+json"} `
+              -ErrorAction Stop | Out-Null
+          } catch {
+            # Не найдено — нормально
+          }
+          # Создаём релиз
+          $ReleaseBody = @{
+            tag_name   = $env:TAG
+            name       = "NexusChat Server $env:VERSION"
+            body       = $Body
+            draft      = $false
+            prerelease = $false
+          } | ConvertTo-Json -Depth 2
+          $NewRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases" `
+            -Method Post `
+            -Headers @{"Authorization"="Bearer $env:GITHUB_TOKEN"; "Accept"="application/vnd.github.v3+json"} `
+            -ContentType "application/json" `
+            -Body $ReleaseBody
+          # Загружаем артефакт в релиз
+          $AssetUrl = ($NewRelease.upload_url -split '\{')[0] + "name=nexus-server-windows-x64.zip"
+          $Bytes = [System.IO.File]::ReadAllBytes($Zip)
+          Invoke-RestMethod -Uri $AssetUrl `
+            -Method Post `
+            -Headers @{"Authorization"="Bearer $env:GITHUB_TOKEN"; "Accept"="application/vnd.github.v3+json"; "Content-Type"="application/zip"} `
+            -Body $Bytes
