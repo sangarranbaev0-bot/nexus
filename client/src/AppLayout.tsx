@@ -5,8 +5,9 @@ import { ChannelSettingsDialog } from "./ChannelSettings";
 import {
   AddServerDialog,
   CreateChannelDialog,
-  InviteDialog,
-  MembersDialog,
+    InviteDialog,
+  InviteListDialog,
+    MembersDialog,
   NewDmDialog,
   OnboardingDialog,
   EventsDialog,
@@ -58,6 +59,7 @@ type Dialog =
   | "onboarding"
   | "events"
   | "notify"
+  | "inviteList"
   | null;
 
 export function AppLayout() {
@@ -231,14 +233,24 @@ export function AppLayout() {
           <div className="ml-auto flex items-center gap-1">
             <NotificationCenter />
             {server && (
-              <button
-                onClick={() => setDialog("notify")}
-                title="Настройки уведомлений"
-                aria-label="Настройки уведомлений канала"
-                className="rounded px-2 py-1 text-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
-              >
-                🔕
-              </button>
+              <>
+                <button
+                  onClick={() => setDialog("notify")}
+                  title="Настройки уведомлений"
+                  aria-label="Настройки уведомлений канала"
+                  className="rounded px-2 py-1 text-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+                >
+                  🔕
+                </button>
+                <button
+                  onClick={() => setDialog("inviteList")}
+                  title="Список приглашений"
+                  aria-label="Приглашения"
+                  className="rounded px-2 py-1 text-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+                >
+                  🔗
+                </button>
+              </>
             )}
           </div>
         </header>
@@ -307,6 +319,9 @@ export function AppLayout() {
       )}
         {server && dialog === "members" && (
           <MembersDialog server={server} onClose={() => setDialog(null)} />
+        )}
+        {server && dialog === "inviteList" && (
+          <InviteListDialog server={server} onClose={() => setDialog(null)} />
         )}
         {server && dialog === "onboarding" && (
           <OnboardingDialog server={server} onClose={() => setDialog(null)} />

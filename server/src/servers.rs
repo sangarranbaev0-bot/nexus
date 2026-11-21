@@ -66,17 +66,19 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/api/servers/{id}/bans", get(list_bans))
         .route("/api/servers/{id}/wave", post(wave))
-        .route("/api/servers/{id}/invites", post(create_invite))
-        .route(
-            "/api/servers/{id}/tickets",
-            get(list_tickets).post(create_ticket),
-        )
-        .route(
-            "/api/servers/{id}/tickets/{ticket_id}",
-            patch(update_ticket),
-        )
-        .route("/api/channels/{id}", delete(delete_channel))
-        .route("/api/invites/{code}/join", post(join_by_invite))
+          .route("/api/servers/{id}/invites", get(list_invites).post(create_invite))
+          .route("/api/invites/{code}", delete(delete_invite))
+          .route(
+              "/api/servers/{id}/tickets",
+              get(list_tickets).post(create_ticket),
+          )
+          .route(
+              "/api/servers/{id}/tickets/{ticket_id}",
+              patch(update_ticket),
+          )
+          .route("/api/channels/{id}", delete(delete_channel))
+          .route(
+              "/api/invites/{code}/join", post(join_by_invite))
 }
 
 /// Роль пользователя на сервере. Не-участнику 404: не раскрываем, что сервер существует.
@@ -775,6 +777,58 @@ async fn create_invite(
             uses: 0,
         }),
     ))
+}
+
+async fn list_invites(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(server_id): Path<i64>,
+) -> AppResult<Json<Vec<Invite>>> {
+    let mut conn = state.pool.get().await?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::CREATE_INVITE)
+        .await?;
+    let rows: Vec<(String, i64, Option<chrono::DateTime<Utc>>, Option<i32>, i32)> =
+        invites::table
+            .filter(invites::server_id.eq(server_id))
+            .select((
+                invites::code,
+                invites::server_id,
+                invites::expires_at,
+                invites::max_uses,
+                invites::uses,
+            ))
+            .load(&mut conn)
+            .await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|(code, sid, expires_at, max_uses, uses)| Invite {
+                code,
+                server_id: sid,
+                expires_at: to_ms(expires_at),
+                max_uses,
+                uses,
+            })
+            .collect(),
+    ))
+}
+
+async fn delete_invite(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(code): Path<String>,
+) -> AppResult<StatusCode> {
+    let mut conn = state.pool.get().await?;
+    let server_id: i64 = invites::table
+        .filter(invites::code.eq(&code))
+        .select(invites::server_id)
+        .first(&mut conn)
+        .await
+        .optional()?
+        .ok_or_else(|| AppError::not_found("invite"))?;
+    permissions::require_permission(&mut conn, server_id, user_id, permissions::CREATE_INVITE)
+        .await?;
+    diesel::delete(invites::table.filter(invites::code.eq(&code))).execute(&mut conn).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn join_by_invite(

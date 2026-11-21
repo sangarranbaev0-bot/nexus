@@ -17,9 +17,11 @@ interface MessagesState {
   logs: Record<number, ChannelLog | undefined>;
   /** channelId → userId → кто печатает и до какого момента показывать. */
   typing: Record<number, Record<number, { username: string; until: number }> | undefined>;
+  /** Последний момент, когда пользователь отметил канал прочитанным (время открытия/скролла). Используется для фильтра «только непрочитанные». */
+  lastReadAt: Record<number, number | null>;
 }
 
-export const useMessages = create<MessagesState>(() => ({ logs: {}, typing: {} }));
+export const useMessages = create<MessagesState>(() => ({ logs: {}, typing: {}, lastReadAt: {} }));
 
 const setLog = (channelId: number, update: (log: ChannelLog) => ChannelLog) =>
   useMessages.setState((s) => {
@@ -97,7 +99,14 @@ function clearTyping(channelId: number, userId: number) {
 
 /** После переподключения сокета ленты могли устареть: перечитываем их заново. */
 export function resetMessages() {
-  useMessages.setState({ logs: {}, typing: {} });
+  useMessages.setState({ logs: {}, typing: {}, lastReadAt: {} });
+}
+
+/** Отмечает текущий момент как «прочитано до этого канала». Вызывается из ChatView при открытии. */
+export function markLastRead(channelId: number) {
+  useMessages.setState((s) => ({
+    lastReadAt: { ...s.lastReadAt, [channelId]: Date.now() },
+  }));
 }
 
 export async function sendMessage(

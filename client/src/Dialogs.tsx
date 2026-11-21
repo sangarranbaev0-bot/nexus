@@ -10,9 +10,11 @@ import {
   can,
   createChannel,
   createInvite,
-  createServer,
-  joinInvite,
-  listMembers,
+    createServer,
+    joinInvite,
+    listInvites,
+    deleteInvite,
+    listMembers,
   loadRoles,
   setMemberProfile,
   listOnboarding,
@@ -712,4 +714,76 @@ export function EventsDialog({ server, onClose }: { server: Server; onClose: () 
       )}
     </Modal>
   );
+}
+
+export function InviteListDialog({
+  server,
+  onClose,
+}: {
+  server: Server;
+  onClose: () => void;
+}) {
+  const [invites, setInvites] = useState<Invite[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reload = () => listInvites(server.id).then(setInvites, (e) => setError(errorMessage(e)));
+
+  useEffect(() => { void reload(); }, [server.id]);
+
+  const remove = async (code: string) => {
+    try {
+      await deleteInvite(code);
+      setInvites((list) => list?.filter((i) => i.code !== code) ?? null);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  const copyCode = async (code: string) => {
+    await navigator.clipboard.writeText(code);
+  };
+
+  return (
+    <Modal title={`Приглашения · ${server.name}`} onClose={onClose}>
+      {error && <ErrorText error={error} />}
+      {invites === null ? (
+        <p className="text-zinc-400">Загрузка…</p>
+      ) : invites.length === 0 ? (
+        <p className="text-zinc-400">Нет активных приглашений.</p>
+      ) : (
+        <ul className="space-y-2">
+          {invites.map((inv) => (
+            <li key={inv.code} className="flex items-center justify-between rounded bg-zinc-900 p-3 text-sm">
+              <div className="min-w-0 flex-1">
+                <span className="font-mono font-medium text-indigo-300">{inv.code}</span>
+                {' · '}
+                <span className="text-zinc-400">
+                  использований: {inv.uses}{inv.maxUses !== null ? ` / ${inv.maxUses}` : ''}
+                </span>
+                {inv.expiresAt !== null && (
+                  <span className="ml-2 text-xs text-zinc-500">
+                    · до {new Date(inv.expiresAt * 1000).toLocaleString('ru-RU')}
+                  </span>
+                )}
+              </div>
+              <div className="ml-3 flex shrink-0 gap-2">
+                <button
+                  onClick={() => void copyCode(inv.code)}
+                  className="rounded px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
+                >
+                  Копировать
+                </button>
+                <button
+                  onClick={() => void remove(inv.code)}
+                  className="rounded px-2 py-1 text-xs text-red-400 hover:bg-red-500/20"
+                >
+                  Удалить
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
+  );
+}
 }

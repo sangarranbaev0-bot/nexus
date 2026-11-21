@@ -17,6 +17,7 @@ import {
   loadOlder,
   loadPins,
   loadEdits,
+  markLastRead,
   markRead,
   sendMessage,
   setPinned,
@@ -70,6 +71,7 @@ export function ChatView({
   const log = useMessages((s) => s.logs[channel.id]);
   const [error, setError] = useState<string | null>(null);
   const [showPins, setShowPins] = useState(false);
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchHit[]>([]);
@@ -86,6 +88,9 @@ export function ChatView({
   const [dragging, setDragging] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const initialUnread = useRef(channel.unread ?? 0).current;
+  // При открытии канала отмечаем «с этого момента прочитано», чтобы фильтр «непрочитанные» работал.
+  useEffect(() => { markLastRead(channel.id); }, []);
+  const lastReadAt = useMessages((s) => s.lastReadAt[channel.id] ?? null);
   const channels = useGuilds((s) => s.channels);
 
   // Search effect
@@ -161,6 +166,8 @@ export function ChatView({
           items={log?.items}
           hasMore={!!log?.hasMore}
           unread={initialUnread}
+          showUnreadOnly={showUnreadOnly}
+          lastReadAt={lastReadAt}
           onError={setError}
           onReply={setReplyTo}
         />
@@ -190,14 +197,22 @@ export function ChatView({
       >
         🔍
       </button>
-      <button
-        type="button"
-        onClick={() => setShowPins(true)}
-        title="Закреплённые сообщения"
-        className="absolute top-1 right-4 z-10 rounded bg-zinc-900/80 px-2 py-1 text-xs text-zinc-300 backdrop-blur hover:bg-zinc-800"
-      >
-        📌 Закреплённые
-      </button>
+        <button
+          type="button"
+          onClick={() => setShowPins(true)}
+          title="Закреплённые сообщения"
+          className="absolute top-1 right-4 z-10 rounded bg-zinc-900/80 px-2 py-1 text-xs text-zinc-300 backdrop-blur hover:bg-zinc-800"
+        >
+          📌 Закреплённые
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowUnreadOnly((v) => !v)}
+          title={showUnreadOnly ? 'Показать все сообщения' : 'Показать только непрочитанные'}
+          className={`absolute top-1 right-28 z-10 rounded bg-zinc-900/80 px-2 py-1 text-xs backdrop-blur ${showUnreadOnly ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30' : 'text-zinc-300 hover:bg-zinc-800'}`}
+        >
+          {showUnreadOnly ? '🔥 Все' : '🔥 Непрочитанные'}
+        </button>
       {showPins && (
         <PinsDialog
           channelId={channel.id}
@@ -222,30 +237,37 @@ export function ChatView({
 
 function MessageList({
   channel,
-  canModerate,
-  canPin,
-  onRead,
-  items,
-  hasMore,
-  unread,
-  onError,
-  onReply,
-}: {
-  channel: ChatTarget;
-  canModerate: boolean;
-  canPin: boolean;
-  onRead: () => void;
-  items: Message[] | undefined;
-  hasMore: boolean;
-  unread: number;
-  onError: (e: string) => void;
-  onReply: (m: Message) => void;
-}) {
+    canModerate,
+    canPin,
+    onRead,
+    items,
+    hasMore,
+    unread,
+    onError,
+    onReply,
+    showUnreadOnly,
+    lastReadAt,
+  }: {
+    channel: ChatTarget;
+    canModerate: boolean;
+    canPin: boolean;
+    onRead: () => void;
+    items: Message[] | undefined;
+    hasMore: boolean;
+    unread: number;
+    onError: (e: string) => void;
+    onReply: (m: Message) => void;
+    showUnreadOnly: boolean;
+    lastReadAt: number | null;
+  }) {
   const ref = useRef<HTMLDivElement>(null);
-  const nearBottom = useRef(true);
-  const prev = useRef<{ first?: number; last?: number; height: number }>({ height: 0 });
-  const latest = useRef(items);
-  latest.current = items;
+    const nearBottom = useRef(true);
+    const prev = useRef<{ first?: number; last?: number; height: number }>({ height: 0 });
+    const latest = useRef(items);
+    latest.current = items;
+    // Фильтруем только непрочитанные, если включён соответствующий режим.
+    const visibleItems =
+      showUnreadOnly && lastReadAt !== null && items ? items.filter((m) => m.createdAt > lastReadAt) : items;
 
   // Видно последнее сообщение — канал прочитан.
   const ackIfViewing = () => {
@@ -312,7 +334,7 @@ function MessageList({
 
   return (
     <div ref={ref} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto py-4" role="log" aria-label={`Сообщения ${channel.label}`}>
-      {items && !hasMore && (
+      {visibleItems && !hasMore && (
         <div className="px-4 pb-4">
           <h3 className="text-2xl font-bold">Добро пожаловать в {channel.label}!</h3>
           <p className="text-zinc-400">
@@ -320,9 +342,13 @@ function MessageList({
           </p>
         </div>
       )}
-      {items === undefined && <p className="px-4 text-zinc-400">Загрузка…</p>}
-      {items?.map((m, i) => {
-        const firstUnread = unread > 0 && unread < items.length ? items.length - unread : -1;
+      {visibleItems === undefined && <p className="px-4 text-zinc-400">Загрузка…</p>}
+      {showUnreadOnly && lastReadAt !== null && visibleItems && visibleItems.length === 0 && items && items.some((m) => m.createdAt > lastReadAt) === false && (
+        <p className="px-4 text-sm text-zinc-500">Нет непрочитанных сообщений после последнего чтения.</p>
+      )}
+      {visibleItems?.map((m, i) => {
+        const arr = visibleItems;
+        const firstUnread = unread > 0 && unread < arr.length ? arr.length - unread : -1;
         return (
           <Fragment key={m.id}>
             {i === firstUnread && (

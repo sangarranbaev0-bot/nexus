@@ -15,7 +15,7 @@ import {
 import { bumpFriends } from './friends';
 import { loadEmojis } from './emojis';
 import { pushNotification } from './notify';
-import { applyCreated, applyDeleted, applyTyping, applyUpdated, isViewing, resetMessages } from './messages';
+import { applyCreated, applyDeleted, applyTyping, applyUpdated, isViewing, markLastRead, resetMessages } from './messages';
 import { applyPresence, watchIdle } from './presence';
 import { signOutLocal, useSession } from './session';
 import { onChannelsReloaded, onHello, onVoiceLeft, onVoiceSignal, onVoiceState } from './voice';
@@ -57,6 +57,29 @@ function onMessageCreated(m: Message) {
   if (isDm(m.channelId)) bumpDm(m.channelId, unread);
   else if (serverOfChannel(m.channelId) === undefined) reloadDmsSoon(); // новый диалог или незагруженный сервер
   if (unread && !isDm(m.channelId)) bumpUnread(m.channelId);
+  // Звуковое оповещение: только если пришло от другого пользователя и мы сейчас в этом канале.
+  if (!isDm(m.channelId) && m.authorId !== useSession.getState().user?.id && isViewing(m.channelId)) {
+    playNotificationSound();
+  }
+}
+
+/** Краткий звук уведомления через Web Audio API; громкость регулируется в браузере. */
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.2);
+  } catch {
+    // аудио-контекст недоступен — молчим
+  }
 }
 
 /** Отправить сообщение серверу, если соединение открыто (иначе молча теряется). */
@@ -166,6 +189,7 @@ export function connectSocket(): () => void {
         case 'channelRead':
           if (msg.serverId === null) clearDmUnread(msg.channelId);
           else clearUnread(msg.serverId, msg.channelId);
+          markLastRead(msg.channelId);
           break;
         case 'friendsChanged':
           bumpFriends();

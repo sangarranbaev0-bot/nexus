@@ -289,6 +289,11 @@ export async function deleteChannel(channel: Channel) {
 export const createInvite = (serverId: number, req: CreateInviteRequest = {}) =>
   api<Invite>(`/api/servers/${serverId}/invites`, { method: 'POST', body: req });
 
+export const listInvites = (serverId: number) => api<Invite[]>(`/api/servers/${serverId}/invites`);
+
+export const deleteInvite = (code: string) =>
+  api<void>(`/api/invites/${encodeURIComponent(code)}`, { method: 'DELETE' });
+
 export const listMembers = (serverId: number) => api<Member[]>(`/api/servers/${serverId}/members`);
 
 export async function listBans(serverId: number) {
