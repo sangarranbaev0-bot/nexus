@@ -291,7 +291,7 @@ NexusChat работает на http://localhost:3001 (база, файлы и �
 у которого A-запись указывает на IP сервера.
 
 ```bash
-git clone https://github.com/OWNER/REPO.git nexuschat && cd nexuschat
+git clone https://github.com/sangarranbaev0-bot/nexus.git nexuschat && cd nexuschat
 sudo bash deploy/install.sh chat.example.com
 ```
 
