@@ -8,6 +8,23 @@ client/   React + Vite + Tailwind + Zustand + React Router
 desktop/  Tauri 2: приложение для Windows с установщиком и автообновлением
 ```
 
+## Установка (Windows)
+
+Скачайте архив сервера с [реleases](https://github.com/sangarranbaev0-bot/nexus/releases):
+
+- `nexus-server-windows-x64.zip` — сервер `.exe`, батник старта, миграции
+- `NexusChat-*-x64-setup.exe` — десктопное приложение (Tauri + NSIS)
+
+**Шаг 1.** Распакуйте сервер, скопируйте `.env.example → .env`, заполните `POSTGRES_URL`, `JWT_SECRET`, `DOMAIN`.  
+**Шаг 2.** Запустите `run.bat` — первый старт применит миграции.  
+**Шаг 3.** Установите `NexusChat-*-x64-setup.exe` и откройте его — клиент подключится к локальному серверу на порту 3001.
+
+Если используете Docker, сервер поднимается одной командой:
+```bash
+docker compose up -d postgres minio minio-init
+cd server && cargo run
+```
+
 ## Требования
 
 - Rust 1.85+ (edition 2024)

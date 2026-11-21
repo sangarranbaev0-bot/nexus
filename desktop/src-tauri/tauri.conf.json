@@ -1,11 +1,11 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "NexusChat",
-  "version": "0.3.0",
+  "version": "0.6.0",
   "identifier": "com.nexuschat.desktop",
   "build": {
     "devUrl": "http://localhost:5173",
-    "frontendDist": "http://127.0.0.1:3001"
+    "frontendDist": "https://localhost:3001"
   },
   "app": {
     "windows": [
@@ -47,7 +47,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/OWNER/REPO/releases/latest/download/latest.json"
+        "https://github.com/sangarranbaev0-bot/nexus/releases/latest/download/latest.json"
       ],
       "pubkey": "SET_BY_CI_FROM_TAURI_UPDATER_PUBKEY",
       "windows": {

@@ -1,0 +1,76 @@
+name: Server Binary Release
+
+on:
+  push:
+    tags: ['server-v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Тег версии (например v0.6.0)'
+        required: true
+        default: 'v0.6.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: ver
+        run: |
+          $tag = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ github.event.inputs.tag }}' } else { '${{ github.ref_name }}' }
+          $ver = $tag -replace '^server-v', ''
+          Write-Output "version=$ver" >> $env:GITHUB_OUTPUT
+          Write-Output "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: server
+
+      - name: Build server release
+        working-directory: server
+        run: cargo build --release
+
+      - name: Build client
+        working-directory: client
+        run: pnpm install --frozen-lockfile && pnpm build
+
+      - name: Bundle server zip
+        env:
+          TAG_VERSION: ${{ steps.ver.outputs.tag }}
+        run: |
+          mkdir -p releases
+          pwsh scripts/server-bundle.ps1 releases
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          Zip="releases/nexus-server-windows-x64.zip"
+          Body="Сервер NexusChat для Windows (x64, без установщика).\n\nВерсия: $VERSION\n\nЗапустите \`run.bat\` после настройки \` .env\`."
+          # Удаляем старый файл, если тег уже существует
+          gh release delete "$TAG" --cleanup-tag --yes 2>/dev/null || true
+          gh release create "$TAG" \
+            --title "NexusChat Server $VERSION" \
+            --notes "$Body" \
+            "$Zip"
