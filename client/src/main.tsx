@@ -14,7 +14,7 @@ document.documentElement.classList.toggle('nexus-light', !initialDark);
 
 void restoreSession();
 if ("serviceWorker" in navigator) {
-  void navigator.serviceWorker.register("/service-worker.js");
+  void navigator.serviceWorker.register("/nexus/service-worker.js");
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
