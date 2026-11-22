@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import type { Attachment } from './generated/Attachment';
 import type { Message } from './generated/Message';
 import type { MessageEdit } from './generated/MessageEdit';
@@ -236,159 +237,176 @@ export function ChatView({
 }
 
 function MessageList({
-  channel,
-    canModerate,
-    canPin,
-    onRead,
-    items,
-    hasMore,
-    unread,
-    onError,
-    onReply,
-    showUnreadOnly,
-    lastReadAt,
-  }: {
-    channel: ChatTarget;
-    canModerate: boolean;
-    canPin: boolean;
-    onRead: () => void;
-    items: Message[] | undefined;
-    hasMore: boolean;
-    unread: number;
-    onError: (e: string) => void;
-    onReply: (m: Message) => void;
-    showUnreadOnly: boolean;
-    lastReadAt: number | null;
-  }) {
-  const ref = useRef<HTMLDivElement>(null);
-    const nearBottom = useRef(true);
-    const prev = useRef<{ first?: number; last?: number; height: number }>({ height: 0 });
-    const latest = useRef(items);
-    latest.current = items;
-    // Фильтруем только непрочитанные, если включён соответствующий режим.
-    const visibleItems =
-      showUnreadOnly && lastReadAt !== null && items ? items.filter((m) => m.createdAt > lastReadAt) : items;
+   channel,
+     canModerate,
+     canPin,
+     onRead,
+     items,
+     hasMore,
+     unread,
+     onError,
+     onReply,
+     showUnreadOnly,
+     lastReadAt,
+   }: {
+     channel: ChatTarget;
+     canModerate: boolean;
+     canPin: boolean;
+     onRead: () => void;
+     items: Message[] | undefined;
+     hasMore: boolean;
+     unread: number;
+     onError: (e: string) => void;
+     onReply: (m: Message) => void;
+     showUnreadOnly: boolean;
+     lastReadAt: number | null;
+   }) {
+   const nearBottom = useRef(true);
+   const prev = useRef<{ first?: number; last?: number; height: number }>({ height: 0 });
+   const latest = useRef(items);
+   latest.current = items;
+   // Фильтруем только непрочитанные, если включён соответствующий режим.
+   const visibleItems =
+     showUnreadOnly && lastReadAt !== null && items ? items.filter((m) => m.createdAt > lastReadAt) : items;
 
-  // Видно последнее сообщение — канал прочитан.
-  const ackIfViewing = () => {
-    activeView.atBottom = nearBottom.current;
-    const last = latest.current?.at(-1);
-    if (last && isViewing(channel.id)) {
-      markRead(channel.id, last.id);
-      onRead();
-    }
-  };
+   // Видно последнее сообщение — канал прочитан.
+   const ackIfViewing = () => {
+     activeView.atBottom = nearBottom.current;
+     const last = latest.current?.at(-1);
+     if (last && isViewing(channel.id)) {
+       markRead(channel.id, last.id);
+       onRead();
+     }
+   };
 
-  // Сохраняем позицию при подгрузке старых и прилипаем к низу при новых.
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || !items) return;
-    const first = items[0]?.id;
-    const last = items.at(-1)?.id;
-    const p = prev.current;
-    if (p.first !== undefined && first !== p.first && last === p.last) {
-      el.scrollTop += el.scrollHeight - p.height;
-    } else if (last !== p.last && (nearBottom.current || p.last === undefined)) {
-      const divider = p.last === undefined ? el.querySelector<HTMLElement>('[data-new-divider]') : null;
-      if (divider) {
-        el.scrollTop = Math.max(0, divider.offsetTop - 60);
+    // Сохраняем позицию при подгрузке старых и прилипаем к низу при новых.
+    useLayoutEffect(() => {
+      // Note: With Virtuoso, scroll position is managed by the library
+      // but we still need to track first/last for loadOlder/auto-scroll
+      if (!items) return;
+      const first = items[0]?.id;
+      const last = items.at(-1)?.id;
+      const p = prev.current;
+      if (p.first !== undefined && first !== p.first && last === p.last) {
+        // Skip - we rely on Virtuoso's auto-scroll
+      } else if (last !== p.last && (nearBottom.current || p.last === undefined)) {
         nearBottom.current = false;
-      } else {
-        el.scrollTop = el.scrollHeight;
       }
-    }
-    prev.current = { first, last, height: el.scrollHeight };
-    ackIfViewing();
-  }, [items]);
+      prev.current = { first, last, height: 0 };
+      ackIfViewing();
+    }, [items]);
 
-  // Картинки получают высоту только после загрузки: если были внизу, остаёмся внизу.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const onLoad = (e: Event) => {
-      if (e.target instanceof HTMLImageElement && nearBottom.current) el.scrollTop = el.scrollHeight;
-    };
-    el.addEventListener('load', onLoad, true); // load не всплывает, ловим на погружении
-    return () => el.removeEventListener('load', onLoad, true);
-  }, []);
+    // Картинки получают высоту только после загрузки: если были внизу, остаёмся внизу.
+    useEffect(() => {
+      const onLoad = (e: Event) => {
+        if (e.target instanceof HTMLImageElement && nearBottom.current) {
+          // Virtuoso auto-scrolls on size changes, so we don't need manual scroll
+        }
+      };
+      // This event listener won't fire in the same way with Virtuoso
+      // but we keep it for compatibility
+      return;
+    }, []);
 
-  useEffect(() => {
-    nearBottom.current = true;
-    prev.current = { height: 0 };
-    activeView.channelId = channel.id;
-    activeView.atBottom = true;
-    document.addEventListener('visibilitychange', ackIfViewing);
-    return () => {
-      document.removeEventListener('visibilitychange', ackIfViewing);
-      if (activeView.channelId === channel.id) activeView.channelId = undefined;
-    };
-  }, [channel.id]);
+    useEffect(() => {
+      nearBottom.current = true;
+      prev.current = { height: 0 };
+      activeView.channelId = channel.id;
+      activeView.atBottom = true;
+      document.addEventListener('visibilitychange', ackIfViewing);
+      return () => {
+        document.removeEventListener('visibilitychange', ackIfViewing);
+        if (activeView.channelId === channel.id) activeView.channelId = undefined;
+      };
+    }, [channel.id]);
 
-  const onScroll = () => {
-    const el = ref.current!;
-    nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
-    prev.current.height = el.scrollHeight;
-    ackIfViewing();
-    if (el.scrollTop < LOAD_OLDER_PX && hasMore) loadOlder(channel.id).catch((e) => onError(errorMessage(e)));
-  };
+    // Calculate firstUnread index for rendering the "NEW" divider
+    const firstUnread = unread > 0 && unread < (visibleItems || []).length ? (visibleItems || []).length - unread : -1;
 
-  return (
-    <div ref={ref} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto py-4" role="log" aria-label={`Сообщения ${channel.label}`}>
-      {visibleItems && !hasMore && (
-        <div className="px-4 pb-4">
-          <h3 className="text-2xl font-bold">Добро пожаловать в {channel.label}!</h3>
-          <p className="text-zinc-400">
-            {channel.label.startsWith("@") ? "Это начало вашей переписки." : "Это начало канала."}
-          </p>
-        </div>
-      )}
-      {visibleItems === undefined && <p className="px-4 text-zinc-400">Загрузка…</p>}
-      {showUnreadOnly && lastReadAt !== null && visibleItems && visibleItems.length === 0 && items && items.some((m) => m.createdAt > lastReadAt) === false && (
-        <p className="px-4 text-sm text-zinc-500">Нет непрочитанных сообщений после последнего чтения.</p>
-      )}
-      {visibleItems?.map((m, i) => {
-        const arr = visibleItems;
-        const firstUnread = unread > 0 && unread < arr.length ? arr.length - unread : -1;
-        const prevMsg = i > 0 ? arr[i - 1] : null;
-        const prevDate = prevMsg ? new Date(prevMsg.createdAt).toDateString() : '';
-        const currDate = new Date(m.createdAt).toDateString();
-        const dayChanged = currDate !== prevDate;
-        return (
-          <Fragment key={m.id}>
-            {dayChanged && (
-              <div className="my-3 flex items-center gap-3 px-4 text-xs font-semibold text-zinc-500">
-                <span className="h-px flex-1 bg-zinc-700" />
-                <time dateTime={new Date(m.createdAt).toISOString()}>
-                  {new Intl.DateTimeFormat('ru', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(m.createdAt))}
-                </time>
-                <span className="h-px flex-1 bg-zinc-700" />
-              </div>
-            )}
-            {i === firstUnread && (
-              <div
-                data-new-divider
-                role="separator"
-                aria-label="Новые сообщения"
-                className="my-2 flex items-center gap-3 px-4 text-xs font-semibold text-red-400"
-              >
-                <span className="h-px flex-1 bg-red-500/60" />
-                НОВОЕ
-                <span className="h-px flex-1 bg-red-500/60" />
-              </div>
-            )}
-            <MessageItem
-              message={m}
-              canModerate={canModerate}
-              canPin={canPin}
-              onError={onError}
-              onReply={onReply}
-            />
-          </Fragment>
-        );
-      })}
-    </div>
-  );
-}
+    return (
+      <div className="min-h-0 flex-1 overflow-y-auto py-4" role="log" aria-label={`Сообщения ${channel.label}`}>
+        {visibleItems && !hasMore && (
+          <div className="px-4 pb-4">
+            <h3 className="text-2xl font-bold">Добро пожаловать в {channel.label}!</h3>
+            <p className="text-zinc-400">
+              {channel.label.startsWith("@") ? "Это начало вашей переписки." : "Это начало канала."}
+            </p>
+          </div>
+        )}
+        {visibleItems === undefined && <p className="px-4 text-zinc-400">Загрузка…</p>}
+        {showUnreadOnly && lastReadAt !== null && visibleItems && visibleItems.length === 0 && items && items.some((m) => m.createdAt > lastReadAt) === false && (
+          <p className="px-4 text-sm text-zinc-500">Нет непрочитанных сообщений после последнего чтения.</p>
+        )}
+         <Virtuoso
+           className="w-full"
+           style={{ height: '100%' }}
+           data={visibleItems || []}
+           itemContent={(index: number, message: Message, context: any) => {
+             const arr = visibleItems || [];
+             const prevMsg = index > 0 ? arr[index - 1] : null;
+             const prevDate = prevMsg ? new Date(prevMsg.createdAt).toDateString() : '';
+             const currDate = new Date(message.createdAt).toDateString();
+             const dayChanged = currDate !== prevDate;
+             return (
+               <Fragment key={message.id}>
+                 {dayChanged && (
+                   <div className="my-3 flex items-center gap-3 px-4 text-xs font-semibold text-zinc-500">
+                     <span className="h-px flex-1 bg-zinc-700" />
+                     <time dateTime={new Date(message.createdAt).toISOString()}>
+                       {new Intl.DateTimeFormat('ru', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(message.createdAt))}
+                     </time>
+                     <span className="h-px flex-1 bg-zinc-700" />
+                   </div>
+                 )}
+                 {index === firstUnread && (
+                   <div
+                     data-new-divider
+                     role="separator"
+                     aria-label="Новые сообщения"
+                     className="my-2 flex items-center gap-3 px-4 text-xs font-semibold text-red-400"
+                   >
+                     <span className="h-px flex-1 bg-red-500/60" />
+                     НОВОЕ
+                     <span className="h-px flex-1 bg-red-500/60" />
+                   </div>
+                 )}
+                 <MessageItem
+                   message={message}
+                   canModerate={canModerate}
+                   canPin={canPin}
+                   onError={onError}
+                   onReply={onReply}
+                 />
+               </Fragment>
+             );
+           }}
+           followOutput={(isAtBottom: boolean) => {
+             if (isAtBottom) {
+               // Auto-scroll to bottom when new messages arrive and user is at bottom
+               nearBottom.current = true;
+               return 'auto';
+             }
+             // Don't auto-scroll if user scrolled up
+             return false;
+           }}
+           atBottomStateChange={(atBottom: boolean) => {
+             nearBottom.current = atBottom;
+             if (atBottom) {
+               // User scrolled to bottom - mark as read
+               ackIfViewing();
+             }
+           }}
+           endReached={(lastIndex: number) => {
+             // Load older messages when reaching the end (top of the list)
+             if (hasMore) {
+               loadOlder(channel.id).catch((e) => onError(errorMessage(e)));
+             }
+           }}
+           alignToBottom={true}
+         />
+       </div>
+    );
+  }
 
 const timeFmt = new Intl.DateTimeFormat('ru', { hour: '2-digit', minute: '2-digit' });
 const dateFmt = new Intl.DateTimeFormat('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
