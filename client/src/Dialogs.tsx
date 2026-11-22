@@ -226,7 +226,7 @@ export function InviteDialog({
 
   const copy = async () => {
     if (!invite) return;
-    await navigator.clipboard.writeText(invite.code);
+    await navigator.clipboard?.writeText(invite.code);
     setCopied(true);
   };
 
@@ -739,7 +739,7 @@ export function InviteListDialog({
   };
 
   const copyCode = async (code: string) => {
-    await navigator.clipboard.writeText(code);
+    await navigator.clipboard?.writeText(code);
   };
 
   return (
