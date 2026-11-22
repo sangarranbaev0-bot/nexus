@@ -38,6 +38,8 @@ import type { StickerPack } from './generated/StickerPack';
 import type { Sticker } from './generated/Sticker';
 import type { CreateStickerPackRequest } from './generated/CreateStickerPackRequest';
 import type { CreateStickerRequest } from './generated/CreateStickerRequest';
+import type { AutoModRule } from './generated/AutoModRule';
+import type { CreateAutoModRuleRequest } from './generated/CreateAutoModRuleRequest';
 
 interface GuildsState {
   /** `null` — ещё не загружено. */
@@ -406,3 +408,34 @@ export async function listChannelStickers(channelId: number) {
 export async function listPackStickers(serverId: number, packId: number) {
     return api<Sticker[]>(`/api/servers/${serverId}/stickers/packages/${packId}/stickers`);
 }
+
+export interface ServerSearchResult {
+    messageId: number;
+    channelId: number;
+    channelName: string;
+    message: Message;
+}
+
+export interface ServerSearchParams {
+    q: string;
+    channelId?: number;
+    limit?: number;
+}
+
+export async function searchServerMessages(serverId: number, params: ServerSearchParams) {
+    const qs = new URLSearchParams({ q: params.q });
+    if (params.channelId) qs.set('channelId', String(params.channelId));
+    if (params.limit) qs.set('limit', String(params.limit));
+    return api<{ results: ServerSearchResult[]; hasMore: boolean }>(
+        `/api/servers/${serverId}/messages/search?${qs}`,
+    );
+}
+
+export const listAutoModRules = (serverId: number) =>
+    api<AutoModRule[]>(`/api/servers/${serverId}/automod`);
+
+export const createAutoModRule = (serverId: number, req: CreateAutoModRuleRequest) =>
+    api<AutoModRule>(`/api/servers/${serverId}/automod`, { method: 'POST', body: req });
+
+export const deleteAutoModRule = (serverId: number, ruleId: number) =>
+    api<void>(`/api/servers/${serverId}/automod/${ruleId}`, { method: 'DELETE' });

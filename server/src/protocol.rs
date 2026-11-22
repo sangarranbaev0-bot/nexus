@@ -774,6 +774,45 @@ pub struct SearchResponse {
     pub has_more: bool,
 }
 
+/// Параметры глобального поиска по серверу.
+#[derive(Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ServerSearchParams {
+    /// Текстовый запрос (поддерживает фильтры from:, has:, has:link).
+    pub q: String,
+    /// Искать только в этом канале (null = все каналы сервера).
+    #[serde(default)]
+    #[ts(optional, type = "number")]
+    pub channel_id: Option<i64>,
+    /// Максимальное количество результатов (1-100).
+    #[serde(default)]
+    #[ts(optional, type = "number")]
+    pub limit: Option<i64>,
+}
+
+/// Результат глобального поиска по серверу.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ServerSearchResult {
+    #[ts(type = "number")]
+    pub message_id: i64,
+    #[ts(type = "number")]
+    pub channel_id: i64,
+    pub channel_name: String,
+    pub message: Message,
+}
+
+/// Ответ глобального поиска.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ServerSearchResponse {
+    pub results: Vec<ServerSearchResult>,
+    pub has_more: bool,
+}
+
 pub fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

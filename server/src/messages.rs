@@ -25,8 +25,9 @@ use crate::{
     protocol::{
         Attachment, ChannelKind, EmbedPreview, ForwardPreview, ForwardRequest, Message, MessageContent,
         MessageEdit, Reaction, ReplyPreview, SearchParams, SearchResponse, SearchResult,
+        ServerSearchParams, ServerSearchResponse, ServerSearchResult,
     },
-    schema::{attachments as attachment_rows, channels, message_edits, messages, users},
+    schema::{attachments as attachment_rows, channels, member_roles as members, message_edits, messages, users},
     servers::{ChannelAccess, channel_access},
 };
 
@@ -38,6 +39,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/channels/{id}/messages", get(list).post(create))
         .route("/api/channels/{id}/messages/search", get(search))
+        .route("/api/servers/{id}/messages/search", get(server_search))
         .route("/api/channels/{id}/pins", get(pins))
         .route("/api/messages/{id}", patch(update).delete(remove))
         .route("/api/messages/{id}/pin", put(pin).delete(unpin))
@@ -440,6 +442,118 @@ async fn search(
         .collect();
 
     Ok(Json(SearchResponse { results, has_more }))
+}
+
+/// Глобальный поиск по сообщениям сервера — по всем каналам или по одному.
+async fn server_search(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(server_id): Path<i64>,
+    Query(params): Query<ServerSearchParams>,
+) -> AppResult<Json<ServerSearchResponse>> {
+    let limit = params.limit.unwrap_or(50).clamp(1, 100);
+    let mut conn = state.pool.get().await?;
+
+    // Проверяем, что пользователь состоит на сервере.
+    let is_member: i64 = members::table
+        .filter(members::server_id.eq(server_id))
+        .filter(members::user_id.eq(user_id))
+        .count()
+        .first(&mut conn)
+        .await?;
+    if is_member == 0 {
+        return Ok(Json(ServerSearchResponse { results: vec![], has_more: false }));
+    }
+
+    // Получаем все текстовые каналы сервера (для участника они доступны).
+    let channel_ids_query = channels::table
+        .filter(channels::server_id.eq(server_id))
+        .filter(channels::kind.eq("text"))
+        .select(channels::id)
+        .into_boxed();
+    let channel_ids: Vec<i64> = channel_ids_query.load(&mut conn).await?;
+
+    if channel_ids.is_empty() {
+        return Ok(Json(ServerSearchResponse { results: vec![], has_more: false }));
+    }
+
+    // Парсим фильтры из запроса.
+    let mut author: Option<String> = None;
+    let mut has_file = false;
+    let mut has_link = false;
+    let mut terms: Vec<String> = Vec::new();
+    for token in params.q.split_whitespace() {
+        if let Some(name) = token.strip_prefix("from:").filter(|s| !s.is_empty()) {
+            author = Some(name.to_string());
+        } else if token == "has:file" || token == "has:attachment" {
+            has_file = true;
+        } else if token == "has:link" {
+            has_link = true;
+        } else {
+            terms.push(token.to_string());
+        }
+    }
+
+    // Если указан конкретный канал — ищем только в нём.
+    let effective_channel_ids = match params.channel_id {
+        Some(cid) if channel_ids.contains(&cid) => vec![cid],
+        _ => channel_ids,
+    };
+
+    let mut query = messages::table
+        .inner_join(users::table)
+        .filter(messages::channel_id.eq_any(&effective_channel_ids))
+        .order((messages::created_at.desc(), messages::id.desc()))
+        .select(columns())
+        .into_boxed();
+
+    if let Some(name) = author {
+        query = query.filter(users::username.ilike(name));
+    }
+    if has_file {
+        query = query.filter(diesel::dsl::exists(
+            attachment_rows::table.filter(
+                attachment_rows::message_id.eq(messages::id.nullable())
+            )
+        ));
+    }
+    if has_link {
+        query = query.filter(messages::content.ilike("%http%"));
+    }
+    for term in &terms {
+        query = query.filter(messages::content.ilike(format!("%{}%", term)));
+    }
+
+    let mut rows: Vec<Row> = query.limit(limit + 1).load(&mut conn).await?;
+    let has_more = rows.len() as i64 > limit;
+    rows.truncate(limit as usize);
+    rows.reverse();
+
+    // Загружаем имена каналов пакетами.
+    let channel_names: HashMap<i64, String> = if effective_channel_ids.len() <= 200 {
+        channels::table
+            .filter(channels::id.eq_any(&effective_channel_ids))
+            .select((channels::id, channels::name))
+            .load(&mut conn)
+            .await
+            .map(|rows: Vec<(i64, String)>| rows.into_iter().collect())
+            .unwrap_or_default()
+    } else {
+        HashMap::new()
+    };
+
+    let messages_list = with_extras(&mut conn, &state.file_key, rows).await?;
+    let results = messages_list
+        .into_iter()
+        .map(|message| ServerSearchResult {
+            message_id: message.id,
+            channel_id: message.channel_id,
+            channel_name: channel_names.get(&message.channel_id).cloned().unwrap_or_default(),
+            message,
+        })
+        .collect();
+
+    Ok(Json(ServerSearchResponse { results, has_more }))
 }
 
 /// Закреплённые сообщения канала, свежие сверху.

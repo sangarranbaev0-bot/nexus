@@ -54,8 +54,12 @@ import {
   deleteStickerPack,
   listPackStickers,
   listStickerPacks,
+  listAutoModRules,
+  createAutoModRule,
+  deleteAutoModRule,
 } from "./guilds";
 import type { BanInfo } from "./generated/BanInfo";
+import type { AutoModRule } from "./generated/AutoModRule";
 import {
   Modal,
   errorMessage,
@@ -87,7 +91,8 @@ type Tab =
   | "audit"
   | "notify"
   | "tickets"
-  | "moderation";
+  | "moderation"
+  | "automod";
 
 const tabLabel: Record<Tab, string> = {
   general: "Общее",
@@ -104,6 +109,7 @@ const tabLabel: Record<Tab, string> = {
   notify: "Уведомления",
   tickets: "Тикеты",
   moderation: "Модерация",
+  automod: "Автомод",
 };
 
 export function ServerSettingsDialog({
@@ -117,6 +123,7 @@ export function ServerSettingsDialog({
   const tabs: Tab[] = ["general"];
   if (hasPerm(server.myPermissions, P.MANAGE_ROLES)) tabs.push("roles");
   if (hasPerm(server.myPermissions, P.MANAGE_ROLES)) tabs.push("reactionRoles");
+  if (hasPerm(server.myPermissions, P.MANAGE_ROLES)) tabs.push("automod");
   if (hasPerm(server.myPermissions, P.BAN_MEMBERS) || hasPerm(server.myPermissions, P.KICK_MEMBERS))
     tabs.push("moderation");
   tabs.push("onboarding", "events", "forum", "templates");
@@ -159,6 +166,7 @@ export function ServerSettingsDialog({
         {tab === "audit" && <AuditTab server={server} />}
         {tab === "tickets" && <TicketsTab server={server} />}
         {tab === "moderation" && <ModerationTab server={server} />}
+        {tab === "automod" && <AutoModTab server={server} />}
         {tab === "notify" && (
           <NotifyControls
             target={{ serverId: server.id }}
@@ -1708,6 +1716,60 @@ function StickersTab({ server }: { server: Server }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function AutoModTab({ server }: { server: Server }) {
+  const [rules, setRules] = useState<AutoModRule[]>([]);
+  const [pattern, setPattern] = useState("");
+  const [action, setAction] = useState("delete");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const reload = () => listAutoModRules(server.id).then(setRules, (e) => setError(errorMessage(e)));
+  useEffect(() => { void reload(); }, [server.id]);
+
+  const add = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!pattern.trim() || pattern.trim().length < 2) return;
+    try {
+      await createAutoModRule(server.id, { pattern: pattern.trim(), action, note: note.trim() || null });
+      setPattern(""); setAction("delete"); setNote(""); await reload();
+    } catch (err) { setError(errorMessage(err)); }
+  };
+
+  const remove = async (id: number) => {
+    try { await deleteAutoModRule(server.id, id); await reload(); }
+    catch (err) { setError(errorMessage(err)); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-zinc-400">
+        Автомодерация удаляет или предупреждает сообщения, содержащие указанные паттерны.
+        Паттерн проверяется по RegEx (падение на Contains при ошибке). Требует разрешение «Управление ролями».
+      </p>
+      <form onSubmit={add} className="flex flex-col gap-2">
+        <input value={pattern} onChange={(e) => setPattern(e.target.value)} className={inputClass} placeholder="Паттерн (2–100 символов)" minLength={2} maxLength={100} />
+        <select value={action} onChange={(e) => setAction(e.target.value)} className={inputClass}>
+          <option value="delete">Удалить</option>
+          <option value="warn">Предупредить</option>
+        </select>
+        <input value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} placeholder="Комментарий (необязательно)" />
+        <button className={primaryButton}>Добавить правило</button>
+      </form>
+      {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
+      <ul className="divide-y divide-zinc-700">
+        {rules.map((r) => (
+          <li key={r.id} className="flex items-center gap-3 py-2 text-sm">
+            <code className="bg-zinc-800 px-2 py-0.5 rounded font-mono text-xs flex-1 truncate">{r.pattern}</code>
+            <span className={`text-xs px-2 py-0.5 rounded ${r.action === "delete" ? "bg-red-900/40 text-red-300" : "bg-yellow-900/40 text-yellow-300"}`}>{r.action === "delete" ? "удаление" : "предупреждение"}</span>
+            {r.note && <span className="text-xs text-zinc-500 max-w-[200px] truncate">{r.note}</span>}
+            <button onClick={() => void remove(r.id)} className="text-xs text-red-400 hover:underline">Удалить</button>
+          </li>
+        ))}
+        {rules.length === 0 && <li className="text-sm text-zinc-500 py-2">Нет правил.</li>}
+      </ul>
     </div>
   );
 }

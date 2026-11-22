@@ -349,8 +349,21 @@ function MessageList({
       {visibleItems?.map((m, i) => {
         const arr = visibleItems;
         const firstUnread = unread > 0 && unread < arr.length ? arr.length - unread : -1;
+        const prevMsg = i > 0 ? arr[i - 1] : null;
+        const prevDate = prevMsg ? new Date(prevMsg.createdAt).toDateString() : '';
+        const currDate = new Date(m.createdAt).toDateString();
+        const dayChanged = currDate !== prevDate;
         return (
           <Fragment key={m.id}>
+            {dayChanged && (
+              <div className="my-3 flex items-center gap-3 px-4 text-xs font-semibold text-zinc-500">
+                <span className="h-px flex-1 bg-zinc-700" />
+                <time dateTime={new Date(m.createdAt).toISOString()}>
+                  {new Intl.DateTimeFormat('ru', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(m.createdAt))}
+                </time>
+                <span className="h-px flex-1 bg-zinc-700" />
+              </div>
+            )}
             {i === firstUnread && (
               <div
                 data-new-divider

@@ -41,6 +41,7 @@ import { UserSettingsDialog } from "./UserSettings";
 import { NotifyWordsDialog } from "./NotifyWords";
 import { loadNotifications, loadNotifySettings } from "./notify";
 import { ServerSettingsDialog } from "./Settings";
+import { SearchDialog } from "./SearchDialog";
 import { presenceView } from "./presence";
 import { logout, useSession } from "./session";
 import { useAccounts, type Account } from "./auth";
@@ -60,6 +61,7 @@ type Dialog =
   | "events"
   | "notify"
   | "inviteList"
+  | "search"
   | null;
 
 export function AppLayout() {
@@ -113,23 +115,26 @@ export function AppLayout() {
     document.title = total ? `(${total}) NexusChat` : "NexusChat";
   }, [servers, dms]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!e.ctrlKey || e.altKey) return;
-      if (e.key >= "1" && e.key <= "9") {
-        const target = (servers ?? [])[Number(e.key) - 1];
-        if (target) {
-          e.preventDefault();
-          navigate(`/channels/${target.id}`);
-        }
-      } else if (e.key.toLowerCase() === "n" && serverId && server) {
-        e.preventDefault();
-        setDialog("createChannel");
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [servers, serverId, server, navigate]);
+   useEffect(() => {
+     const onKey = (e: KeyboardEvent) => {
+       if (!e.ctrlKey || e.altKey) return;
+       if (e.key >= "1" && e.key <= "9") {
+         const target = (servers ?? [])[Number(e.key) - 1];
+         if (target) {
+           e.preventDefault();
+           navigate(`/channels/${target.id}`);
+         }
+       } else if (e.key.toLowerCase() === "n" && serverId && server) {
+         e.preventDefault();
+         setDialog("createChannel");
+       } else if (e.key.toLowerCase() === "g" && serverId && server) {
+         e.preventDefault();
+         setDialog("search");
+       }
+     };
+     window.addEventListener("keydown", onKey);
+     return () => window.removeEventListener("keydown", onKey);
+   }, [servers, serverId, server, navigate]);
 
   // Неполный или устаревший адрес ведём на первый доступный сервер и канал, без серверов — в ЛС.
   if (!isHome && servers) {
@@ -250,6 +255,14 @@ export function AppLayout() {
                 >
                   🔗
                 </button>
+                <button
+                  onClick={() => setDialog("search")}
+                  title="Поиск по серверу (Ctrl+G)"
+                  aria-label="Глобальный поиск"
+                  className="rounded px-2 py-1 text-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+                >
+                  🔍
+                </button>
               </>
             )}
           </div>
@@ -261,6 +274,7 @@ export function AppLayout() {
             className="h-24 w-full object-cover opacity-80"
           />
         )}
+        <div className={`flex min-h-0 flex-1 flex-col ${server && channel ? 'fade-in' : ''}`}>
         {server && channel?.kind === "voice" ? (
           <div className="flex min-h-0 flex-1">
             <VoiceStage
@@ -312,6 +326,7 @@ export function AppLayout() {
             {server && channels?.length === 0 && "На сервере пока нет каналов."}
           </section>
         )}
+        </div>
       </main>
 
       {dialog === "addServer" && (
@@ -354,6 +369,9 @@ export function AppLayout() {
             }
           />
         </Modal>
+      )}
+      {server && dialog === "search" && (
+        <SearchDialog serverId={server.id} onClose={() => setDialog(null)} />
       )}
     </div>
   );
@@ -438,7 +456,7 @@ function ServerRail({
   dmUnread: number;
   onAdd: () => void;
 }) {
-  const pill = "grid size-12 place-items-center font-semibold transition-all";
+  const pill = "grid size-12 place-items-center font-semibold transition-all hover-lift";
   const [folders, setFolders] = useState<Record<string, number[]>>(() => {
     try { return JSON.parse(localStorage.getItem('nexus-folders') ?? '{}'); } catch { return {}; }
   });
@@ -819,8 +837,8 @@ function ChannelRow({
   onSettings: (c: Channel) => void;
   onContextMenu?: (e: ReactMouseEvent<HTMLElement>) => void;
 }) {
-  return (
-    <div className="group relative">
+    return (
+     <div className="group relative hover-lift">
       <NavLink
         to={`/channels/${serverId}/${channel.id}`}
         onContextMenu={onContextMenu}
