@@ -398,7 +398,7 @@ function DmList({ dms, onNew }: { dms: DmChannel[]; onNew: () => void }) {
           </li>
         )}
         {dms.map((d) => (
-          <li key={d.id}>
+          <li key={d.id} className="hover-lift">
             <NavLink
               to={`/channels/@me/${d.id}`}
               aria-label={
