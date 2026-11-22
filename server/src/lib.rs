@@ -26,7 +26,7 @@ mod stickers;
 
 use std::sync::Arc;
 
-use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
+use axum::{Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::get};
 use diesel_async::{
     AsyncMigrationHarness, AsyncPgConnection, RunQueryDsl,
     pooled_connection::{AsyncDieselConnectionManager, deadpool::Pool},
@@ -148,7 +148,32 @@ pub fn app(state: AppState) -> Router {
         .merge(stickers::routes())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn(add_security_headers))
         .with_state(state)
+}
+
+async fn add_security_headers(
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> impl IntoResponse {
+    let mut resp = next.run(req).await;
+    resp.headers_mut().insert(
+        axum::http::header::X_CONTENT_TYPE_OPTIONS,
+        axum::http::HeaderValue::from_static("nosniff"),
+    );
+    resp.headers_mut().insert(
+        axum::http::header::X_FRAME_OPTIONS,
+        axum::http::HeaderValue::from_static("DENY"),
+    );
+    resp.headers_mut().insert(
+        axum::http::header::X_XSS_PROTECTION,
+        axum::http::HeaderValue::from_static("1; mode=block"),
+    );
+    resp.headers_mut().insert(
+        axum::http::header::REFERRER_POLICY,
+        axum::http::HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+    resp
 }
 
 async fn health(State(state): State<AppState>) -> (StatusCode, Json<HealthResponse>) {
