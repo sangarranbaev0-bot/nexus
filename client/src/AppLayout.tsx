@@ -254,6 +254,13 @@ export function AppLayout() {
             )}
           </div>
         </header>
+        {server?.bannerUrl && (
+          <img
+            src={server.bannerUrl}
+            alt=""
+            className="h-24 w-full object-cover opacity-80"
+          />
+        )}
         {server && channel?.kind === "voice" ? (
           <div className="flex min-h-0 flex-1">
             <VoiceStage
