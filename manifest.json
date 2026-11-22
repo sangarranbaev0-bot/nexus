@@ -1,0 +1,12 @@
+{
+  "name": "NexusChat",
+  "short_name": "NexusChat",
+  "description": "Discord-style messenger",
+  "start_url": "/nexus/",
+  "scope": "/nexus/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#09090b",
+  "theme_color": "#111827",
+  "icons": []
+}
