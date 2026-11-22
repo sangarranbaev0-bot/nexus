@@ -504,6 +504,7 @@ function MessageItem({
             { label: 'Ответить', onClick: () => { onReply(m); setCtx(null); } },
             { label: 'Переслать', onClick: () => { setForwarding(true); setCtx(null); } },
             { label: 'ID', onClick: () => { void navigator.clipboard?.writeText(String(m.id)); setCtx(null); } },
+            { label: 'Ссылка', onClick: () => { void navigator.clipboard?.writeText(window.location.origin + '/nexus/channels#' + m.id); setCtx(null); } },
             ...(canPin ? [{ label: m.pinned ? 'Открепить' : 'Закрепить', onClick: () => { void togglePin(); setCtx(null); } }] : []),
             ...(mine ? [{ label: 'Изменить', onClick: () => { setEditing(true); setCtx(null); } }] : []),
             ...(m.editedAt !== null ? [{ label: 'История', onClick: () => { void loadEdits(m.id).then(setHistory, (e) => onError(errorMessage(e))); setCtx(null); } }] : []),
@@ -924,16 +925,15 @@ function EditBox({ message, onDone, onError }: { message: Message; onDone: () =>
 
   return (
     <div className="mt-1">
-      <textarea
-        autoFocus
-        value={value}
-        maxLength={MAX_LEN}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={onKeyDown}
-        aria-label="Изменить сообщение"
-        className="w-full resize-none rounded bg-zinc-700 px-3 py-2 outline-none"
-        rows={Math.min(8, value.split('\n').length)}
-      />
+       <textarea
+         autoFocus
+         value={value}
+         maxLength={MAX_LEN}
+         onChange={(e) => setValue(e.target.value)}
+         onKeyDown={onKeyDown}
+         aria-label="Изменить сообщение"
+         className="w-full resize-none rounded bg-zinc-700 px-3 py-2 outline-none"
+       />
       <p className="text-xs text-zinc-400">Esc — отмена, Enter — сохранить</p>
     </div>
   );
@@ -1047,17 +1047,25 @@ const [stickerOpen, setStickerOpen] = useState(false);
     }
   };
 
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Escape' && replyTo) {
-      e.preventDefault();
-      onCancelReply();
-      return;
-    }
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      void submit();
-    }
-  };
+    const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Escape' && replyTo) {
+        e.preventDefault();
+        onCancelReply();
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        void submit();
+      }
+    };
+
+    // Auto-grow textarea based on scroll height
+    useLayoutEffect(() => {
+      if (textInput.current) {
+        textInput.current.style.height = 'auto';
+        textInput.current.style.height = Math.min(textInput.current.scrollHeight, 8 * 20) + 'px'; // max 8 rows
+      }
+    }, [value]);
 
   const onChange = (text: string) => {
     setValue(text);
@@ -1177,24 +1185,23 @@ const [stickerOpen, setStickerOpen] = useState(false);
               e.target.value = '';
             }}
           />
-          <textarea
-            ref={textInput}
-            value={value}
-            maxLength={MAX_LEN}
-            onChange={(e) => onChange(e.target.value)}
-            onKeyDown={onKeyDown}
-            onPaste={(e) => {
-              const files = Array.from(e.clipboardData.files);
-              if (files.length) {
-                e.preventDefault();
-                addFiles(files);
-              }
-            }}
-            placeholder={`Написать ${channel.label}`}
-            aria-label={`Сообщение ${channel.label}`}
-            rows={Math.min(8, value.split('\n').length)}
-            className="block w-full resize-none bg-transparent py-2.5 pr-4 outline-none placeholder:text-zinc-400"
-          />
+           <textarea
+             ref={textInput}
+             value={value}
+             maxLength={MAX_LEN}
+             onChange={(e) => onChange(e.target.value)}
+             onKeyDown={onKeyDown}
+             onPaste={(e) => {
+               const files = Array.from(e.clipboardData.files);
+               if (files.length) {
+                 e.preventDefault();
+                 addFiles(files);
+               }
+             }}
+             placeholder={`Написать ${channel.label}`}
+             aria-label={`Сообщение ${channel.label}`}
+             className="block w-full resize-none bg-transparent py-2.5 pr-4 outline-none placeholder:text-zinc-400"
+           />
         </div>
       </div>
       {uploading && <p className="pt-1 text-xs text-zinc-400">Файлы загружаются, отправка станет доступна после загрузки…</p>}
