@@ -16,3 +16,4 @@ server/run_dev.ps1
 certs/
 build.prev.log
 Dockerfile.orig.head
+backups/

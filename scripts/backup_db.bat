@@ -1,20 +1,16 @@
 @echo off
-REM NexusChat DB backup helper. Requires pg_dump on PATH (PostgreSQL +4bin).
+chcp 65001 >nul
+REM Резервная копия базы NexusChat через Docker (pg_dump на Windows не нужен).
+REM Хранит 14 последних копий в папке backups рядом с проектом.
+cd /d "%~dp0.."
 set BACKUP_DIR=%~dp0..\backups
-set PGUSER=nexus
-set PGPASSWORD=nexus
 mkdir "%BACKUP_DIR%" 2>nul
-for /f "tokens=2-4 delims=/ " %%a in ('date /t') do set DT=%%c%%a%%b
-for /f "tokens=1-2 delims=: " %%a in ('time /t') do set TM=%%a%%b
-set TIMESTAMP=%DT%_%TM%
-pg_dump -U %PGUSER% -h localhost nexuschat_v032 --format=custom --file="%BACKUP_DIR%\backup_%TIMESTAMP%.dump"
-if %ERRORLEVEL% neq 0 (
-    echo FAILED to dump database (exit code %ERRORLEVEL%)
-    exit /b %ERRORLEVEL%
+for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HH-mm"') do set TS=%%i
+docker compose exec -T postgres pg_dump -U nexus -d nexuschat_v032 --format=custom > "%BACKUP_DIR%\backup_%TS%.dump"
+if errorlevel 1 (
+  echo ОШИБКА: не удалось сделать копию. Запущен ли Docker и NexusChat?
+  del "%BACKUP_DIR%\backup_%TS%.dump" 2>nul
+  exit /b 1
 )
-echo OK: backup/%TIMESTAMP%.dump
-pushd "%BACKUP_DIR%"
-dir /b /o-d backup_*.dump | findstr /n . > "%TEMP%\baklist.txt"
-for /f "skip=14 tokens=1*" %%a in ('type "%TEMP%\baklist.txt"') do del "%%b"
-del "%TEMP%\baklist.txt"
-popd
+echo OK: backups\backup_%TS%.dump
+powershell -NoProfile -Command "Get-ChildItem '%BACKUP_DIR%\backup_*.dump' | Sort-Object LastWriteTime -Descending | Select-Object -Skip 14 | Remove-Item"
