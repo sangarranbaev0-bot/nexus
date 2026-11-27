@@ -142,7 +142,7 @@ export function ServerSettingsDialog({
   tabs.push("notify", "tickets", "boosts");
   return (
     <Modal title={`Настройки «${server.name}»`} onClose={onClose}>
-      <div role="tablist" className="flex gap-1 border-b border-zinc-700 pb-2">
+      <div role="tablist" className="flex gap-1 border-b border-nc-line-strong pb-2">
         {tabs.map((key) => (
           <button
             key={key}
@@ -151,8 +151,8 @@ export function ServerSettingsDialog({
             onClick={() => setTab(key)}
             className={`rounded px-3 py-1.5 text-sm ${
               tab === key
-                ? "bg-zinc-700 text-white"
-                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                ? "bg-nc-hover text-white"
+                : "text-nc-muted hover:bg-nc-elevated hover:text-nc-text"
             }`}
           >
             {tabLabel[key]}
@@ -227,7 +227,7 @@ function GeneralTab({ server, onAudit }: { server: Server; onAudit: () => void }
   return (
     <form onSubmit={save} className="space-y-4">
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           Системный канал (приветствия и события)
         </span>
         <select
@@ -241,7 +241,7 @@ function GeneralTab({ server, onAudit }: { server: Server; onAudit: () => void }
         </select>
       </label>
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           AFK-канал (после 5 минут бездействия)
         </span>
         <select
@@ -255,7 +255,7 @@ function GeneralTab({ server, onAudit }: { server: Server; onAudit: () => void }
         </select>
       </label>
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           Канал объявлений
         </span>
         <select
@@ -269,7 +269,7 @@ function GeneralTab({ server, onAudit }: { server: Server; onAudit: () => void }
         </select>
       </label>
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           Описание сервера
         </span>
         <textarea
@@ -283,7 +283,7 @@ function GeneralTab({ server, onAudit }: { server: Server; onAudit: () => void }
         />
       </label>
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           Правила (Markdown)
         </span>
         <textarea
@@ -297,7 +297,7 @@ function GeneralTab({ server, onAudit }: { server: Server; onAudit: () => void }
         />
       </label>
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           Ссылка на баннер
         </span>
         <input
@@ -363,13 +363,13 @@ function RolesTab({ server }: { server: Server }) {
         Создать роль
       </button>
       {roles === undefined ? (
-        <p className="text-sm text-zinc-400">Загрузка…</p>
+        <p className="text-sm text-nc-muted">Загрузка…</p>
       ) : (
-        <ul className="divide-y divide-zinc-700">
+        <ul className="divide-y divide-nc-line-strong">
           {roles.map((role) => (
             <li key={role.id} className="flex items-center gap-2 py-2">
               <span
-                className="size-3 shrink-0 rounded-full bg-zinc-500"
+                className="size-3 shrink-0 rounded-full bg-nc-strong"
                 style={{ backgroundColor: colorToCss(role.color) }}
                 aria-hidden
               />
@@ -381,12 +381,12 @@ function RolesTab({ server }: { server: Server }) {
                 {role.name}
               </button>
               {role.isDefault ? (
-                <span className="text-xs text-zinc-500">по умолчанию</span>
+                <span className="text-xs text-nc-faint">по умолчанию</span>
               ) : (
                 <button
                   onClick={() => remove(role)}
                   disabled={pending}
-                  className="text-sm text-zinc-400 hover:text-red-400"
+                  className="text-sm text-nc-muted hover:text-red-400"
                   aria-label={`Удалить роль ${role.name}`}
                 >
                   ×
@@ -467,7 +467,7 @@ function RoleEditor({
         {isNew ? "Новая роль" : `Роль «${role.name}»`}
       </h3>
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           Название
         </span>
         <input
@@ -483,14 +483,14 @@ function RoleEditor({
       {!isDefault && (
         <div className="flex items-end gap-2">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+            <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
               Цвет
             </span>
             <input
               type="color"
               value={color || "#000000"}
               onChange={(e) => setColor(e.target.value)}
-              className="h-10 w-16 cursor-pointer rounded bg-zinc-900"
+              className="h-10 w-16 cursor-pointer rounded bg-nc-surface"
             />
           </label>
           <button
@@ -501,7 +501,7 @@ function RoleEditor({
             Без цвета
           </button>
           <label className="ml-auto block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+            <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
               Позиция
             </span>
             <input
@@ -510,7 +510,7 @@ function RoleEditor({
               max={1000}
               value={position}
               onChange={(e) => setPosition(Number(e.target.value))}
-              className="w-24 rounded bg-zinc-900 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-24 rounded bg-nc-surface px-3 py-2 outline-none focus:ring-2 focus:ring-nc-accent"
             />
           </label>
         </div>
@@ -519,14 +519,14 @@ function RoleEditor({
       <div className="space-y-2">
         {PERMISSION_GROUPS.map((group) => (
           <fieldset key={group.title}>
-            <legend className="mb-1 text-xs font-semibold uppercase text-zinc-400">
+            <legend className="mb-1 text-xs font-semibold uppercase text-nc-muted">
               {group.title}
             </legend>
             <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
               {group.items.map((item) => (
                 <label
                   key={item.bit}
-                  className="flex items-start gap-2 rounded px-1 py-0.5 text-sm hover:bg-zinc-700/40"
+                  className="flex items-start gap-2 rounded px-1 py-0.5 text-sm hover:bg-nc-hover/40"
                   title={item.hint}
                 >
                   <input
@@ -678,9 +678,9 @@ function CategoriesTab({ server }: { server: Server }) {
         </button>
       </form>
 
-      <ul className="divide-y divide-zinc-700">
+      <ul className="divide-y divide-nc-line-strong">
         {categories.length === 0 && (
-          <li className="py-2 text-sm text-zinc-500">Категорий пока нет.</li>
+          <li className="py-2 text-sm text-nc-faint">Категорий пока нет.</li>
         )}
         {[...categories]
           .sort((a, b) => a.position - b.position || a.id - b.id)
@@ -707,7 +707,7 @@ function CategoriesTab({ server }: { server: Server }) {
                     onClick={() => move(category.id, -1)}
                     disabled={pending || index === 0}
                     aria-label="Выше"
-                    className="rounded px-2 text-zinc-400 hover:bg-zinc-700 disabled:opacity-30"
+                    className="rounded px-2 text-nc-muted hover:bg-nc-hover disabled:opacity-30"
                   >
                     ↑
                   </button>
@@ -715,7 +715,7 @@ function CategoriesTab({ server }: { server: Server }) {
                     onClick={() => move(category.id, 1)}
                     disabled={pending || index === list.length - 1}
                     aria-label="Ниже"
-                    className="rounded px-2 text-zinc-400 hover:bg-zinc-700 disabled:opacity-30"
+                    className="rounded px-2 text-nc-muted hover:bg-nc-hover disabled:opacity-30"
                   >
                     ↓
                   </button>
@@ -723,7 +723,7 @@ function CategoriesTab({ server }: { server: Server }) {
                     onClick={() =>
                       setEditing({ id: category.id, name: category.name })
                     }
-                    className="text-sm text-indigo-400 hover:underline"
+                    className="text-sm text-nc-accent-text hover:underline"
                   >
                     Изменить
                   </button>
@@ -731,7 +731,7 @@ function CategoriesTab({ server }: { server: Server }) {
                     onClick={() => remove(category.id, category.name)}
                     disabled={pending}
                     aria-label={`Удалить категорию ${category.name}`}
-                    className="rounded px-2 text-zinc-400 hover:text-red-400"
+                    className="rounded px-2 text-nc-muted hover:text-red-400"
                   >
                     ×
                   </button>
@@ -742,7 +742,7 @@ function CategoriesTab({ server }: { server: Server }) {
       </ul>
 
       <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase text-zinc-400">
+        <h3 className="mb-2 text-xs font-semibold uppercase text-nc-muted">
           Каналы
         </h3>
         <div className="space-y-1">
@@ -753,7 +753,7 @@ function CategoriesTab({ server }: { server: Server }) {
                 key={channel.id}
                 className="flex items-center gap-2 text-sm"
               >
-                <span className="flex-1 truncate text-zinc-300">
+                <span className="flex-1 truncate text-nc-text-2">
                   {channel.kind === "voice" ? "🔊" : "#"} {channel.name}
                 </span>
                 <select
@@ -765,7 +765,7 @@ function CategoriesTab({ server }: { server: Server }) {
                       position: null,
                     }).catch((err) => setError(errorMessage(err)))
                   }
-                  className="rounded bg-zinc-900 px-2 py-1 outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="rounded bg-nc-surface px-2 py-1 outline-none focus:ring-2 focus:ring-nc-accent"
                   aria-label={`Категория канала ${channel.name}`}
                 >
                   <option value={0}>Без категории</option>
@@ -841,16 +841,16 @@ function TicketsTab({ server }: { server: Server }) {
       </form>
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
       {tickets === null ? (
-        <p className="text-sm text-zinc-400">Загрузка…</p>
+        <p className="text-sm text-nc-muted">Загрузка…</p>
       ) : tickets.length === 0 ? (
-        <p className="text-sm text-zinc-500">Тикетов пока нет.</p>
+        <p className="text-sm text-nc-faint">Тикетов пока нет.</p>
       ) : (
-        <ul className="divide-y divide-zinc-700">
+        <ul className="divide-y divide-nc-line-strong">
           {tickets.map((ticket) => (
             <li key={ticket.id} className="flex items-center justify-between py-2 text-sm">
               <div>
                 <div className="font-medium">#{ticket.id} · {ticket.title}</div>
-                <div className="text-xs text-zinc-500">{new Date(ticket.createdAt).toLocaleString("ru-RU")} · {ticket.status}</div>
+                <div className="text-xs text-nc-faint">{new Date(ticket.createdAt).toLocaleString("ru-RU")} · {ticket.status}</div>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setStatus(ticket.id, ticket.status === "open" ? "closed" : "open")} className={ghostButton}>
@@ -880,29 +880,29 @@ function AuditTab({ server }: { server: Server }) {
       </p>
     );
   if (entries === null)
-    return <p className="text-sm text-zinc-400">Загрузка…</p>;
+    return <p className="text-sm text-nc-muted">Загрузка…</p>;
   if (entries.length === 0)
-    return <p className="text-sm text-zinc-500">Записей пока нет.</p>;
+    return <p className="text-sm text-nc-faint">Записей пока нет.</p>;
 
   return (
-    <ul className="divide-y divide-zinc-700 text-sm">
+    <ul className="divide-y divide-nc-line-strong text-sm">
       {entries.map((entry) => (
         <li key={entry.id} className="py-2">
           <div className="flex items-baseline justify-between gap-2">
             <span className="font-medium">
               {actionLabel[entry.action] ?? entry.action}
               {entry.target && (
-                <span className="font-normal text-zinc-400">
+                <span className="font-normal text-nc-muted">
                   {" "}
                   · {entry.target}
                 </span>
               )}
             </span>
-            <time className="shrink-0 text-xs text-zinc-500">
+            <time className="shrink-0 text-xs text-nc-faint">
               {new Date(entry.createdAt).toLocaleString("ru-RU")}
             </time>
           </div>
-          <div className="text-xs text-zinc-500">
+          <div className="text-xs text-nc-faint">
             {entry.actorUsername}
           </div>
         </li>
@@ -955,16 +955,16 @@ function EmojisTab({ server }: { server: Server }) {
     <div className="space-y-4">
       <form onSubmit={upload} className="space-y-3">
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+          <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
             Имя (a-z, 0-9, _)
           </span>
           <input name="name" required minLength={2} maxLength={32} className={inputClass} placeholder="party_blob" />
         </label>
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+          <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
             PNG до 256 КБ
           </span>
-          <input name="file" type="file" accept="image/png" required className="block w-full text-sm text-zinc-300" />
+          <input name="file" type="file" accept="image/png" required className="block w-full text-sm text-nc-text-2" />
         </label>
         <button type="submit" disabled={pending} className={primaryButton}>
           {pending ? "Загрузка…" : "Загрузить эмодзи"}
@@ -976,13 +976,13 @@ function EmojisTab({ server }: { server: Server }) {
         </p>
       )}
       {list === undefined ? (
-        <p className="text-zinc-400">Загрузка…</p>
+        <p className="text-nc-muted">Загрузка…</p>
       ) : list.length === 0 ? (
-        <p className="text-zinc-400">Пока нет своих эмодзи.</p>
+        <p className="text-nc-muted">Пока нет своих эмодзи.</p>
       ) : (
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {list.map((e) => (
-            <li key={e.id} className="flex items-center gap-2 rounded bg-zinc-900 p-2">
+            <li key={e.id} className="flex items-center gap-2 rounded bg-nc-surface p-2">
               <img src={e.url} alt={`:${e.name}:`} className="h-6 w-6" />
               <span className="min-w-0 flex-1 truncate text-sm">:{e.name}:</span>
               <button
@@ -1059,18 +1059,18 @@ function ReactionRolesTab({ server }: { server: Server }) {
     <div className="space-y-4">
       <form onSubmit={create} className="space-y-3">
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+          <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
             ID сообщения (правый клик → Копировать ID)
           </span>
           <input value={messageId} onChange={(e) => setMessageId(e.target.value)} className={inputClass} placeholder="123456" required />
         </label>
         <div className="grid grid-cols-2 gap-2">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">Эмодзи</span>
+            <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">Эмодзи</span>
             <input value={emoji} onChange={(e) => setEmoji(e.target.value)} className={inputClass} placeholder="🎉 или :name:" required />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">Роль</span>
+            <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">Роль</span>
             <select value={roleId} onChange={(e) => setRoleId(Number(e.target.value))} className={inputClass} required>
               <option value={0}>Выберите роль</option>
               {roles.filter((r) => !r.isDefault).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -1081,9 +1081,9 @@ function ReactionRolesTab({ server }: { server: Server }) {
       </form>
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
       {items.length === 0 ? (
-        <p className="text-zinc-400">Пока нет ролей за реакции.</p>
+        <p className="text-nc-muted">Пока нет ролей за реакции.</p>
       ) : (
-        <ul className="divide-y divide-zinc-700">
+        <ul className="divide-y divide-nc-line-strong">
           {items.map((item) => (
             <li key={`${item.messageId}-${item.emoji}-${item.roleId}`} className="flex items-center gap-2 py-2 text-sm">
               <span className="text-lg">{item.emoji}</span>
@@ -1120,7 +1120,7 @@ function OnboardingTab({ server }: { server: Server }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-zinc-400">Участник отвечает на вопрос «Да» и получает роль. Ответы учитываются один раз.</p>
+      <p className="text-sm text-nc-muted">Участник отвечает на вопрос «Да» и получает роль. Ответы учитываются один раз.</p>
       <form onSubmit={add} className="space-y-2">
         <input value={question} onChange={(e) => setQuestion(e.target.value)} className={inputClass} placeholder="Вы прочитали правила?" required />
         <div className="flex gap-2">
@@ -1132,11 +1132,11 @@ function OnboardingTab({ server }: { server: Server }) {
         </div>
       </form>
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-      <ul className="divide-y divide-zinc-700">
+      <ul className="divide-y divide-nc-line-strong">
         {items.map((q) => (
           <li key={q.id} className="flex items-center gap-2 py-2 text-sm">
             <span className="flex-1">{q.question}</span>
-            <span className="text-zinc-400">{roles.find((r) => r.id === q.roleId)?.name}</span>
+            <span className="text-nc-muted">{roles.find((r) => r.id === q.roleId)?.name}</span>
             <button onClick={() => void deleteOnboarding(server.id, q.id).then(reload)} className="text-xs text-red-400">Удалить</button>
           </li>
         ))}
@@ -1173,14 +1173,14 @@ function EventsTab({ server }: { server: Server }) {
         <button className={primaryButton}>Создать событие</button>
       </form>
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-      <ul className="divide-y divide-zinc-700">
+      <ul className="divide-y divide-nc-line-strong">
         {items.map((ev) => (
           <li key={ev.id} className="flex items-center gap-2 py-2 text-sm">
             <div className="flex-1">
               <div className="font-medium">{ev.name}</div>
-              <div className="text-xs text-zinc-400">{new Date(ev.startsAt).toLocaleString("ru-RU")} · {ev.interestedCount} интересно</div>
+              <div className="text-xs text-nc-muted">{new Date(ev.startsAt).toLocaleString("ru-RU")} · {ev.interestedCount} интересно</div>
             </div>
-            <button onClick={() => void toggleInterest(server.id, ev.id).then(reload)} className="text-sm text-indigo-400">
+            <button onClick={() => void toggleInterest(server.id, ev.id).then(reload)} className="text-sm text-nc-accent-text">
               {ev.interested ? "Не интересно" : "Интересно"}
             </button>
             <button onClick={() => void deleteEvent(server.id, ev.id).then(reload)} className="text-xs text-red-400">Удалить</button>
@@ -1211,12 +1211,12 @@ function ForumTab({ server }: { server: Server }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-zinc-400">Форум-канал: каждый пост — отдельная ветка с архивацией и блокировкой.</p>
+      <p className="text-sm text-nc-muted">Форум-канал: каждый пост — отдельная ветка с архивацией и блокировкой.</p>
       <ul className="space-y-1">
         {channels.filter((c) => c.kind === "text").map((c) => (
-          <li key={c.id} className="flex items-center justify-between rounded bg-zinc-900 px-3 py-2 text-sm">
+          <li key={c.id} className="flex items-center justify-between rounded bg-nc-surface px-3 py-2 text-sm">
             <span>#{c.name}</span>
-            <button onClick={() => void toggleForum(c.id, c.isForum)} className="text-sm text-indigo-400">
+            <button onClick={() => void toggleForum(c.id, c.isForum)} className="text-sm text-nc-accent-text">
               {c.isForum ? "Отключить форум" : "Сделать форумом"}
             </button>
           </li>
@@ -1226,17 +1226,17 @@ function ForumTab({ server }: { server: Server }) {
         <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="Новый тег ветки" />
         <button className={primaryButton}>Добавить</button>
       </form>
-      {!forum && <p className="text-xs text-zinc-500">Теги привязываются к первому форум-каналу. Создайте его выше.</p>}
+      {!forum && <p className="text-xs text-nc-faint">Теги привязываются к первому форум-каналу. Создайте его выше.</p>}
       <ul className="flex flex-wrap gap-2">
         {items.map((tag) => (
-          <li key={tag.id} className="flex items-center gap-1 rounded bg-zinc-700 px-2 py-1 text-xs">
+          <li key={tag.id} className="flex items-center gap-1 rounded bg-nc-hover px-2 py-1 text-xs">
             {tag.name}
             <button onClick={() => void deleteTag(server.id, tag.id).then(reload)} className="text-red-400">×</button>
           </li>
         ))}
       </ul>
-      <div className="flex items-end gap-2 border-t border-zinc-700 pt-3">
-        <label className="flex-1 text-xs text-zinc-400">Чистка неактивных (дней)
+      <div className="flex items-end gap-2 border-t border-nc-line-strong pt-3">
+        <label className="flex-1 text-xs text-nc-muted">Чистка неактивных (дней)
           <input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value))} className={inputClass} />
         </label>
         <button onClick={() => void pruneMembers(server.id, days).then((r) => setInfo(`Удалено: ${r.removed}`), (e) => setError(errorMessage(e)))} className={ghostButton}>
@@ -1313,15 +1313,15 @@ function ModerationTab({ server }: { server: Server }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 border-b border-zinc-700 pb-2">
-        <span className="text-sm font-semibold uppercase text-zinc-400">Управление участниками</span>
+      <div className="flex items-center gap-2 border-b border-nc-line-strong pb-2">
+        <span className="text-sm font-semibold uppercase text-nc-muted">Управление участниками</span>
       </div>
 
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-sm text-zinc-400">ID пользователя</label>
+          <label className="block text-sm text-nc-muted">ID пользователя</label>
           <input
             value={targetUserId}
             onChange={(e) => setTargetUserId(Number(e.target.value))}
@@ -1331,7 +1331,7 @@ function ModerationTab({ server }: { server: Server }) {
           />
         </div>
         <div>
-          <label className="block text-sm text-zinc-400">Причина</label>
+          <label className="block text-sm text-nc-muted">Причина</label>
           <input
             value={targetReason}
             onChange={(e) => setTargetReason(e.target.value)}
@@ -1352,7 +1352,7 @@ function ModerationTab({ server }: { server: Server }) {
           {pending ? "Кик…" : "Кикнуть"}
         </button>
         <div className="flex items-center gap-2 ml-auto">
-          <label className="text-sm text-zinc-400">Таймаут (сек):</label>
+          <label className="text-sm text-nc-muted">Таймаут (сек):</label>
           <select
             value={timeoutSeconds}
             onChange={(e) => setTimeoutSeconds(Number(e.target.value))}
@@ -1370,16 +1370,16 @@ function ModerationTab({ server }: { server: Server }) {
       </div>
 
       <div>
-        <div className="flex items-center gap-2 border-b border-zinc-700 pb-2 mb-2">
-          <span className="text-sm font-semibold uppercase text-zinc-400">Активные баны</span>
-          <span className="text-xs text-zinc-500 capitalize">{bans?.length ?? 0} шт.</span>
+        <div className="flex items-center gap-2 border-b border-nc-line-strong pb-2 mb-2">
+          <span className="text-sm font-semibold uppercase text-nc-muted">Активные баны</span>
+          <span className="text-xs text-nc-faint capitalize">{bans?.length ?? 0} шт.</span>
         </div>
         {bans === null ? (
-          <p className="text-sm text-zinc-400">Загрузка…</p>
+          <p className="text-sm text-nc-muted">Загрузка…</p>
         ) : bans.length === 0 ? (
-          <p className="text-sm text-zinc-500">Активных банов нет.</p>
+          <p className="text-sm text-nc-faint">Активных банов нет.</p>
         ) : (
-          <ul className="divide-y divide-zinc-700 text-sm">
+          <ul className="divide-y divide-nc-line-strong text-sm">
             {bans.map((ban) => (
               <li key={ban.id} className="flex items-center gap-2 py-2">
                 <span className="flex-1 truncate">:{ban.username}: — {ban.actorUsername} — {new Date(ban.createdAt).toLocaleString("ru-RU")}</span>
@@ -1590,12 +1590,12 @@ function StickersTab({ server }: { server: Server }) {
     <div className="space-y-4">
       {/* Pack management */}
       <div className="space-y-2">
-        <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-400">
+        <h3 className="mb-1 text-xs font-semibold uppercase text-nc-muted">
           Стикерпаки
         </h3>
         <form onSubmit={createPack} className="space-y-3">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+            <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
               Название
             </span>
             <input
@@ -1610,7 +1610,7 @@ function StickersTab({ server }: { server: Server }) {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+            <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
               Описание
             </span>
             <input
@@ -1636,9 +1636,9 @@ function StickersTab({ server }: { server: Server }) {
       {/* Pack list */}
       <div className="space-y-2">
         {packs === undefined ? (
-          <p className="text-zinc-400">Загрузка…</p>
+          <p className="text-nc-muted">Загрузка…</p>
         ) : packs.length === 0 ? (
-          <p className="text-zinc-400">Пока нет стикерпаков.</p>
+          <p className="text-nc-muted">Пока нет стикерпаков.</p>
         ) : (
           <ul className="grid grid-cols-1 gap-2">
             {packs.map(pack => {
@@ -1648,7 +1648,7 @@ function StickersTab({ server }: { server: Server }) {
                   key={pack.id}
                   onClick={() => setSelectedPackId(pack.id)}
                   className={`flex items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
-                    active ? "bg-zinc-700 text-white" : "text-zinc-300 hover:bg-zinc-700/50"
+                    active ? "bg-nc-hover text-white" : "text-nc-text-2 hover:bg-nc-hover/50"
                   }`}
                 >
                   <div className="flex-1">{pack.name}</div>
@@ -1673,12 +1673,12 @@ function StickersTab({ server }: { server: Server }) {
       {selectedPackId != null && packs?.find(p => p.id === selectedPackId) && (
         <div className="space-y-4">
           <div className="space-y-2">
-            <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-400">
+            <h3 className="mb-1 text-xs font-semibold uppercase text-nc-muted">
               Стикеры в паке
             </h3>
             <form onSubmit={uploadSticker} className="space-y-3">
               <label className="block">
-                <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+                <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
                   Имя стикера
                 </span>
                 <input
@@ -1693,7 +1693,7 @@ function StickersTab({ server }: { server: Server }) {
                 />
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+                <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
                   Emoji/короткое имя (1-2 символа)
                 </span>
                 <input
@@ -1706,7 +1706,7 @@ function StickersTab({ server }: { server: Server }) {
                 />
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+                <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
                   Теги (через запятую)
                 </span>
                 <input
@@ -1719,7 +1719,7 @@ function StickersTab({ server }: { server: Server }) {
                 />
               </label>
               <label className="block">
-                <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+                <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
                   PNG или WebP (до 10 МБ)
                 </span>
                 <input
@@ -1731,7 +1731,7 @@ function StickersTab({ server }: { server: Server }) {
                     const file = e.target?.files?.[0] || null;
                     setNewStickerFile(file);
                   }}
-                  className="block w-full text-sm text-zinc-300"
+                  className="block w-full text-sm text-nc-text-2"
                 />
               </label>
               <button type="submit" disabled={stickerPending} className={primaryButton}>
@@ -1746,13 +1746,13 @@ function StickersTab({ server }: { server: Server }) {
           </div>
 
           {packs.find(p => p.id === selectedPackId)?.stickers === undefined ? (
-            <p className="text-zinc-400">Загрузка стикеров…</p>
+            <p className="text-nc-muted">Загрузка стикеров…</p>
           ) : (packs.find(p => p.id === selectedPackId)?.stickers?.length ?? 0) === 0 ? (
-            <p className="text-zinc-400">Пока нет стикеров в этом паке.</p>
+            <p className="text-nc-muted">Пока нет стикеров в этом паке.</p>
           ) : (
             <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {(packs.find(p => p.id === selectedPackId)?.stickers ?? []).map(sticker => (
-                <li key={sticker.id} className="flex items-center gap-2 rounded bg-zinc-900 p-2">
+                <li key={sticker.id} className="flex items-center gap-2 rounded bg-nc-surface p-2">
                   <img src={`/storage/${sticker.storageKey}`} alt={sticker.name} className="h-6 w-6 object-contain" />
                   <span className="min-w-0 flex-1 truncate text-sm">:{sticker.emoji}:</span>
                   <button
@@ -1798,7 +1798,7 @@ function AutoModTab({ server }: { server: Server }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-zinc-400">
+      <p className="text-sm text-nc-muted">
         Автомодерация удаляет или предупреждает сообщения, содержащие указанные паттерны.
         Паттерн проверяется по RegEx (падение на Contains при ошибке). Требует разрешение «Управление ролями».
       </p>
@@ -1812,16 +1812,16 @@ function AutoModTab({ server }: { server: Server }) {
         <button className={primaryButton}>Добавить правило</button>
       </form>
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-      <ul className="divide-y divide-zinc-700">
+      <ul className="divide-y divide-nc-line-strong">
         {rules.map((r) => (
           <li key={r.id} className="flex items-center gap-3 py-2 text-sm">
-            <code className="bg-zinc-800 px-2 py-0.5 rounded font-mono text-xs flex-1 truncate">{r.pattern}</code>
+            <code className="bg-nc-elevated px-2 py-0.5 rounded font-mono text-xs flex-1 truncate">{r.pattern}</code>
             <span className={`text-xs px-2 py-0.5 rounded ${r.action === "delete" ? "bg-red-900/40 text-red-300" : "bg-yellow-900/40 text-yellow-300"}`}>{r.action === "delete" ? "удаление" : "предупреждение"}</span>
-            {r.note && <span className="text-xs text-zinc-500 max-w-[200px] truncate">{r.note}</span>}
+            {r.note && <span className="text-xs text-nc-faint max-w-[200px] truncate">{r.note}</span>}
             <button onClick={() => void remove(r.id)} className="text-xs text-red-400 hover:underline">Удалить</button>
           </li>
         ))}
-        {rules.length === 0 && <li className="text-sm text-zinc-500 py-2">Нет правил.</li>}
+        {rules.length === 0 && <li className="text-sm text-nc-faint py-2">Нет правил.</li>}
       </ul>
     </div>
   );
@@ -1845,7 +1845,7 @@ function BoostsTab({ server }: { server: Server }) {
     finally { setBoosting(false); }
   };
 
-  if (loading) return <p className="text-sm text-zinc-400 py-4">Загрузка…</p>;
+  if (loading) return <p className="text-sm text-nc-muted py-4">Загрузка…</p>;
   if (error) return <p role="alert" className="text-sm text-red-400 py-4">{error}</p>;
 
   const hasBoosted = info!.count > 0;
@@ -1854,39 +1854,39 @@ function BoostsTab({ server }: { server: Server }) {
 
   return (
     <div className="space-y-5">
-      <div className="bg-zinc-800 rounded-lg p-4 space-y-3">
+      <div className="bg-nc-elevated rounded-lg p-4 space-y-3">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🚀</span>
           <div>
             <p className="font-semibold text-base">{BOOST_NAMES[Math.min(info!.level, BOOST_NAMES.length - 1)]}</p>
-            <p className="text-xs text-zinc-400">{info!.count} буст{info!.count === 1 ? "" : info!.count < 5 ? "а" : "ов"}</p>
+            <p className="text-xs text-nc-muted">{info!.count} буст{info!.count === 1 ? "" : info!.count < 5 ? "а" : "ов"}</p>
           </div>
         </div>
         <div>
-          <div className="flex justify-between text-xs text-zinc-400 mb-1">
+          <div className="flex justify-between text-xs text-nc-muted mb-1">
             <span>Прогресс до следующего уровня</span>
             <span>{Math.min(Math.round(progress * 100), 100)}%</span>
           </div>
-          <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
+          <div className="h-2 bg-nc-hover rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-400 transition-all" style={{ width: `${Math.min(progress * 100, 100)}%` }} />
           </div>
-          {nextThreshold !== Infinity && <p className="text-xs text-zinc-500 mt-1">Следующий уровень: ещё {nextThreshold - info!.count} буст{nextThreshold - info!.count === 1 ? "" : nextThreshold - info!.count < 5 ? "а" : "ов"}</p>}
-          {nextThreshold === Infinity && <p className="text-xs text-zinc-500 mt-1">Максимальный уровень достигнут!</p>}
+          {nextThreshold !== Infinity && <p className="text-xs text-nc-faint mt-1">Следующий уровень: ещё {nextThreshold - info!.count} буст{nextThreshold - info!.count === 1 ? "" : nextThreshold - info!.count < 5 ? "а" : "ов"}</p>}
+          {nextThreshold === Infinity && <p className="text-xs text-nc-faint mt-1">Максимальный уровень достигнут!</p>}
         </div>
-        <button onClick={() => void doBoost()} disabled={boosting} className={`w-full py-2 rounded text-sm font-medium ${hasBoosted ? "bg-violet-600 hover:bg-violet-500 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200"}`}>
+        <button onClick={() => void doBoost()} disabled={boosting} className={`w-full py-2 rounded text-sm font-medium ${hasBoosted ? "bg-violet-600 hover:bg-violet-500 text-white" : "bg-nc-hover hover:bg-nc-active text-nc-text-2"}`}>
           {boosting ? "…" : hasBoosted ? "Убрать буст" : "Бустнуть сервер 🚀"}
         </button>
       </div>
       <div>
-        <p className="text-xs text-zinc-400 uppercase tracking-wide mb-2">Бустеры ({info!.boosters.length})</p>
+        <p className="text-xs text-nc-muted uppercase tracking-wide mb-2">Бустеры ({info!.boosters.length})</p>
         {info!.boosters.length === 0
-          ? <p className="text-sm text-zinc-500">Пока нет бустеров.</p>
+          ? <p className="text-sm text-nc-faint">Пока нет бустеров.</p>
           : <ul className="space-y-1">
               {info!.boosters.map((b) => (
-                <li key={b.user_id} className="flex items-center gap-2 text-sm py-1.5 px-2 rounded hover:bg-zinc-800">
+                <li key={b.user_id} className="flex items-center gap-2 text-sm py-1.5 px-2 rounded hover:bg-nc-elevated">
                   <span>🚀</span>
                   <span className="flex-1 truncate">{b.username}</span>
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-nc-faint">
                     {new Date(b.boosted_at * 1000).toLocaleDateString("ru-RU")}
                   </span>
                 </li>
@@ -1894,8 +1894,8 @@ function BoostsTab({ server }: { server: Server }) {
             </ul>
         }
       </div>
-      <div className="border-t border-zinc-700 pt-4">
-        <p className="text-xs text-zinc-400 uppercase tracking-wide mb-2">Бонусы по уровням</p>
+      <div className="border-t border-nc-line-strong pt-4">
+        <p className="text-xs text-nc-muted uppercase tracking-wide mb-2">Бонусы по уровням</p>
         <div className="grid grid-cols-2 gap-2 text-xs">
           {[
             ["0", "0 бустов", "Стандартные лимиты"],
@@ -1903,9 +1903,9 @@ function BoostsTab({ server }: { server: Server }) {
             ["2", "3 буста", "+250 эмодзи, +200 слотов ролей"],
             ["3", "7 бустов", "Макс. лимиты"],
           ].map(([lvl, label, perk]) => (
-            <div key={lvl} className={`p-2 rounded ${parseInt(lvl) <= (info?.level ?? 0) ? "bg-violet-900/20 border border-violet-700/40" : "bg-zinc-800 opacity-50"}`}>
-              <p className="font-medium text-zinc-200">{label}</p>
-              <p className="text-zinc-400">{perk}</p>
+            <div key={lvl} className={`p-2 rounded ${parseInt(lvl) <= (info?.level ?? 0) ? "bg-violet-900/20 border border-violet-700/40" : "bg-nc-elevated opacity-50"}`}>
+              <p className="font-medium text-nc-text-2">{label}</p>
+              <p className="text-nc-muted">{perk}</p>
             </div>
           ))}
         </div>

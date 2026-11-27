@@ -158,7 +158,7 @@ export function AppLayout() {
     return <Navigate to="/channels/@me" replace />;
 
   return (
-    <div className="flex h-dvh text-zinc-100">
+    <div className="flex h-dvh text-nc-text">
       {navOpen && (
         <button
           aria-label="Закрыть меню"
@@ -180,7 +180,7 @@ export function AppLayout() {
           onAdd={() => setDialog("addServer")}
         />
 
-        <aside className="flex w-60 flex-col bg-zinc-900">
+        <aside className="flex w-60 flex-col bg-nc-surface">
           {isHome ? (
             <DmList dms={dms ?? []} onNew={() => setDialog("newDm")} />
           ) : server ? (
@@ -323,7 +323,7 @@ export function AppLayout() {
         ) : isHome ? (
           <FriendsPage />
         ) : (
-          <section className="grid flex-1 place-items-center text-zinc-400">
+          <section className="grid flex-1 place-items-center text-nc-muted">
             {server && channels?.length === 0 && "На сервере пока нет каналов."}
           </section>
         )}
@@ -394,7 +394,7 @@ function DmList({ dms, onNew }: { dms: DmChannel[]; onNew: () => void }) {
       </header>
       <ul className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {dms.length === 0 && (
-          <li className="px-2 py-1.5 text-sm text-zinc-500">
+          <li className="px-2 py-1.5 text-sm text-nc-faint">
             Диалогов пока нет.
           </li>
         )}
@@ -592,12 +592,12 @@ function ServerRail({
           📁
         </div>
       ))}
-      <button onClick={createFolder} title="Создать папку" aria-label="Создать папку" className={`${pill} rounded-3xl bg-zinc-900 text-xl text-amber-500`}>📁+</button>
+      <button onClick={createFolder} title="Создать папку" aria-label="Создать папку" className={`${pill} rounded-3xl bg-nc-surface text-xl text-amber-500`}>📁+</button>
       <div
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => { e.preventDefault(); unassign(); }}
         title="Перетащите сюда, чтобы убрать из папки"
-        className="h-2 w-10 rounded bg-zinc-900/40"
+        className="h-2 w-10 rounded bg-nc-surface/40"
       />
       {servers.filter((s) => !assigned.has(s.id)).map(serverPill)}
       <button
@@ -853,14 +853,14 @@ function ChannelRow({
         className={({ isActive }) =>
           `flex items-center rounded px-2 py-1.5 pr-12 ${
             isActive
-              ? "bg-zinc-700/60 text-white"
+              ? "bg-nc-hover/60 text-white"
               : channel.unreadCount > 0
-                ? "font-semibold text-white hover:bg-zinc-900"
-                : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                ? "font-semibold text-white hover:bg-nc-surface"
+                : "text-nc-muted hover:bg-nc-surface hover:text-nc-text-2"
           }`
         }
       >
-        <span className="mr-1.5 text-zinc-500">
+        <span className="mr-1.5 text-nc-faint">
                 {channel.kind === "stage" ? "🎤" : channel.kind === "voice" ? "🔊" : "#"}
         </span>
         <span className="flex-1 truncate">{channel.name}</span>
@@ -879,7 +879,7 @@ function ChannelRow({
             onClick={() => onSettings(channel)}
             title={`Настройки канала ${channel.name}`}
             aria-label={`Настройки канала ${channel.name}`}
-            className="absolute top-1/2 right-7 -translate-y-1/2 rounded px-1.5 text-zinc-400 hover:text-zinc-100 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+            className="absolute top-1/2 right-7 -translate-y-1/2 rounded px-1.5 text-nc-muted hover:text-nc-text md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
           >
             ⚙
           </button>
@@ -887,7 +887,7 @@ function ChannelRow({
             onClick={() => onDelete(channel)}
             title={`Удалить #${channel.name}`}
             aria-label={`Удалить канал ${channel.name}`}
-            className="absolute top-1/2 right-1 -translate-y-1/2 rounded px-1.5 text-zinc-400 hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
+            className="absolute top-1/2 right-1 -translate-y-1/2 rounded px-1.5 text-nc-muted hover:text-red-400 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100"
           >
             ×
           </button>
@@ -940,7 +940,7 @@ function DmCallButton({ dm }: { dm: DmChannel }) {
       onClick={() => void joinVoice(dm.id, null)}
       title="Позвонить"
       aria-label={`Позвонить ${dmTitle(dm)}`}
-      className="ml-auto rounded px-2 py-1 text-lg hover:bg-zinc-700"
+      className="ml-auto rounded px-2 py-1 text-lg hover:bg-nc-hover"
     >
       📞
     </button>

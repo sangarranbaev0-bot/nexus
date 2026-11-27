@@ -286,7 +286,7 @@ export function EmojiPicker({
   };
 
   return (
-    <div className={`w-72 rounded-lg border border-zinc-700 bg-zinc-800 p-2 shadow-xl ${className}`}>
+    <div className={`w-72 rounded-lg border border-nc-line-strong bg-nc-elevated p-2 shadow-xl ${className}`}>
       <input
         ref={input}
         autoFocus
@@ -301,11 +301,11 @@ export function EmojiPicker({
         }}
         placeholder="Поиск эмодзи"
         aria-label="Поиск эмодзи"
-        className="mb-2 w-full rounded bg-zinc-900 px-2 py-1 text-sm outline-none placeholder:text-zinc-500"
+        className="mb-2 w-full rounded bg-nc-surface px-2 py-1 text-sm outline-none placeholder:text-nc-faint"
       />
       {custom.length > 0 && (
         <>
-          <p className="mb-1 px-1 text-xs text-zinc-500">Свои эмодзи сервера</p>
+          <p className="mb-1 px-1 text-xs text-nc-faint">Свои эмодзи сервера</p>
           <div className="mb-2 grid max-h-24 grid-cols-8 gap-1 overflow-y-auto">
             {custom.map((e) => (
               <button
@@ -313,7 +313,7 @@ export function EmojiPicker({
                 type="button"
                 onClick={() => pick(`:${e.name}:`)}
                 title={`:${e.name}:`}
-                className="grid h-7 w-7 place-items-center rounded hover:bg-zinc-700"
+                className="grid h-7 w-7 place-items-center rounded hover:bg-nc-hover"
               >
                 <img src={e.url} alt={`:${e.name}:`} className="h-5 w-5" />
               </button>
@@ -328,8 +328,8 @@ export function EmojiPicker({
             onClick={() => setPack('recent')}
             title="Недавние"
             aria-label="Недавние"
-            className={`grid size-7 place-items-center rounded text-base hover:bg-zinc-700 ${
-              pack === 'recent' ? 'bg-zinc-700' : ''
+            className={`grid size-7 place-items-center rounded text-base hover:bg-nc-hover ${
+              pack === 'recent' ? 'bg-nc-hover' : ''
             }`}
           >
             🕘
@@ -341,8 +341,8 @@ export function EmojiPicker({
               onClick={() => setPack(p.id)}
               title={p.label}
               aria-label={p.label}
-              className={`grid size-7 place-items-center rounded text-base hover:bg-zinc-700 ${
-                pack === p.id ? 'bg-zinc-700' : ''
+              className={`grid size-7 place-items-center rounded text-base hover:bg-nc-hover ${
+                pack === p.id ? 'bg-nc-hover' : ''
               }`}
             >
               {p.icon}
@@ -351,7 +351,7 @@ export function EmojiPicker({
         </div>
       )}
       {list.length === 0 ? (
-        <p className="px-1 py-2 text-sm text-zinc-400">Ничего не найдено.</p>
+        <p className="px-1 py-2 text-sm text-nc-muted">Ничего не найдено.</p>
       ) : (
         <div className="grid max-h-56 grid-cols-8 gap-1 overflow-y-auto">
           {list.map((m) => (
@@ -360,7 +360,7 @@ export function EmojiPicker({
               type="button"
               title={m.name}
               onClick={() => pick(m.e)}
-              className="grid size-8 place-items-center rounded text-lg hover:bg-zinc-700"
+              className="grid size-8 place-items-center rounded text-lg hover:bg-nc-hover"
             >
               {m.e}
             </button>

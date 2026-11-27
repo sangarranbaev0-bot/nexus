@@ -45,7 +45,7 @@ export function ChannelSettingsDialog({
       title={`${channel.kind === "voice" ? "🔊" : "#"} ${channel.name}`}
       onClose={onClose}
     >
-      <div role="tablist" className="flex gap-1 border-b border-zinc-700 pb-2">
+      <div role="tablist" className="flex gap-1 border-b border-nc-line-strong pb-2">
         {(
           [
             ["overview", "Обзор"],
@@ -59,8 +59,8 @@ export function ChannelSettingsDialog({
             onClick={() => setTab(key)}
             className={`rounded px-3 py-1.5 text-sm ${
               tab === key
-                ? "bg-zinc-700 text-white"
-                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                ? "bg-nc-hover text-white"
+                : "text-nc-muted hover:bg-nc-elevated hover:text-nc-text"
             }`}
           >
             {label}
@@ -139,7 +139,7 @@ function OverviewTab({
   return (
     <form onSubmit={save} className="space-y-4">
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           Название канала
         </span>
         <input
@@ -151,7 +151,7 @@ function OverviewTab({
         />
       </label>
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           Категория
         </span>
         <select
@@ -170,7 +170,7 @@ function OverviewTab({
         </select>
       </label>
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           Тема
         </span>
         <input
@@ -180,7 +180,7 @@ function OverviewTab({
         />
       </label>
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           Медленный режим (сек.)
         </span>
         <input
@@ -191,7 +191,7 @@ function OverviewTab({
         />
       </label>
       <label className="block">
-        <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
           NSFW
         </span>
         <input
@@ -354,7 +354,7 @@ function PermissionsTab({
   return (
     <div className="space-y-4">
       <section>
-        <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-400">
+        <h3 className="mb-1 text-xs font-semibold uppercase text-nc-muted">
           Роли
         </h3>
         <div className="space-y-0.5">
@@ -369,21 +369,21 @@ function PermissionsTab({
                   onClick={() => setTarget({ kind: "role", id: role.id })}
                   className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
                     active
-                      ? "bg-zinc-700 text-white"
-                      : "text-zinc-300 hover:bg-zinc-700/50"
+                      ? "bg-nc-hover text-white"
+                      : "text-nc-text-2 hover:bg-nc-hover/50"
                   }`}
                 >
                   <span
-                    className="size-3 shrink-0 rounded-full bg-zinc-500"
+                    className="size-3 shrink-0 rounded-full bg-nc-strong"
                     style={{ backgroundColor: colorToCss(role.color) }}
                     aria-hidden
                   />
                   <span className="flex-1 truncate">{role.name}</span>
                   {role.isDefault && (
-                    <span className="text-xs text-zinc-500">по умолчанию</span>
+                    <span className="text-xs text-nc-faint">по умолчанию</span>
                   )}
                   {ow && (
-                    <span className="text-xs text-indigo-400">изменено</span>
+                    <span className="text-xs text-nc-accent-text">изменено</span>
                   )}
                 </button>
               );
@@ -392,7 +392,7 @@ function PermissionsTab({
       </section>
 
       <section>
-        <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-400">
+        <h3 className="mb-1 text-xs font-semibold uppercase text-nc-muted">
           Участники
         </h3>
         {userOverwrites.length > 0 && (
@@ -406,12 +406,12 @@ function PermissionsTab({
                   onClick={() => setTarget({ kind: "user", id })}
                   className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${
                     active
-                      ? "bg-zinc-700 text-white"
-                      : "text-zinc-300 hover:bg-zinc-700/50"
+                      ? "bg-nc-hover text-white"
+                      : "text-nc-text-2 hover:bg-nc-hover/50"
                   }`}
                 >
                   <span className="flex-1 truncate">{memberName(id)}</span>
-                  <span className="text-xs text-indigo-400">изменено</span>
+                  <span className="text-xs text-nc-accent-text">изменено</span>
                 </button>
               );
             })}
@@ -438,17 +438,17 @@ function PermissionsTab({
       </section>
 
       {target && (
-        <section className="border-t border-zinc-700 pt-3">
+        <section className="border-t border-nc-line-strong pt-3">
           <div className="mb-2 flex items-baseline justify-between">
             <h3 className="font-semibold">{targetLabel}</h3>
-            <span className="text-xs text-zinc-500">
+            <span className="text-xs text-nc-faint">
               {current ? "переопределение" : "наследует права"}
             </span>
           </div>
           <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
             {PERMISSION_GROUPS.map((group) => (
               <fieldset key={group.title}>
-                <legend className="mb-1 text-xs font-semibold uppercase text-zinc-400">
+                <legend className="mb-1 text-xs font-semibold uppercase text-nc-muted">
                   {group.title}
                 </legend>
                 <div className="space-y-0.5">
@@ -461,7 +461,7 @@ function PermissionsTab({
                     return (
                       <div
                         key={item.bit}
-                        className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-zinc-700/30"
+                        className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-nc-hover/30"
                       >
                         <span className="flex-1 truncate" title={item.hint}>
                           {item.label}
@@ -469,12 +469,12 @@ function PermissionsTab({
                         <div
                           role="group"
                           aria-label={item.label}
-                          className="flex shrink-0 overflow-hidden rounded border border-zinc-600"
+                          className="flex shrink-0 overflow-hidden rounded border border-nc-line-max"
                         >
                           {(
                             [
                               ["allow", "✓", "Разрешить", "bg-emerald-600"],
-                              ["inherit", "—", "Наследовать", "bg-zinc-600"],
+                              ["inherit", "—", "Наследовать", "bg-nc-active"],
                               ["deny", "✕", "Запретить", "bg-red-600"],
                             ] as const
                           ).map(([mode, glyph, title, activeClass]) => (
@@ -488,7 +488,7 @@ function PermissionsTab({
                               className={`px-2 ${
                                 value === mode
                                   ? `${activeClass} text-white`
-                                  : "text-zinc-400 hover:bg-zinc-700"
+                                  : "text-nc-muted hover:bg-nc-hover"
                               }`}
                             >
                               {glyph}
@@ -512,7 +512,7 @@ function PermissionsTab({
               type="button"
               onClick={reset}
               disabled={pending || !current}
-              className="rounded px-3 py-2 text-sm text-zinc-300 hover:underline disabled:opacity-40"
+              className="rounded px-3 py-2 text-sm text-nc-text-2 hover:underline disabled:opacity-40"
             >
               Сбросить
             </button>

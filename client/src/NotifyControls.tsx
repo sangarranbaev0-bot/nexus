@@ -101,16 +101,16 @@ export function NotifyControls({
 
   return (
     <div className="space-y-3">
-      {inheritHint && <p className="text-xs text-zinc-500">{inheritHint}</p>}
+      {inheritHint && <p className="text-xs text-nc-faint">{inheritHint}</p>}
       <fieldset className="space-y-1">
-        <legend className="mb-1 text-xs font-semibold uppercase text-zinc-400">
+        <legend className="mb-1 text-xs font-semibold uppercase text-nc-muted">
           Уведомления
         </legend>
         {LEVELS.map((opt) => (
           <label
             key={opt.value}
             title={opt.hint}
-            className="flex items-start gap-2 rounded px-1 py-1 text-sm hover:bg-zinc-700/40"
+            className="flex items-start gap-2 rounded px-1 py-1 text-sm hover:bg-nc-hover/40"
           >
             <input
               type="radio"
@@ -128,7 +128,7 @@ export function NotifyControls({
         ))}
       </fieldset>
 
-      <label className="flex items-start gap-2 rounded px-1 py-1 text-sm hover:bg-zinc-700/40">
+      <label className="flex items-start gap-2 rounded px-1 py-1 text-sm hover:bg-nc-hover/40">
         <input
           type="checkbox"
           checked={suppress}
@@ -145,7 +145,7 @@ export function NotifyControls({
       </label>
 
       <div>
-        <span className="mb-1 block text-xs font-semibold uppercase text-zinc-400">
+        <span className="mb-1 block text-xs font-semibold uppercase text-nc-muted">
           Не беспокоить до
         </span>
         <div className="flex flex-wrap items-center gap-1.5">
@@ -156,7 +156,7 @@ export function NotifyControls({
                 type="button"
                 onClick={() => mute(null)}
                 disabled={pending}
-                className="rounded px-2 py-1 text-sm text-zinc-300 hover:bg-zinc-700 disabled:opacity-60"
+                className="rounded px-2 py-1 text-sm text-nc-text-2 hover:bg-nc-hover disabled:opacity-60"
               >
                 Снять
               </button>
@@ -168,7 +168,7 @@ export function NotifyControls({
                 type="button"
                 onClick={() => mute(m)}
                 disabled={pending}
-                className="rounded bg-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:bg-zinc-600 disabled:opacity-60"
+                className="rounded bg-nc-hover px-2 py-1 text-xs text-nc-text-2 hover:bg-nc-active disabled:opacity-60"
               >
                 {muteLabel(m)}
               </button>

@@ -57,7 +57,7 @@ export function SearchDialog({ serverId, onClose }: Props) {
   };
 
   return (
-    <div className="m-auto rounded-lg bg-zinc-800 p-0 text-zinc-100 backdrop:bg-black/70 w-[min(72rem,calc(100vw-2rem))] w-full max-w-2xl flex flex-col max-h-[80vh]">
+    <div className="m-auto rounded-lg bg-nc-elevated p-0 text-nc-text backdrop:bg-black/70 w-[min(72rem,calc(100vw-2rem))] w-full max-w-2xl flex flex-col max-h-[80vh]">
       <h2 className="text-lg font-semibold mb-4">Поиск по серверу</h2>
       <div className="flex gap-2 mb-4">
         <input
@@ -75,9 +75,9 @@ export function SearchDialog({ serverId, onClose }: Props) {
       </div>
 
       {error && <p role="alert" className="text-red-400 mb-2">{error}</p>}
-      {loading && <p className="text-zinc-400 mb-2">Поиск…</p>}
+      {loading && <p className="text-nc-muted mb-2">Поиск…</p>}
       {!loading && !error && query && results.length === 0 && (
-        <p className="text-zinc-400 mb-2">Нет сообщений по запросу.</p>
+        <p className="text-nc-muted mb-2">Нет сообщений по запросу.</p>
       )}
 
       <ul className="flex-1 overflow-y-auto space-y-1 pr-2">
@@ -86,14 +86,14 @@ export function SearchDialog({ serverId, onClose }: Props) {
             <button
               type="button"
               onClick={() => jumpToMessage(r.messageId)}
-              className="w-full rounded p-2 text-left hover:bg-zinc-700 transition-colors"
+              className="w-full rounded p-2 text-left hover:bg-nc-hover transition-colors"
             >
-              <div className="flex items-center gap-2 text-xs text-zinc-500">
-                <span className="font-medium text-zinc-300">{r.message.authorUsername}</span>
+              <div className="flex items-center gap-2 text-xs text-nc-faint">
+                <span className="font-medium text-nc-text-2">{r.message.authorUsername}</span>
                 <span>#{r.channelName}</span>
                 <span>{new Date(r.message.createdAt).toLocaleString('ru-RU')}</span>
               </div>
-              <div className="mt-1 truncate text-sm text-zinc-300">
+              <div className="mt-1 truncate text-sm text-nc-text-2">
                 <Markdown text={r.message.content} />
               </div>
             </button>

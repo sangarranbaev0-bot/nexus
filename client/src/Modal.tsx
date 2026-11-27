@@ -24,7 +24,7 @@ export function Modal({
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       aria-labelledby="modal-title"
-      className={`m-auto rounded-lg bg-zinc-800 p-0 text-zinc-100 backdrop:bg-black/70 ${
+      className={`m-auto rounded-lg bg-nc-elevated p-0 text-nc-text backdrop:bg-black/70 ${
         wide ? 'w-[min(72rem,calc(100vw-2rem))]' : 'w-[min(28rem,calc(100vw-2rem))]'
       }`}
     >
@@ -44,7 +44,7 @@ export function errorMessage(err: unknown, fallback = 'Что-то пошло н
 }
 
 export const inputClass =
-  'w-full rounded bg-zinc-900 px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500';
+  'w-full rounded bg-nc-surface px-3 py-2 outline-none focus:ring-2 focus:ring-nc-accent';
 export const primaryButton =
-  'rounded bg-indigo-500 px-4 py-2 font-medium hover:bg-indigo-600 disabled:opacity-60';
-export const ghostButton = 'rounded px-4 py-2 text-zinc-300 hover:underline';
+  'rounded bg-nc-accent-strong px-4 py-2 font-medium hover:bg-nc-accent-hover disabled:opacity-60';
+export const ghostButton = 'rounded px-4 py-2 text-nc-text-2 hover:underline';

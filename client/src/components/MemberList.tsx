@@ -46,18 +46,18 @@ export function MemberList({ serverId }: { serverId: number }) {
 
   if (loading || !server) {
     return (
-      <div className="p-4 text-center text-zinc-500">
+      <div className="p-4 text-center text-nc-faint">
         {server ? "Загрузка участников..." : "Сервер не выбран"}
       </div>
     );
   }
 
   return (
-    <div className="flex min-w-60 flex-col border-l border-zinc-800 bg-zinc-900">
-      <header className="flex h-12 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 text-sm font-medium">
+    <div className="flex min-w-60 flex-col border-l border-nc-line bg-nc-surface">
+      <header className="flex h-12 items-center justify-between border-b border-nc-line bg-nc-base px-4 text-sm font-medium">
         <span>Участники ({memberList.length})</span>
         <button
-          className="rounded px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-700"
+          className="rounded px-2 py-1 text-xs text-nc-muted hover:bg-nc-hover"
           aria-label="Список участников"
         >
           ▶
@@ -66,7 +66,7 @@ export function MemberList({ serverId }: { serverId: number }) {
 
       <div className="flex-1 space-y-1 overflow-y-auto px-2 py-2">
         {sortedMembers.length === 0 ? (
-          <div className="py-4 text-center text-zinc-500">Нет участников</div>
+          <div className="py-4 text-center text-nc-faint">Нет участников</div>
         ) : (
           <>
             {sortedMembers.map((member) => {
@@ -74,12 +74,12 @@ export function MemberList({ serverId }: { serverId: number }) {
               return (
                 <div
                   key={member.userId}
-                  className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-zinc-800"
+                  className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-nc-elevated"
                   title={member.username}
                 >
                   <StatusDot userId={member.userId} fallback={mp} />
-                  <span className="truncate text-xs text-zinc-200">{member.username}</span>
-                  <span className="ml-auto text-xs text-zinc-500">{mp !== "offline" ? mp : ""}</span>
+                  <span className="truncate text-xs text-nc-text-2">{member.username}</span>
+                  <span className="ml-auto text-xs text-nc-faint">{mp !== "offline" ? mp : ""}</span>
                 </div>
               );
             })}
@@ -87,7 +87,7 @@ export function MemberList({ serverId }: { serverId: number }) {
         )}
       </div>
 
-      <footer className="flex h-10 items-center border-t border-zinc-800 px-4 text-xs text-zinc-500">
+      <footer className="flex h-10 items-center border-t border-nc-line px-4 text-xs text-nc-faint">
         <span>{sortedMembers.filter((m) => presence[m.userId] === "online").length} онлайн</span>
       </footer>
     </div>

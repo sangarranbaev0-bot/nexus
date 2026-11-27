@@ -13,7 +13,7 @@ export const applyPresence = (userId: number, status: Presence) => usePresence.s
 export const presenceView: Record<Presence, { dot: string; label: string }> = {
   online: { dot: 'bg-emerald-500', label: 'В сети' },
   idle: { dot: 'bg-amber-400', label: 'Неактивен' },
-  offline: { dot: 'bg-zinc-500', label: 'Не в сети' },
+  offline: { dot: 'bg-nc-strong', label: 'Не в сети' },
 };
 
 const IDLE_AFTER_MS = 5 * 60 * 1000;

@@ -141,7 +141,7 @@ export function ChatView({
 
   return (
     <div
-      className={`relative flex min-h-0 flex-1 flex-col ${dragging ? 'ring-2 ring-indigo-500 ring-inset' : ''}`}
+      className={`relative flex min-h-0 flex-1 flex-col ${dragging ? 'ring-2 ring-nc-accent ring-inset' : ''}`}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes('Files')) return;
         e.preventDefault();
@@ -155,7 +155,7 @@ export function ChatView({
       }}
     >
       {dragging && (
-        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-zinc-900/70 text-lg">
+        <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-nc-surface/70 text-lg">
           Отпустите, чтобы прикрепить к {channel.label}
         </div>
       )}
@@ -196,7 +196,7 @@ export function ChatView({
         type="button"
         onClick={() => setSearchVisible((v) => !v)}
         title="Поиск в канале (Ctrl+F)"
-        className="absolute top-2 right-14 z-10 rounded bg-zinc-900/80 px-2 py-1 text-xs text-zinc-300 backdrop-blur hover:bg-zinc-800"
+        className="absolute top-2 right-14 z-10 rounded bg-nc-surface/80 px-2 py-1 text-xs text-nc-text-2 backdrop-blur hover:bg-nc-elevated"
         aria-label="Поиск"
       >
         🔍
@@ -205,7 +205,7 @@ export function ChatView({
           type="button"
           onClick={() => setShowPins(true)}
           title="Закреплённые сообщения"
-          className="absolute top-1 right-4 z-10 rounded bg-zinc-900/80 px-2 py-1 text-xs text-zinc-300 backdrop-blur hover:bg-zinc-800"
+          className="absolute top-1 right-4 z-10 rounded bg-nc-surface/80 px-2 py-1 text-xs text-nc-text-2 backdrop-blur hover:bg-nc-elevated"
          >
            <span className="flex items-center gap-1">
              <Pin size={12} /> Закреплённые
@@ -215,7 +215,7 @@ export function ChatView({
           type="button"
           onClick={() => setShowUnreadOnly((v) => !v)}
           title={showUnreadOnly ? 'Показать все сообщения' : 'Показать только непрочитанные'}
-          className={`absolute top-1 right-28 z-10 rounded bg-zinc-900/80 px-2 py-1 text-xs backdrop-blur ${showUnreadOnly ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30' : 'text-zinc-300 hover:bg-zinc-800'}`}
+          className={`absolute top-1 right-28 z-10 rounded bg-nc-surface/80 px-2 py-1 text-xs backdrop-blur ${showUnreadOnly ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30' : 'text-nc-text-2 hover:bg-nc-elevated'}`}
         >
           {showUnreadOnly ? '🔥 Все' : '🔥 Непрочитанные'}
         </button>
@@ -334,14 +334,14 @@ function MessageList({
         {visibleItems && !hasMore && (
           <div className="px-4 pb-4">
             <h3 className="text-2xl font-bold">Добро пожаловать в {channel.label}!</h3>
-            <p className="text-zinc-400">
+            <p className="text-nc-muted">
               {channel.label.startsWith("@") ? "Это начало вашей переписки." : "Это начало канала."}
             </p>
           </div>
         )}
-        {visibleItems === undefined && <p className="px-4 text-zinc-400">Загрузка…</p>}
+        {visibleItems === undefined && <p className="px-4 text-nc-muted">Загрузка…</p>}
         {showUnreadOnly && lastReadAt !== null && visibleItems && visibleItems.length === 0 && items && items.some((m) => m.createdAt > lastReadAt) === false && (
-          <p className="px-4 text-sm text-zinc-500">Нет непрочитанных сообщений после последнего чтения.</p>
+          <p className="px-4 text-sm text-nc-faint">Нет непрочитанных сообщений после последнего чтения.</p>
         )}
          <Virtuoso
            className="w-full"
@@ -356,12 +356,12 @@ function MessageList({
              return (
                <Fragment key={message.id}>
                  {dayChanged && (
-                   <div className="my-3 flex items-center gap-3 px-4 text-xs font-semibold text-zinc-500">
-                     <span className="h-px flex-1 bg-zinc-700" />
+                   <div className="my-3 flex items-center gap-3 px-4 text-xs font-semibold text-nc-faint">
+                     <span className="h-px flex-1 bg-nc-hover" />
                      <time dateTime={new Date(message.createdAt).toISOString()}>
                        {new Intl.DateTimeFormat('ru', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(message.createdAt))}
                      </time>
-                     <span className="h-px flex-1 bg-zinc-700" />
+                     <span className="h-px flex-1 bg-nc-hover" />
                    </div>
                  )}
                  {index === firstUnread && (
@@ -416,7 +416,7 @@ function MessageList({
               onClick={() => nearBottom.current = true}
               title="К началу"
               aria-label="К началу"
-              className="fixed bottom-12 right-6 rounded-full bg-indigo-600/90 px-3 py-2 text-zinc-100 hover:bg-indigo-500 shadow-lg z-50 transition-opacity hover:opacity-100"
+              className="fixed bottom-12 right-6 rounded-full bg-nc-accent-hover/90 px-3 py-2 text-nc-text hover:bg-nc-accent-strong shadow-lg z-50 transition-opacity hover:opacity-100"
             >
               <ArrowUpLeft size={20} />
             </button>
@@ -478,14 +478,14 @@ function MessageItem({
         e.preventDefault();
         setCtx({ x: e.clientX, y: e.clientY });
       }}
-      className="group relative px-4 py-1 hover:bg-zinc-900/30 focus:bg-zinc-900/30"
+      className="group relative px-4 py-1 hover:bg-nc-surface/30 focus:bg-nc-surface/30"
     >
       {m.systemKind && <SystemMessage message={m} />}
       {!m.systemKind && (
         <>
       <header className="flex items-baseline gap-2">
-        <span className="font-medium text-indigo-300">{m.authorUsername}{m.authorBadge ? ` · ${m.authorBadge}` : ''}</span>
-        <time className="text-xs text-zinc-500" dateTime={new Date(m.createdAt).toISOString()}>
+        <span className="font-medium text-nc-accent-text">{m.authorUsername}{m.authorBadge ? ` · ${m.authorBadge}` : ''}</span>
+        <time className="text-xs text-nc-faint" dateTime={new Date(m.createdAt).toISOString()}>
           {formatTime(m.createdAt)}
         </time>
         {m.pinned && (
@@ -494,7 +494,7 @@ function MessageItem({
           </span>
         )}
         {m.editedAt !== null && (
-          <span className="text-xs text-zinc-500" title={formatTime(m.editedAt)}>
+          <span className="text-xs text-nc-faint" title={formatTime(m.editedAt)}>
             (изменено)
           </span>
         )}
@@ -505,7 +505,7 @@ function MessageItem({
         <EditBox message={m} onDone={() => setEditing(false)} onError={onError} />
       ) : (
         (m.content || m.editedAt !== null) && (
-          <div className="break-words whitespace-pre-wrap text-zinc-100">
+          <div className="break-words whitespace-pre-wrap text-nc-text">
             <Markdown text={m.content} messageId={m.id} />
           </div>
         )
@@ -531,40 +531,40 @@ function MessageItem({
       )}
       <ReactionBar message={m} me={me?.id} onError={onError} />
       {!editing && (
-        <div className="absolute -top-3 right-4 hidden gap-1 rounded bg-zinc-900 p-0.5 shadow group-focus-within:flex group-hover:flex">
-          <button onClick={() => onReply(m)} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
+        <div className="absolute -top-3 right-4 hidden gap-1 rounded bg-nc-surface p-0.5 shadow group-focus-within:flex group-hover:flex">
+          <button onClick={() => onReply(m)} className="rounded px-2 py-0.5 text-sm text-nc-text-2 hover:bg-nc-hover">
             Ответить
           </button>
-          <button onClick={() => setForwarding(true)} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
+          <button onClick={() => setForwarding(true)} className="rounded px-2 py-0.5 text-sm text-nc-text-2 hover:bg-nc-hover">
             Переслать
           </button>
           <button
             onClick={() => void navigator.clipboard?.writeText(String(m.id))}
-            className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700"
+            className="rounded px-2 py-0.5 text-sm text-nc-text-2 hover:bg-nc-hover"
             title="Копировать ID сообщения"
           >
             ID
           </button>
           {canPin && (
-            <button onClick={togglePin} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
+            <button onClick={togglePin} className="rounded px-2 py-0.5 text-sm text-nc-text-2 hover:bg-nc-hover">
               {m.pinned ? 'Открепить' : 'Закрепить'}
             </button>
           )}
           {mine && (
-            <button onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700">
+            <button onClick={() => setEditing(true)} className="rounded px-2 py-0.5 text-sm text-nc-text-2 hover:bg-nc-hover">
               Изменить
             </button>
           )}
           {m.editedAt !== null && (
             <button
               onClick={() => void loadEdits(m.id).then(setHistory, (e) => onError(errorMessage(e)))}
-              className="rounded px-2 py-0.5 text-sm text-zinc-300 hover:bg-zinc-700"
+              className="rounded px-2 py-0.5 text-sm text-nc-text-2 hover:bg-nc-hover"
             >
               История
             </button>
           )}
           {(mine || canModerate) && (
-            <button onClick={remove} className="rounded px-2 py-0.5 text-sm text-red-400 hover:bg-zinc-700">
+            <button onClick={remove} className="rounded px-2 py-0.5 text-sm text-red-400 hover:bg-nc-hover">
               Удалить
             </button>
           )}
@@ -575,12 +575,12 @@ function MessageItem({
       {history && (
         <Modal title="История правок" onClose={() => setHistory(null)}>
           {history.length === 0 ? (
-            <p className="text-zinc-400">Предыдущих версий нет.</p>
+            <p className="text-nc-muted">Предыдущих версий нет.</p>
           ) : (
             <ol className="max-h-[60vh] space-y-2 overflow-y-auto">
               {history.map((e) => (
-                <li key={e.id} className="rounded bg-zinc-900 p-2 text-sm">
-                  <time className="mb-1 block text-xs text-zinc-500" dateTime={new Date(e.editedAt).toISOString()}>
+                <li key={e.id} className="rounded bg-nc-surface p-2 text-sm">
+                  <time className="mb-1 block text-xs text-nc-faint" dateTime={new Date(e.editedAt).toISOString()}>
                     {formatTime(e.editedAt)}
                   </time>
                   <div className="whitespace-pre-wrap break-words">
@@ -616,14 +616,14 @@ function SystemMessage({ message: m }: { message: Message }) {
   const text = SYSTEM_TEXT[m.systemKind ?? ''] ?? 'системное событие';
   const detail = m.systemDetail ? ` ${m.systemDetail}` : '';
   return (
-    <div className="flex items-center gap-1.5 text-sm text-zinc-400">
+    <div className="flex items-center gap-1.5 text-sm text-nc-muted">
       <span aria-hidden>•</span>
-      <span className="font-medium text-zinc-300">{m.authorUsername}</span>
+      <span className="font-medium text-nc-text-2">{m.authorUsername}</span>
       <span>
         {text}
         {detail}
       </span>
-      <time className="text-xs text-zinc-600" dateTime={new Date(m.createdAt).toISOString()}>
+      <time className="text-xs text-nc-faint" dateTime={new Date(m.createdAt).toISOString()}>
         {formatTime(m.createdAt)}
       </time>
     </div>
@@ -663,20 +663,20 @@ function PinsDialog({
   return (
     <Modal title={`Закреплённые${items ? ` (${items.length})` : ''}`} onClose={onClose}>
       {items === null ? (
-        <p className="text-zinc-400">Загрузка…</p>
+        <p className="text-nc-muted">Загрузка…</p>
       ) : items.length === 0 ? (
-        <p className="text-zinc-400">Пока ничего не закреплено.</p>
+        <p className="text-nc-muted">Пока ничего не закреплено.</p>
       ) : (
         <ul className="max-h-[60vh] space-y-2 overflow-y-auto">
           {items.map((m) => (
-            <li key={m.id} className="rounded bg-zinc-900 p-3 text-sm">
-              <div className="flex items-baseline gap-2 text-xs text-zinc-400">
-                <span className="font-medium text-indigo-300">{m.authorUsername}</span>
+            <li key={m.id} className="rounded bg-nc-surface p-3 text-sm">
+              <div className="flex items-baseline gap-2 text-xs text-nc-muted">
+                <span className="font-medium text-nc-accent-text">{m.authorUsername}</span>
                 <time dateTime={new Date(m.createdAt).toISOString()}>{formatTime(m.createdAt)}</time>
                 <button onClick={() => unpin(m.id)} className="ml-auto text-red-400 hover:underline">
                   Открепить
                 </button>
-                <button onClick={() => onJump(m.id)} className="text-indigo-300 hover:underline">
+                <button onClick={() => onJump(m.id)} className="text-nc-accent-text hover:underline">
                   Перейти
                 </button>
               </div>
@@ -686,7 +686,7 @@ function PinsDialog({
                   onClose();
                   jumpToMessage(m.id);
                 }}
-                className="mt-1 block w-full truncate text-left text-zinc-200 hover:underline"
+                className="mt-1 block w-full truncate text-left text-nc-text-2 hover:underline"
               >
                 {m.content || '📎 вложение'}
               </button>
@@ -714,9 +714,9 @@ function ReplyQuote({ reply }: { reply: NonNullable<Message['replyTo']> }) {
       type="button"
       onClick={() => jumpToMessage(reply.id)}
       title="Перейти к сообщению"
-      className="mb-0.5 flex max-w-full items-center gap-1 border-l-2 border-zinc-600 pl-2 text-left text-xs text-zinc-400 hover:text-zinc-200"
+      className="mb-0.5 flex max-w-full items-center gap-1 border-l-2 border-nc-line-max pl-2 text-left text-xs text-nc-muted hover:text-nc-text-2"
     >
-      <span className="shrink-0 text-indigo-300">↩ {reply.authorUsername}</span>
+      <span className="shrink-0 text-nc-accent-text">↩ {reply.authorUsername}</span>
       <span className="truncate">{reply.content || '📎 вложение'}</span>
     </button>
   );
@@ -724,11 +724,11 @@ function ReplyQuote({ reply }: { reply: NonNullable<Message['replyTo']> }) {
 
 function ForwardQuote({ from }: { from: NonNullable<Message['forwardedFrom']> }) {
   return (
-    <div className="mb-1 rounded border-l-2 border-indigo-500/70 bg-indigo-500/5 py-1 pl-2 pr-2 text-sm">
-      <div className="text-xs font-semibold text-indigo-300">
+    <div className="mb-1 rounded border-l-2 border-nc-accent/70 bg-nc-accent-strong/5 py-1 pl-2 pr-2 text-sm">
+      <div className="text-xs font-semibold text-nc-accent-text">
         ↪ Переслано от {from.authorUsername}
       </div>
-      <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-zinc-300">
+      <div className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-nc-text-2">
         {from.content ? <Markdown text={from.content} /> : '📎 вложение'}
       </div>
     </div>
@@ -744,28 +744,28 @@ function EmbedBlock({ messageId }: { messageId: number }) {
     }).catch((e) => setErr(errorMessage(e)));
   }, [messageId]);
   if (err) return null;
-  if (!embed) return <div className="mt-1 text-xs text-zinc-500 italic">Загрузка превью...</div>;
+  if (!embed) return <div className="mt-1 text-xs text-nc-faint italic">Загрузка превью...</div>;
   return (
     <a
       href={embed.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="mt-1 flex max-w-md gap-3 rounded border border-zinc-700 bg-zinc-800/60 p-3 hover:border-indigo-500/50 hover:bg-zinc-800"
+      className="mt-1 flex max-w-md gap-3 rounded border border-nc-line-strong bg-nc-elevated/60 p-3 hover:border-nc-accent/50 hover:bg-nc-elevated"
     >
       {embed.imageUrl && (
         <img src={embed.imageUrl} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded object-cover" />
       )}
       <div className="min-w-0">
         {embed.siteName && (
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">{embed.siteName}</div>
+          <div className="text-[10px] uppercase tracking-wide text-nc-faint">{embed.siteName}</div>
         )}
         {embed.title && (
-          <div className="truncate text-sm font-semibold text-indigo-300">{embed.title}</div>
+          <div className="truncate text-sm font-semibold text-nc-accent-text">{embed.title}</div>
         )}
         {embed.description && (
-          <div className="line-clamp-2 text-xs text-zinc-400">{embed.description}</div>
+          <div className="line-clamp-2 text-xs text-nc-muted">{embed.description}</div>
         )}
-        <div className="mt-1 truncate text-[10px] text-zinc-500">{embed.url}</div>
+        <div className="mt-1 truncate text-[10px] text-nc-faint">{embed.url}</div>
       </div>
     </a>
   );
@@ -812,11 +812,11 @@ function ForwardDialog({
     <Modal title="Переслать сообщение" onClose={onClose}>
       <div className="max-h-[60vh] space-y-3 overflow-y-auto">
         {groups.length === 0 && (!dms || dms.length === 0) && (
-          <p className="text-zinc-400">Нет других каналов для пересылки.</p>
+          <p className="text-nc-muted">Нет других каналов для пересылки.</p>
         )}
         {groups.map((g) => (
           <section key={g.serverId}>
-            <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-400">{g.title}</h3>
+            <h3 className="mb-1 text-xs font-semibold uppercase text-nc-muted">{g.title}</h3>
             <ul className="space-y-1">
               {g.channels.map((c) => (
                 <li key={c.id}>
@@ -824,7 +824,7 @@ function ForwardDialog({
                     type="button"
                     disabled={pending !== null}
                     onClick={() => void onPick(c.id)}
-                    className={`w-full rounded px-2 py-1 text-left hover:bg-zinc-700 disabled:opacity-60 ${
+                    className={`w-full rounded px-2 py-1 text-left hover:bg-nc-hover disabled:opacity-60 ${
                       pending === c.id ? ghostButton : ''
                     }`}
                   >
@@ -837,7 +837,7 @@ function ForwardDialog({
         ))}
         {dms && dms.length > 0 && (
           <section>
-            <h3 className="mb-1 text-xs font-semibold uppercase text-zinc-400">Личные сообщения</h3>
+            <h3 className="mb-1 text-xs font-semibold uppercase text-nc-muted">Личные сообщения</h3>
             <ul className="space-y-1">
               {dms
                 .filter((d) => d.id !== message.channelId)
@@ -847,7 +847,7 @@ function ForwardDialog({
                       type="button"
                       disabled={pending !== null}
                       onClick={() => void onPick(d.id)}
-                      className={`w-full rounded px-2 py-1 text-left hover:bg-zinc-700 disabled:opacity-60 ${
+                      className={`w-full rounded px-2 py-1 text-left hover:bg-nc-hover disabled:opacity-60 ${
                         pending === d.id ? inputClass : ''
                       }`}
                     >
@@ -895,15 +895,15 @@ function ReactionBar({ message, me, onError }: { message: Message; me?: number; 
               onClick={() => toggle(emoji)}
               title={`Поставить ${emoji}`}
               className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-sm ${
-                mine(emoji) ? 'bg-indigo-600/40 text-indigo-100' : 'bg-zinc-700/60 text-zinc-200'
-              } hover:bg-zinc-600`}
+                mine(emoji) ? 'bg-nc-accent-hover/40 text-nc-accent-text-2' : 'bg-nc-hover/60 text-nc-text-2'
+              } hover:bg-nc-active`}
             >
               <span>{emoji}</span>
             </button>
           ))}
-          <div className="flex items-center gap-1 rounded px-1.5 py-0.5 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100">
+          <div className="flex items-center gap-1 rounded px-1.5 py-0.5 text-sm text-nc-muted hover:bg-nc-hover hover:text-nc-text">
             <span>+</span>
-            <span className="text-sm text-zinc-300">{quickReactions.length} реакций</span>
+            <span className="text-sm text-nc-text-2">{quickReactions.length} реакций</span>
           </div>
         </>
       )}
@@ -918,11 +918,11 @@ function ReactionBar({ message, me, onError }: { message: Message; me?: number; 
                 onClick={() => toggle(r.emoji)}
                 title={active ? 'Снять реакцию' : 'Поставить реакцию'}
                 className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-sm ${
-                  active ? 'bg-indigo-600/40 text-indigo-100' : 'bg-zinc-700/60 text-zinc-200'
-                } hover:bg-zinc-600`}
+                  active ? 'bg-nc-accent-hover/40 text-nc-accent-text-2' : 'bg-nc-hover/60 text-nc-text-2'
+                } hover:bg-nc-active`}
               >
                 <span>{r.emoji}</span>
-                <span className="text-xs text-zinc-300">{r.userIds.length}</span>
+                <span className="text-xs text-nc-text-2">{r.userIds.length}</span>
               </button>
             );
           })}
@@ -932,7 +932,7 @@ function ReactionBar({ message, me, onError }: { message: Message; me?: number; 
               onClick={() => setPicker((v) => !v)}
               title="Добавить реакцию"
               aria-label="Добавить реакцию"
-              className="rounded px-1.5 py-0.5 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+              className="rounded px-1.5 py-0.5 text-sm text-nc-muted hover:bg-nc-hover hover:text-nc-text"
             >
               <Smile size={16} />
             </button>
@@ -981,9 +981,9 @@ function EditBox({ message, onDone, onError }: { message: Message; onDone: () =>
          onChange={(e) => setValue(e.target.value)}
          onKeyDown={onKeyDown}
          aria-label="Изменить сообщение"
-         className="w-full resize-none rounded bg-zinc-700 px-3 py-2 outline-none"
+         className="w-full resize-none rounded bg-nc-hover px-3 py-2 outline-none"
        />
-      <p className="text-xs text-zinc-400">Esc — отмена, Enter — сохранить</p>
+      <p className="text-xs text-nc-muted">Esc — отмена, Enter — сохранить</p>
     </div>
   );
 }
@@ -1148,18 +1148,18 @@ useEffect(() => {
 
   return (
     <div className="px-4 pt-2">
-      <div className="rounded-lg bg-zinc-700">
+      <div className="rounded-lg bg-nc-hover">
         {replyTo && (
-          <div className="flex items-center gap-2 border-b border-zinc-600 px-3 py-1.5 text-xs">
-            <span className="shrink-0 text-indigo-300">Ответ {replyTo.authorUsername}</span>
-            <span className="min-w-0 flex-1 truncate text-zinc-400">
+          <div className="flex items-center gap-2 border-b border-nc-line-max px-3 py-1.5 text-xs">
+            <span className="shrink-0 text-nc-accent-text">Ответ {replyTo.authorUsername}</span>
+            <span className="min-w-0 flex-1 truncate text-nc-muted">
               {replyTo.content || '📎 вложение'}
             </span>
             <button
               type="button"
               onClick={onCancelReply}
               aria-label="Отменить ответ"
-              className="text-zinc-400 hover:text-zinc-100"
+              className="text-nc-muted hover:text-nc-text"
             >
               ×
             </button>
@@ -1168,7 +1168,7 @@ useEffect(() => {
         {pending.length > 0 && (
           <ul className="flex flex-wrap gap-2 p-3" aria-label="Вложения к сообщению">
             {pending.map((p) => (
-              <li key={p.key} className="relative w-36 rounded bg-zinc-800 p-2 text-xs">
+              <li key={p.key} className="relative w-36 rounded bg-nc-elevated p-2 text-xs">
                 {p.preview ? (
                   <img src={p.preview} alt="" className="mb-1 h-20 w-full rounded object-cover" />
                 ) : (
@@ -1182,7 +1182,7 @@ useEffect(() => {
                     {p.error}
                   </div>
                 ) : p.attachment ? (
-                  <div className="text-zinc-400">{formatSize(p.file.size)}</div>
+                  <div className="text-nc-muted">{formatSize(p.file.size)}</div>
                 ) : (
                   <progress value={p.progress} max={1} className="w-full" aria-label={`Загрузка ${p.file.name}`} />
                 )}
@@ -1190,7 +1190,7 @@ useEffect(() => {
                   type="button"
                   onClick={() => remove(p.key)}
                   aria-label={`Убрать ${p.file.name}`}
-                  className="absolute -top-2 -right-2 grid size-6 place-items-center rounded-full bg-zinc-900 text-zinc-300 hover:text-red-400"
+                  className="absolute -top-2 -right-2 grid size-6 place-items-center rounded-full bg-nc-surface text-nc-text-2 hover:text-red-400"
                 >
                   ×
                 </button>
@@ -1205,7 +1205,7 @@ useEffect(() => {
               onClick={() => setEmojiOpen((v) => !v)}
               title="Эмодзи"
               aria-label="Эмодзи"
-              className="px-2 py-2.5 text-lg text-zinc-400 hover:text-zinc-100"
+              className="px-2 py-2.5 text-lg text-nc-muted hover:text-nc-text"
             >
               🙂
             </button>
@@ -1222,7 +1222,7 @@ useEffect(() => {
             onClick={() => setStickerOpen((v) => !v)}
             title="Стикер"
             aria-label="Стикер"
-            className="px-2 py-2.5 text-lg text-zinc-400 hover:text-zinc-100"
+            className="px-2 py-2.5 text-lg text-nc-muted hover:text-nc-text"
           >
             📄
           </button>
@@ -1240,7 +1240,7 @@ useEffect(() => {
             onClick={() => fileInput.current?.click()}
             title="Прикрепить файл"
             aria-label="Прикрепить файл"
-            className="px-3 py-2.5 text-lg text-zinc-400 hover:text-zinc-100"
+            className="px-3 py-2.5 text-lg text-nc-muted hover:text-nc-text"
           >
             📎
           </button>
@@ -1249,7 +1249,7 @@ useEffect(() => {
             onClick={() => setShowScheduleModal(true)}
             title="Запланировать отправку"
             aria-label="Запланировать отправку"
-            className="px-3 py-2.5 text-lg text-zinc-400 hover:text-zinc-100"
+            className="px-3 py-2.5 text-lg text-nc-muted hover:text-nc-text"
           >
             ⏰
           </button>
@@ -1279,15 +1279,15 @@ useEffect(() => {
              }}
              placeholder={`Написать ${channel.label}`}
              aria-label={`Сообщение ${channel.label}`}
-             className="block w-full resize-none bg-transparent py-2.5 pr-4 outline-none placeholder:text-zinc-400"
+             className="block w-full resize-none bg-transparent py-2.5 pr-4 outline-none placeholder:text-nc-muted"
            />
         </div>
       </div>
-      {uploading && <p className="pt-1 text-xs text-zinc-400">Файлы загружаются, отправка станет доступна после загрузки…</p>}
+      {uploading && <p className="pt-1 text-xs text-nc-muted">Файлы загружаются, отправка станет доступна после загрузки…</p>}
       {scheduleDraft?.content && !value && (
-        <div className="flex items-center gap-2 px-4 pt-1 text-xs text-zinc-500">
+        <div className="flex items-center gap-2 px-4 pt-1 text-xs text-nc-faint">
           <span>Есть сохранённый черновик.</span>
-          <button type="button" onClick={() => { setValue(scheduleDraft.content); setScheduleDraft(null); }} className="text-indigo-400 hover:text-indigo-200">Восстановить</button>
+          <button type="button" onClick={() => { setValue(scheduleDraft.content); setScheduleDraft(null); }} className="text-nc-accent-text hover:text-nc-accent-text-2">Восстановить</button>
           <button type="button" onClick={() => { api<Draft>(`/api/channels/${channel.id}/draft`, { method: 'DELETE' }).catch(() => {}); setScheduleDraft(null); }} className="text-red-400 hover:text-red-200">Удалить</button>
         </div>
       )}
@@ -1331,7 +1331,7 @@ function Attachments({ files }: { files: Attachment[] }) {
             type="button"
             onClick={() => setOpen(f)}
             title={f.filename}
-            className="cursor-zoom-in rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="cursor-zoom-in rounded focus:outline-none focus:ring-2 focus:ring-nc-accent"
           >
             <img src={f.url} alt={f.filename} loading="lazy" className="max-h-80 max-w-full rounded sm:max-w-sm" />
           </button>
@@ -1340,14 +1340,14 @@ function Attachments({ files }: { files: Attachment[] }) {
             key={f.id}
             href={f.url}
             download={f.filename}
-            className="flex w-72 max-w-full items-center gap-3 rounded border border-zinc-700 bg-zinc-900 p-3 hover:border-zinc-500"
+            className="flex w-72 max-w-full items-center gap-3 rounded border border-nc-line-strong bg-nc-surface p-3 hover:border-nc-line-max"
           >
             <span className="text-3xl" aria-hidden>
               {fileIcon(f.filename)}
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-indigo-300">{f.filename}</span>
-              <span className="text-xs text-zinc-400">{formatSize(f.sizeBytes)}</span>
+              <span className="block truncate text-nc-accent-text">{f.filename}</span>
+              <span className="text-xs text-nc-muted">{formatSize(f.sizeBytes)}</span>
             </span>
           </a>
         ),
@@ -1359,9 +1359,9 @@ function Attachments({ files }: { files: Attachment[] }) {
             alt={open.filename}
             className="mx-auto max-h-[70vh] max-w-full rounded object-contain"
           />
-          <div className="flex items-center justify-between gap-4 text-sm text-zinc-400">
+          <div className="flex items-center justify-between gap-4 text-sm text-nc-muted">
             <span>{formatSize(open.sizeBytes)}</span>
-            <a href={open.url} download={open.filename} className="text-indigo-300 hover:underline">
+            <a href={open.url} download={open.filename} className="text-nc-accent-text hover:underline">
               Скачать
             </a>
           </div>
@@ -1397,7 +1397,7 @@ function TypingIndicator({ channelId }: { channelId: number }) {
           : 'Несколько человек печатают…';
 
   return (
-    <p aria-live="polite" className="h-6 truncate px-4 text-xs text-zinc-400">
+    <p aria-live="polite" className="h-6 truncate px-4 text-xs text-nc-muted">
       {text}
     </p>
   );
@@ -1429,7 +1429,7 @@ function SearchBar({
   if (!visible) return null;
 
   return (
-    <div className="absolute inset-0 z-5 flex flex-col bg-zinc-900/95 backdrop-blur">
+    <div className="absolute inset-0 z-5 flex flex-col bg-nc-surface/95 backdrop-blur">
       <div className="flex items-center gap-2 px-4 py-2">
         <input
           autoFocus
@@ -1440,12 +1440,12 @@ function SearchBar({
             if (e.key === 'Enter' && results[0]) onJump(results[0].message.id);
           }}
           placeholder="Поиск: from:user has:link ключевое слово"
-          className="w-full rounded bg-zinc-800 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
+          className="w-full rounded bg-nc-elevated px-3 py-2 text-sm text-nc-text outline-none placeholder:text-nc-faint"
         />
         <button
           type="button"
           onClick={onToggle}
-          className="rounded px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-700"
+          className="rounded px-3 py-2 text-sm text-nc-muted hover:bg-nc-hover"
           aria-label="Закрыть поиск"
         >
           Закрыть
@@ -1457,10 +1457,10 @@ function SearchBar({
         </p>
       )}
       {loading && (
-        <p className="px-4 py-2 text-sm text-zinc-400">Поиск…</p>
+        <p className="px-4 py-2 text-sm text-nc-muted">Поиск…</p>
       )}
       {!loading && !error && results.length === 0 && query && (
-        <p className="px-4 py-2 text-sm text-zinc-400">Нет сообщений по запросу.</p>
+        <p className="px-4 py-2 text-sm text-nc-muted">Нет сообщений по запросу.</p>
       )}
       {results.length > 0 && (
         <div className="flex-1 overflow-y-auto px-2 pb-4">
@@ -1470,14 +1470,14 @@ function SearchBar({
                 <button
                   type="button"
                   onClick={() => onJump(r.message.id)}
-                  className="w-full rounded px-3 py-2 text-left hover:bg-zinc-800"
+                  className="w-full rounded px-3 py-2 text-left hover:bg-nc-elevated"
                 >
-                  <div className="flex items-center gap-2 text-xs text-zinc-500">
-                    <span className="font-medium text-zinc-300">{r.message.authorUsername}</span>
+                  <div className="flex items-center gap-2 text-xs text-nc-faint">
+                    <span className="font-medium text-nc-text-2">{r.message.authorUsername}</span>
                     <span>#{r.channelLabel}</span>
                     <span>{new Date(r.message.createdAt).toLocaleString('ru-RU')}</span>
                   </div>
-                  <div className="mt-0.5 truncate text-sm text-zinc-300">
+                  <div className="mt-0.5 truncate text-sm text-nc-text-2">
                     <Markdown text={r.message.content} />
                   </div>
                 </button>
@@ -1531,37 +1531,37 @@ function ForumThreads({ channel, onError }: { channel: ChatTarget; onError: (e: 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 overflow-y-auto px-4 py-2">
-        {items.length === 0 && <p className="text-zinc-400">Пока нет веток. Создайте первую.</p>}
+        {items.length === 0 && <p className="text-nc-muted">Пока нет веток. Создайте первую.</p>}
         <ul className="space-y-2">
           {items.map((m) => (
-            <li key={m.id} className="rounded border border-zinc-700 bg-zinc-900 p-3">
-              <div className="flex items-center gap-2 text-xs text-zinc-500">
-                <span className="font-medium text-zinc-300">{m.authorUsername}</span>
+            <li key={m.id} className="rounded border border-nc-line-strong bg-nc-surface p-3">
+              <div className="flex items-center gap-2 text-xs text-nc-faint">
+                <span className="font-medium text-nc-text-2">{m.authorUsername}</span>
                 <span>{new Date(m.createdAt).toLocaleString("ru-RU")}</span>
-                {m.threadArchived && <span className="rounded bg-zinc-700 px-1">архив</span>}
-                {m.threadLocked && <span className="rounded bg-zinc-700 px-1">закрыта</span>}
-                <span className="text-zinc-600">· {replies.get(m.id)?.length ?? '…'} отв.</span>
+                {m.threadArchived && <span className="rounded bg-nc-hover px-1">архив</span>}
+                {m.threadLocked && <span className="rounded bg-nc-hover px-1">закрыта</span>}
+                <span className="text-nc-faint">· {replies.get(m.id)?.length ?? '…'} отв.</span>
               </div>
               <button onClick={() => void toggleThread(m.id)} className="mt-1 block w-full text-left text-sm">
             <Markdown text={m.content} messageId={m.id} />
               </button>
               {open === m.id && (
                 <>
-                  <div className="mt-2 border-t border-zinc-700 pt-2">
+                  <div className="mt-2 border-t border-nc-line-strong pt-2">
                     {replies.has(m.id) && replies.get(m.id)!.length === 0
-                      ? <p className="text-xs text-zinc-500">Пока нет ответов.</p>
+                      ? <p className="text-xs text-nc-faint">Пока нет ответов.</p>
                       : replies.get(m.id)?.map((r) => (
-                        <div key={r.id} className="mb-1 rounded bg-zinc-800 px-2 py-1 text-xs">
-                          <span className="font-medium text-zinc-300">{r.authorUsername}</span>
+                        <div key={r.id} className="mb-1 rounded bg-nc-elevated px-2 py-1 text-xs">
+                          <span className="font-medium text-nc-text-2">{r.authorUsername}</span>
                           {' — '}<Markdown text={r.content} />
                         </div>
                       ))}
                   </div>
-                  <div className="mt-2 flex gap-2 border-t border-zinc-700 pt-2 text-xs">
-                    <button onClick={() => void change(m.id, "archived", !m.threadArchived)} className="text-indigo-400">
+                  <div className="mt-2 flex gap-2 border-t border-nc-line-strong pt-2 text-xs">
+                    <button onClick={() => void change(m.id, "archived", !m.threadArchived)} className="text-nc-accent-text">
                       {m.threadArchived ? "Разархивировать" : "В архив"}
                     </button>
-                    <button onClick={() => void change(m.id, "locked", !m.threadLocked)} className="text-indigo-400">
+                    <button onClick={() => void change(m.id, "locked", !m.threadLocked)} className="text-nc-accent-text">
                       {m.threadLocked ? "Открыть" : "Закрыть"}
                     </button>
                   </div>
@@ -1571,7 +1571,7 @@ function ForumThreads({ channel, onError }: { channel: ChatTarget; onError: (e: 
           ))}
         </ul>
       </div>
-      <form onSubmit={create} className="flex gap-2 border-t border-zinc-700 p-3">
+      <form onSubmit={create} className="flex gap-2 border-t border-nc-line-strong p-3">
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Новая ветка в ${channel.label}`} className={inputClass} />
         <button className={primaryButton} disabled={!text.trim()}>Создать</button>
       </form>
@@ -1586,17 +1586,17 @@ function ScheduleModal({ channel, value, onClose }: { channel: ChatTarget; value
   const minDate = new Date(nowMs + 60_000).toISOString().slice(0, 16);
   return (
     <div role="dialog" aria-modal aria-label="Запланировать сообщение" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-96 rounded-lg bg-zinc-800 p-4 text-sm text-zinc-100 shadow-xl">
+      <div className="w-96 rounded-lg bg-nc-elevated p-4 text-sm text-nc-text shadow-xl">
         <h2 className="mb-3 font-semibold">Запланировать отправку</h2>
-        <label className="mb-2 block text-xs text-zinc-400">Канал: #{channel.label}</label>
-        <label className="mb-2 block text-xs text-zinc-400">Текст: {value.slice(0, 60)}{value.length > 60 ? '…' : ''}</label>
-        <label className="mb-2 block text-xs text-zinc-400">Отправить в</label>
+        <label className="mb-2 block text-xs text-nc-muted">Канал: #{channel.label}</label>
+        <label className="mb-2 block text-xs text-nc-muted">Текст: {value.slice(0, 60)}{value.length > 60 ? '…' : ''}</label>
+        <label className="mb-2 block text-xs text-nc-muted">Отправить в</label>
         <input
           type="datetime-local"
           min={minDate}
           value={scheduledAt}
           onChange={(e) => setScheduledAt(e.target.value)}
-          className="mb-4 w-full rounded border border-zinc-600 bg-zinc-900 px-2 py-1 text-sm text-zinc-100 outline-none focus:border-indigo-400"
+          className="mb-4 w-full rounded border border-nc-line-max bg-nc-surface px-2 py-1 text-sm text-nc-text outline-none focus:border-nc-accent"
         />
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className={ghostButton}>Отмена</button>

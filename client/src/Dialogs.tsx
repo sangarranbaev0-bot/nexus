@@ -84,7 +84,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
     >
       <form onSubmit={onSubmit} className="space-y-4">
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+          <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
             {mode === "create" ? "Название сервера" : "Код приглашения"}
           </span>
           <input
@@ -104,7 +104,7 @@ export function AddServerDialog({ onClose }: { onClose: () => void }) {
         <div className="flex items-center justify-between">
           <button
             type="button"
-            className="text-sm text-indigo-400 hover:underline"
+            className="text-sm text-nc-accent-text hover:underline"
             onClick={() => setMode(mode === "create" ? "join" : "create")}
           >
             {mode === "create" ? "Есть приглашение?" : "Создать свой сервер"}
@@ -138,7 +138,7 @@ export function CreateChannelDialog({
     <Modal title="Создать канал" onClose={onClose}>
       <form onSubmit={onSubmit} className="space-y-4">
         <fieldset className="grid grid-cols-2 gap-2">
-          <legend className="mb-1.5 text-xs font-semibold uppercase text-zinc-400">
+          <legend className="mb-1.5 text-xs font-semibold uppercase text-nc-muted">
             Тип канала
           </legend>
           {(
@@ -150,7 +150,7 @@ export function CreateChannelDialog({
           ).map(([k, title]) => (
             <label
               key={k}
-              className={`cursor-pointer rounded p-3 ${kind === k ? "bg-zinc-700" : "bg-zinc-900"}`}
+              className={`cursor-pointer rounded p-3 ${kind === k ? "bg-nc-hover" : "bg-nc-surface"}`}
             >
               <input
                 type="radio"
@@ -169,17 +169,17 @@ export function CreateChannelDialog({
               type="checkbox"
               checked={isForum}
               onChange={(e) => setIsForum(e.target.checked)}
-              className="rounded bg-zinc-800 border-zinc-600"
+              className="rounded bg-nc-elevated border-nc-line-max"
             />
             <span className="text-sm">Форум-канал (ветки)</span>
           </label>
         )}
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+          <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
             Название канала
           </span>
-          <div className="flex items-center rounded bg-zinc-900 focus-within:ring-2 focus-within:ring-indigo-500">
-            <span className="pl-3 text-zinc-500">
+          <div className="flex items-center rounded bg-nc-surface focus-within:ring-2 focus-within:ring-nc-accent">
+            <span className="pl-3 text-nc-faint">
               {kind === "stage" ? "🎤" : kind === "voice" ? "🔊" : "#"}
             </span>
             <input
@@ -240,24 +240,24 @@ export function InviteDialog({
         />
       )}
       {server.description && (
-        <div className="mb-3 text-sm text-zinc-300">
+        <div className="mb-3 text-sm text-nc-text-2">
           <Markdown text={server.description} />
         </div>
       )}
       {server.rules && (
         <button
           onClick={() => setShowRules((v) => !v)}
-          className="mb-3 text-sm text-indigo-400 hover:underline"
+          className="mb-3 text-sm text-nc-accent-text hover:underline"
         >
           {showRules ? "Скрыть правила" : "Показать правила"}
         </button>
       )}
       {showRules && server.rules && (
-        <div className="mb-3 max-h-60 overflow-y-auto rounded bg-zinc-900 p-3 text-sm">
+        <div className="mb-3 max-h-60 overflow-y-auto rounded bg-nc-surface p-3 text-sm">
           <Markdown text={server.rules} />
         </div>
       )}
-      <p className="text-sm text-zinc-400">
+      <p className="text-sm text-nc-muted">
         Отправьте другу этот код, чтобы он вступил на сервер.
       </p>
       <div className="flex gap-2">
@@ -391,22 +391,22 @@ export function MembersDialog({
           onChange={(e) => setMemberQuery(e.target.value)}
           placeholder="Поиск по имени или роли"
           aria-label="Поиск участников"
-          className="flex-1 rounded bg-zinc-900 px-3 py-1.5 text-sm outline-none placeholder:text-zinc-500"
+          className="flex-1 rounded bg-nc-surface px-3 py-1.5 text-sm outline-none placeholder:text-nc-faint"
         />
         <button onClick={() => {
           const meMember = members?.find((m) => m.userId === me?.id);
           setNickname(meMember?.nickname ?? "");
           setAvatarUrl(meMember?.avatarUrl ?? "");
           setEditProfile(true);
-        }} className="text-sm text-indigo-400 hover:underline">
+        }} className="text-sm text-nc-accent-text hover:underline">
           Мой ник
         </button>
-        <button onClick={waveHello} className="text-sm text-indigo-400 hover:underline">
+        <button onClick={waveHello} className="text-sm text-nc-accent-text hover:underline">
           👋 Помахать
         </button>
       </div>
       {editProfile && (
-        <div className="mb-3 space-y-2 rounded bg-zinc-900 p-3">
+        <div className="mb-3 space-y-2 rounded bg-nc-surface p-3">
           <input value={nickname} onChange={(e) => setNickname(e.target.value)} className={inputClass} placeholder="Ник на сервере" />
           <input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} className={inputClass} placeholder="Ссылка на аватар" />
           <div className="flex gap-2">
@@ -415,7 +415,7 @@ export function MembersDialog({
           </div>
         </div>
       )}
-      <ul className="max-h-80 divide-y divide-zinc-700 overflow-y-auto">
+      <ul className="max-h-80 divide-y divide-nc-line-strong overflow-y-auto">
         {visibleMembers.map((m) => (
           <li key={m.userId} className="py-2">
             <div className="flex items-center gap-3">
@@ -423,16 +423,16 @@ export function MembersDialog({
               <span className="flex-1 truncate">
                 {m.username}
                 {m.userId === me?.id && (
-                  <span className="text-zinc-500"> (вы)</span>
+                  <span className="text-nc-faint"> (вы)</span>
                 )}
               </span>
-              <span className="text-sm text-zinc-400">
+              <span className="text-sm text-nc-muted">
                 {roleLabel[m.role]}
               </span>
               {manageRoles && (m.role !== "owner" || isOwner) && (
                 <button
                   onClick={() => openRoles(m)}
-                  className="text-sm text-indigo-400 hover:underline"
+                  className="text-sm text-nc-accent-text hover:underline"
                 >
                   Роли
                 </button>
@@ -440,7 +440,7 @@ export function MembersDialog({
               {m.userId !== me?.id && (
                 <button
                   onClick={() => message(m)}
-                  className="text-sm text-indigo-400 hover:underline"
+                  className="text-sm text-nc-accent-text hover:underline"
                 >
                   Написать
                 </button>
@@ -448,7 +448,7 @@ export function MembersDialog({
               {isOwner && m.role !== "owner" && (
                 <button
                   onClick={() => toggle(m)}
-                  className="text-sm text-indigo-400 hover:underline"
+                  className="text-sm text-nc-accent-text hover:underline"
                 >
                   {m.role === "admin" ? "Снять админа" : "Сделать админом"}
                 </button>
@@ -463,7 +463,7 @@ export function MembersDialog({
                     <span
                       key={r.id}
                       style={{ color: colorToCss(r.color), borderColor: colorToCss(r.color) }}
-                      className="rounded border-[3px] bg-zinc-700/70 px-1.5 py-0.5 text-xs"
+                      className="rounded border-[3px] bg-nc-hover/70 px-1.5 py-0.5 text-xs"
                     >
                       {r.name}
                     </span>
@@ -471,9 +471,9 @@ export function MembersDialog({
               </div>
             )}
             {rolesFor === m.userId && (
-              <div className="mt-2 ml-6 space-y-1 rounded bg-zinc-900 p-2">
+              <div className="mt-2 ml-6 space-y-1 rounded bg-nc-surface p-2">
                 {(roles ?? []).filter((r) => !r.isDefault).length === 0 && (
-                  <p className="text-sm text-zinc-500">
+                  <p className="text-sm text-nc-faint">
                     Сначала создайте роль в настройках сервера.
                   </p>
                 )}
@@ -504,14 +504,14 @@ export function MembersDialog({
                 <div className="flex justify-end gap-3 pt-1">
                   <button
                     onClick={() => setRolesFor(null)}
-                    className="text-sm text-zinc-300 hover:underline"
+                    className="text-sm text-nc-text-2 hover:underline"
                   >
                     Отмена
                   </button>
                   <button
                     onClick={() => void saveRoles(m)}
                     disabled={savingRoles}
-                    className="text-sm text-indigo-400 hover:underline disabled:opacity-60"
+                    className="text-sm text-nc-accent-text hover:underline disabled:opacity-60"
                   >
                     Сохранить
                   </button>
@@ -593,14 +593,14 @@ export function NewDmDialog({ onClose }: { onClose: () => void }) {
               role="radio"
               aria-checked={group === g}
               onClick={() => setGroup(g)}
-              className={`rounded p-2 ${group === g ? "bg-zinc-700" : "bg-zinc-900"}`}
+              className={`rounded p-2 ${group === g ? "bg-nc-hover" : "bg-nc-surface"}`}
             >
               {title}
             </button>
           ))}
         </div>
         <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+          <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
             {group ? "Имена участников через запятую (2-9)" : "Имя пользователя"}
           </span>
           <input
@@ -615,7 +615,7 @@ export function NewDmDialog({ onClose }: { onClose: () => void }) {
         </label>
         {group && (
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase text-zinc-400">
+            <span className="mb-1.5 block text-xs font-semibold uppercase text-nc-muted">
               Название группы (необязательно)
             </span>
             <input name="name" maxLength={100} className={inputClass} />
@@ -650,22 +650,22 @@ export function OnboardingDialog({ server, onClose }: { server: Server; onClose:
 
   return (
     <Modal title={`Онбординг · ${server.name}`} onClose={onClose}>
-      <p className="mb-3 text-sm text-zinc-400">Ответьте «Да», чтобы получить роль. Повторно answered вопросы не показываются.</p>
+      <p className="mb-3 text-sm text-nc-muted">Ответьте «Да», чтобы получить роль. Повторно answered вопросы не показываются.</p>
       {error && <ErrorText error={error} />}
       {items === null ? (
-        <p className="text-zinc-400">Загрузка…</p>
+        <p className="text-nc-muted">Загрузка…</p>
       ) : items.length === 0 ? (
-        <p className="text-zinc-400">Вопросов пока нет.</p>
+        <p className="text-nc-muted">Вопросов пока нет.</p>
       ) : (
         <ul className="space-y-2">
           {items.map((q) => (
-            <li key={q.id} className="flex items-center gap-2 rounded bg-zinc-900 p-3 text-sm">
+            <li key={q.id} className="flex items-center gap-2 rounded bg-nc-surface p-3 text-sm">
               <span className="flex-1">{q.question}</span>
-              <span className="text-xs text-zinc-400">{roles.find((r) => r.id === q.roleId)?.name}</span>
+              <span className="text-xs text-nc-muted">{roles.find((r) => r.id === q.roleId)?.name}</span>
               {q.answered ? (
                 <span className="text-xs text-emerald-400">получено</span>
               ) : (
-                <button onClick={() => void answer(q.id)} className="text-sm text-indigo-400 hover:underline">Да</button>
+                <button onClick={() => void answer(q.id)} className="text-sm text-nc-accent-text hover:underline">Да</button>
               )}
             </li>
           ))}
@@ -690,23 +690,23 @@ export function EventsDialog({ server, onClose }: { server: Server; onClose: () 
     <Modal title={`События · ${server.name}`} onClose={onClose}>
       {error && <ErrorText error={error} />}
       {items === null ? (
-        <p className="text-zinc-400">Загрузка…</p>
+        <p className="text-nc-muted">Загрузка…</p>
       ) : items.length === 0 ? (
-        <p className="text-zinc-400">Ближайших событий нет.</p>
+        <p className="text-nc-muted">Ближайших событий нет.</p>
       ) : (
         <ul className="space-y-2">
           {items.map((ev) => (
-            <li key={ev.id} className="rounded bg-zinc-900 p-3">
+            <li key={ev.id} className="rounded bg-nc-surface p-3">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-medium">{ev.name}</span>
-                <span className="text-xs text-zinc-400">{new Date(ev.startsAt).toLocaleString("ru-RU")}</span>
+                <span className="text-xs text-nc-muted">{new Date(ev.startsAt).toLocaleString("ru-RU")}</span>
               </div>
-              {ev.description && <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-400">{ev.description}</p>}
+              {ev.description && <p className="mt-1 whitespace-pre-wrap text-sm text-nc-muted">{ev.description}</p>}
               <div className="mt-2 flex items-center gap-3 text-sm">
-                <button onClick={() => void interest(ev.id)} className="text-indigo-400 hover:underline">
+                <button onClick={() => void interest(ev.id)} className="text-nc-accent-text hover:underline">
                   {ev.interested ? "✭ Интересно" : "☆ Интересно"}
                 </button>
-                <span className="text-zinc-500">{ev.interestedCount}</span>
+                <span className="text-nc-faint">{ev.interestedCount}</span>
               </div>
             </li>
           ))}
@@ -746,21 +746,21 @@ export function InviteListDialog({
     <Modal title={`Приглашения · ${server.name}`} onClose={onClose}>
       {error && <ErrorText error={error} />}
       {invites === null ? (
-        <p className="text-zinc-400">Загрузка…</p>
+        <p className="text-nc-muted">Загрузка…</p>
       ) : invites.length === 0 ? (
-        <p className="text-zinc-400">Нет активных приглашений.</p>
+        <p className="text-nc-muted">Нет активных приглашений.</p>
       ) : (
         <ul className="space-y-2">
           {invites.map((inv) => (
-            <li key={inv.code} className="flex items-center justify-between rounded bg-zinc-900 p-3 text-sm">
+            <li key={inv.code} className="flex items-center justify-between rounded bg-nc-surface p-3 text-sm">
               <div className="min-w-0 flex-1">
-                <span className="font-mono font-medium text-indigo-300">{inv.code}</span>
+                <span className="font-mono font-medium text-nc-accent-text">{inv.code}</span>
                 {' · '}
-                <span className="text-zinc-400">
+                <span className="text-nc-muted">
                   использований: {inv.uses}{inv.maxUses !== null ? ` / ${inv.maxUses}` : ''}
                 </span>
                 {inv.expiresAt !== null && (
-                  <span className="ml-2 text-xs text-zinc-500">
+                  <span className="ml-2 text-xs text-nc-faint">
                     · до {new Date(inv.expiresAt * 1000).toLocaleString('ru-RU')}
                   </span>
                 )}
@@ -768,7 +768,7 @@ export function InviteListDialog({
               <div className="ml-3 flex shrink-0 gap-2">
                 <button
                   onClick={() => void copyCode(inv.code)}
-                  className="rounded px-2 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
+                  className="rounded px-2 py-1 text-xs text-nc-text-2 hover:bg-nc-hover"
                 >
                   Копировать
                 </button>

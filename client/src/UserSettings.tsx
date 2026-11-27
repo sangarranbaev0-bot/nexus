@@ -62,14 +62,14 @@ export function UserSettingsDialog({ onClose }: { onClose: () => void }) {
   const setCompact = (v: boolean) => { setCompactState(v); applyView(theme, fs, v); };
   return (
     <Modal title="Настройки пользователя" onClose={onClose} wide>
-      <div role="tablist" className="mb-3 flex gap-1 border-b border-zinc-700 pb-2">
+      <div role="tablist" className="mb-3 flex gap-1 border-b border-nc-line-strong pb-2">
         {tabs.map(([key, label]) => (
           <button
             key={key}
             role="tab"
             aria-selected={tab === key}
             onClick={() => setTab(key)}
-            className={`rounded px-3 py-1.5 text-sm ${tab === key ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800'}`}
+            className={`rounded px-3 py-1.5 text-sm ${tab === key ? 'bg-nc-hover text-white' : 'text-nc-muted hover:bg-nc-elevated'}`}
           >
             {label}
           </button>
@@ -127,28 +127,28 @@ function ProfileTab({ user }: { user: User }) {
   };
   return (
     <form onSubmit={save} className="space-y-3">
-      <label className="block"><span className="mb-1 block text-xs uppercase text-zinc-400">О себе</span>
+      <label className="block"><span className="mb-1 block text-xs uppercase text-nc-muted">О себе</span>
         <textarea value={form.about} onChange={(e) => setForm({ ...form, about: e.target.value })} rows={3} maxLength={2000} className={inputClass} /></label>
-      <label className="block"><span className="mb-1 block text-xs uppercase text-zinc-400">Ссылка на баннер</span>
+      <label className="block"><span className="mb-1 block text-xs uppercase text-nc-muted">Ссылка на баннер</span>
         <input value={form.bannerUrl} onChange={(e) => setForm({ ...form, bannerUrl: e.target.value })} className={inputClass} /></label>
       <div className="grid grid-cols-2 gap-2">
-        <label className="block"><span className="mb-1 block text-xs uppercase text-zinc-400">Местоимения</span>
+        <label className="block"><span className="mb-1 block text-xs uppercase text-nc-muted">Местоимения</span>
           <input value={form.pronouns} onChange={(e) => setForm({ ...form, pronouns: e.target.value })} className={inputClass} placeholder="он/его" /></label>
-        <label className="block"><span className="mb-1 block text-xs uppercase text-zinc-400">Цвет профиля</span>
+        <label className="block"><span className="mb-1 block text-xs uppercase text-nc-muted">Цвет профиля</span>
           <input type="color" value={`#${(form.accentColor || 0).toString(16).padStart(6, '0')}`}
             onChange={(e) => setForm({ ...form, accentColor: parseInt(e.target.value.slice(1), 16) })}
-            className="h-10 w-full rounded bg-zinc-900" /></label>
+            className="h-10 w-full rounded bg-nc-surface" /></label>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <label className="block"><span className="mb-1 block text-xs uppercase text-zinc-400">Статус</span>
+        <label className="block"><span className="mb-1 block text-xs uppercase text-nc-muted">Статус</span>
           <input value={form.statusText} onChange={(e) => setForm({ ...form, statusText: e.target.value })} className={inputClass} placeholder="Играю..." /></label>
-        <label className="block"><span className="mb-1 block text-xs uppercase text-zinc-400">Эмодзи статуса</span>
+        <label className="block"><span className="mb-1 block text-xs uppercase text-nc-muted">Эмодзи статуса</span>
           <input value={form.statusEmoji} onChange={(e) => setForm({ ...form, statusEmoji: e.target.value })} className={inputClass} placeholder="🎮" /></label>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <label className="block"><span className="mb-1 block text-xs uppercase text-zinc-400">Активность (Discord)</span>
+        <label className="block"><span className="mb-1 block text-xs uppercase text-nc-muted">Активность (Discord)</span>
           <input value={form.activityName} onChange={(e) => setForm({ ...form, activityName: e.target.value })} className={inputClass} placeholder="Играю в ..." /></label>
-        <label className="block"><span className="mb-1 block text-xs uppercase text-zinc-400">Тип активности</span>
+        <label className="block"><span className="mb-1 block text-xs uppercase text-nc-muted">Тип активности</span>
           <select value={form.activityType} onChange={(e) => setForm({ ...form, activityType: e.target.value })} className={inputClass}>
             <option value="playing">Играю (Playing)</option>
             <option value="streaming">Стримлю (Streaming)</option>
@@ -158,16 +158,16 @@ function ProfileTab({ user }: { user: User }) {
             <option value="competing">Соревнуюсь (Competing)</option>
           </select></label>
       </div>
-      <label className="block"><span className="mb-1 block text-xs uppercase text-zinc-400">Режим уведомлений</span>
+      <label className="block"><span className="mb-1 block text-xs uppercase text-nc-muted">Режим уведомлений</span>
         <select value={form.notifyMode} onChange={(e) => setForm({ ...form, notifyMode: e.target.value })} className={inputClass}>
           <option value="all">Все уведомления</option>
           <option value="mentions">Только @упоминания</option>
           <option value="none">Не беспокоить (offline)</option>
         </select></label>
-      <label className="block"><span className="mb-1 block text-xs uppercase text-zinc-400">Действует до</span>
+      <label className="block"><span className="mb-1 block text-xs uppercase text-nc-muted">Действует до</span>
         <input type="datetime-local" value={form.expires} onChange={(e) => setForm({ ...form, expires: e.target.value })} className={inputClass} /></label>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.dnd} onChange={(e) => setForm({ ...form, dnd: e.target.checked })} /> Не беспокоить</label>
-      <label className="block"><span className="mb-1 block text-xs uppercase text-zinc-400">Бейдж</span>
+      <label className="block"><span className="mb-1 block text-xs uppercase text-nc-muted">Бейдж</span>
         <input value={form.badge} onChange={(e) => setForm({ ...form, badge: e.target.value })} maxLength={16} className={inputClass} placeholder="напр. Разработчик, VIP, Основатель" /></label>
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
       {saved && <p className="text-sm text-emerald-400">Сохранено</p>}
@@ -202,10 +202,10 @@ function NotesTab() {
         <button className={primaryButton}>Сохранить заметку</button>
       </form>
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-      <ul className="divide-y divide-zinc-700">
+      <ul className="divide-y divide-nc-line-strong">
         {notes.map((n) => <li key={n.targetId} className="py-2 text-sm">
           <span className="font-medium">{n.nickname || `#${n.targetId}`}</span>
-          <span className="ml-2 text-zinc-400">{n.note}</span>
+          <span className="ml-2 text-nc-muted">{n.note}</span>
           <button onClick={() => void api(`/api/me/notes/${n.targetId}`, { method: 'DELETE' }).then(reload)} className="ml-2 text-xs text-red-400">×</button>
         </li>)}
       </ul>
@@ -224,20 +224,20 @@ function ViewTab({
   onCompact: (v: boolean) => void;
 }) {
   const radio = (checked: boolean, onChange: () => void, label: string) => (
-    <label className={`cursor-pointer rounded px-3 py-2 text-center text-sm ${checked ? 'bg-zinc-700 text-white' : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800'}`} aria-label={label}>
+    <label className={`cursor-pointer rounded px-3 py-2 text-center text-sm ${checked ? 'bg-nc-hover text-white' : 'bg-nc-surface text-nc-text-2 hover:bg-nc-elevated'}`} aria-label={label}>
       <input type="radio" name="nexus-theme" checked={checked} onChange={onChange} className="hidden" />{label}
     </label>
   );
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase text-zinc-400">Тема</h3>
+        <h3 className="mb-2 text-xs font-semibold uppercase text-nc-muted">Тема</h3>
         <div className="grid gap-2 sm:grid-cols-3">
           {themes.map((t) => radio(theme === t.value, () => onTheme(t.value), t.label))}
         </div>
       </div>
       <div>
-        <h3 className="mb-2 text-xs font-semibold uppercase text-zinc-400">Размер шрифта</h3>
+        <h3 className="mb-2 text-xs font-semibold uppercase text-nc-muted">Размер шрифта</h3>
         <div className="grid gap-2 sm:grid-cols-3">
           {fontSizes.map((f) => radio(fs === f.value, () => onFs(f.value), `${f.value}px`))}
         </div>
@@ -245,7 +245,7 @@ function ViewTab({
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={compact} onChange={(e) => onCompact(e.target.checked)} /> Компактный режим
       </label>
-      <p className="text-xs text-zinc-500">Системная тема поддерживается автоматически.</p>
+      <p className="text-xs text-nc-faint">Системная тема поддерживается автоматически.</p>
     </div>
   );
 }
@@ -261,11 +261,11 @@ function SessionsTab() {
         Выйти на других устройствах
       </button>
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-      <ul className="divide-y divide-zinc-700">
+      <ul className="divide-y divide-nc-line-strong">
         {items.map((s) => <li key={s.id} className="flex items-center gap-2 py-2 text-sm">
           <div className="flex-1">
             <div>{s.deviceLabel || 'Сессия'} {s.current && <span className="text-xs text-emerald-400">• текущая</span>}</div>
-            <div className="text-xs text-zinc-500">{new Date(s.createdAt).toLocaleString('ru-RU')} · {s.ip || '—'}</div>
+            <div className="text-xs text-nc-faint">{new Date(s.createdAt).toLocaleString('ru-RU')} · {s.ip || '—'}</div>
           </div>
           {!s.current && !s.revoked && (
             <button onClick={() => void api(`/api/me/sessions/${s.id}`, { method: 'DELETE' }).then(reload)} className="text-xs text-red-400">Выйти</button>
@@ -288,7 +288,7 @@ function AccountsTab() {
     if (account.user.id === user?.id) signOutLocal();
   };
   return (
-    <ul className="divide-y divide-zinc-700">
+    <ul className="divide-y divide-nc-line-strong">
       {accounts.map((account) => (
         <li key={account.user.id} className="flex items-center justify-between py-2 text-sm">
           <span className="truncate">
@@ -296,12 +296,12 @@ function AccountsTab() {
             {account.user.id === user?.id && <span className="text-xs text-emerald-400"> • текущий</span>}
           </span>
           <div className="flex gap-2">
-            <button onClick={() => switchAccount(account)} className="text-xs text-indigo-400 hover:underline">Открыть</button>
+            <button onClick={() => switchAccount(account)} className="text-xs text-nc-accent-text hover:underline">Открыть</button>
             <button onClick={() => remove(account)} className="text-xs text-red-400 hover:underline">Удалить</button>
           </div>
         </li>
       ))}
-      {accounts.length === 0 && <li className="py-2 text-sm text-zinc-500">Аккаунтов пока нет.</li>}
+      {accounts.length === 0 && <li className="py-2 text-sm text-nc-faint">Аккаунтов пока нет.</li>}
     </ul>
   );
 }
@@ -344,9 +344,9 @@ function SecurityTab({ user }: { user: User }) {
       <p className="text-sm">Двухфакторная аутентификация: {user.twoFactorEnabled ? 'включена' : 'отключена'}</p>
       {!setup && <button onClick={start} className={primaryButton}>{user.twoFactorEnabled ? 'Сменить секрет' : 'Настроить 2FA'}</button>}
       {setup && (
-        <div className="space-y-2 rounded bg-zinc-900 p-3">
+        <div className="space-y-2 rounded bg-nc-surface p-3">
           <p className="text-sm">Секрет: <code className="break-all">{setup.secret}</code></p>
-          <p className="text-xs text-zinc-400">{setup.uri}</p>
+          <p className="text-xs text-nc-muted">{setup.uri}</p>
           <div className="grid grid-cols-2 gap-1 font-mono text-xs">
             {setup.recoveryCodes.map((c) => <span key={c}>{c}</span>)}
           </div>

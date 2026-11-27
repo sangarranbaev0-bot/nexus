@@ -47,7 +47,7 @@ export function FriendsPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-3 border-b border-zinc-900 px-4 py-2">
+      <div className="flex flex-wrap items-center gap-3 border-b border-nc-line-soft px-4 py-2">
         <nav className="flex gap-3 text-sm font-medium" aria-label="Разделы друзей">
           <TabButton active={tab === 'friends'} onClick={() => setTab('friends')}>
             Все
@@ -62,7 +62,7 @@ export function FriendsPage() {
         <button
           type="button"
           onClick={() => setAdding((v) => !v)}
-          className="ml-auto rounded bg-indigo-500 px-3 py-1.5 text-sm font-medium hover:bg-indigo-600"
+          className="ml-auto rounded bg-nc-accent-strong px-3 py-1.5 text-sm font-medium hover:bg-nc-accent-hover"
         >
           Добавить друга
         </button>
@@ -109,7 +109,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded px-2 py-1 ${active ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'}`}
+      className={`rounded px-2 py-1 ${active ? 'bg-nc-hover text-white' : 'text-nc-muted hover:bg-nc-elevated hover:text-nc-text-2'}`}
     >
       {children}
     </button>
@@ -137,7 +137,7 @@ function AddFriendForm({ onDone, onError }: { onDone: () => void; onError: (e: s
   };
 
   return (
-    <form onSubmit={submit} className="flex gap-2 border-b border-zinc-900 px-4 py-3">
+    <form onSubmit={submit} className="flex gap-2 border-b border-nc-line-soft px-4 py-3">
       <input
         autoFocus
         value={value}
@@ -145,16 +145,16 @@ function AddFriendForm({ onDone, onError }: { onDone: () => void; onError: (e: s
         maxLength={32}
         placeholder="Имя пользователя"
         aria-label="Имя пользователя для заявки"
-        className="w-72 rounded bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+        className="w-72 rounded bg-nc-surface px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-nc-accent"
       />
       <button
         type="submit"
         disabled={pending || !value.trim()}
-        className="rounded bg-indigo-500 px-3 py-1.5 text-sm font-medium hover:bg-indigo-600 disabled:opacity-60"
+        className="rounded bg-nc-accent-strong px-3 py-1.5 text-sm font-medium hover:bg-nc-accent-hover disabled:opacity-60"
       >
         Отправить заявку
       </button>
-      <button type="button" onClick={onDone} className="rounded px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-100">
+      <button type="button" onClick={onDone} className="rounded px-3 py-1.5 text-sm text-nc-muted hover:text-nc-text">
         Отмена
       </button>
     </form>
@@ -170,9 +170,9 @@ function FriendList({
   onOpen: (id: number, username: string) => void;
   onAction: (p: Promise<void>) => void;
 }) {
-  if (friends === null) return <p className="text-zinc-400">Загрузка…</p>;
+  if (friends === null) return <p className="text-nc-muted">Загрузка…</p>;
   if (friends.length === 0)
-    return <p className="text-zinc-400">Пока нет друзей. Добавьте кого-нибудь по имени.</p>;
+    return <p className="text-nc-muted">Пока нет друзей. Добавьте кого-нибудь по имени.</p>;
   return (
     <ul className="space-y-1">
       {friends.map((f) => (
@@ -194,28 +194,28 @@ function FriendRow({
   const live = usePresence((s) => s[friend.userId]);
   const view = presenceView[live ?? friend.status];
   return (
-    <li className="flex items-center gap-3 rounded px-3 py-2 hover:bg-zinc-900/50">
+    <li className="flex items-center gap-3 rounded px-3 py-2 hover:bg-nc-surface/50">
       <span title={view.label} className={`size-2.5 rounded-full ${view.dot}`} />
       <span className="flex-1 truncate">{friend.username}</span>
-      <span className="text-xs text-zinc-500">{view.label}</span>
+      <span className="text-xs text-nc-faint">{view.label}</span>
       <button
         type="button"
         onClick={() => void onOpen(friend.userId, friend.username)}
-        className="rounded bg-zinc-700 px-2.5 py-1 text-sm hover:bg-zinc-600"
+        className="rounded bg-nc-hover px-2.5 py-1 text-sm hover:bg-nc-active"
       >
         Написать
       </button>
       <button
         type="button"
         onClick={() => onAction(removeFriend(friend.userId))}
-        className="rounded px-2.5 py-1 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+        className="rounded px-2.5 py-1 text-sm text-nc-muted hover:bg-nc-hover hover:text-nc-text"
       >
         Удалить
       </button>
       <button
         type="button"
         onClick={() => onAction(blockUser(friend.userId))}
-        className="rounded px-2.5 py-1 text-sm text-red-400 hover:bg-zinc-700"
+        className="rounded px-2.5 py-1 text-sm text-red-400 hover:bg-nc-hover"
       >
         Заблокировать
       </button>
@@ -237,25 +237,25 @@ function RequestsList({
   return (
     <div className="space-y-6">
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-zinc-400">Входящие</h2>
+        <h2 className="mb-2 text-sm font-semibold text-nc-muted">Входящие</h2>
         {incoming.length === 0 ? (
-          <p className="text-sm text-zinc-500">Новых заявок нет.</p>
+          <p className="text-sm text-nc-faint">Новых заявок нет.</p>
         ) : (
           <ul className="space-y-1">
             {incoming.map((r) => (
-              <li key={r.id} className="flex items-center gap-3 rounded px-3 py-2 hover:bg-zinc-900/50">
+              <li key={r.id} className="flex items-center gap-3 rounded px-3 py-2 hover:bg-nc-surface/50">
                 <span className="flex-1 truncate">{r.fromUsername}</span>
                 <button
                   type="button"
                   onClick={() => onAction(acceptFriendRequest(r.id))}
-                  className="rounded bg-indigo-500 px-2.5 py-1 text-sm font-medium hover:bg-indigo-600"
+                  className="rounded bg-nc-accent-strong px-2.5 py-1 text-sm font-medium hover:bg-nc-accent-hover"
                 >
                   Принять
                 </button>
                 <button
                   type="button"
                   onClick={() => onAction(cancelFriendRequest(r.id))}
-                  className="rounded px-2.5 py-1 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+                  className="rounded px-2.5 py-1 text-sm text-nc-muted hover:bg-nc-hover hover:text-nc-text"
                 >
                   Отклонить
                 </button>
@@ -265,19 +265,19 @@ function RequestsList({
         )}
       </section>
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-zinc-400">Исходящие</h2>
+        <h2 className="mb-2 text-sm font-semibold text-nc-muted">Исходящие</h2>
         {outgoing.length === 0 ? (
-          <p className="text-sm text-zinc-500">Вы никого не добавляли.</p>
+          <p className="text-sm text-nc-faint">Вы никого не добавляли.</p>
         ) : (
           <ul className="space-y-1">
             {outgoing.map((r) => (
-              <li key={r.id} className="flex items-center gap-3 rounded px-3 py-2 hover:bg-zinc-900/50">
+              <li key={r.id} className="flex items-center gap-3 rounded px-3 py-2 hover:bg-nc-surface/50">
                 <span className="flex-1 truncate">{r.toUsername}</span>
-                <span className="text-xs text-zinc-500">Ожидает ответа</span>
+                <span className="text-xs text-nc-faint">Ожидает ответа</span>
                 <button
                   type="button"
                   onClick={() => onAction(cancelFriendRequest(r.id))}
-                  className="rounded px-2.5 py-1 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+                  className="rounded px-2.5 py-1 text-sm text-nc-muted hover:bg-nc-hover hover:text-nc-text"
                 >
                   Отменить
                 </button>
@@ -289,7 +289,7 @@ function RequestsList({
       <button
         type="button"
         onClick={() => loadAllFriends().catch((e) => onLoadError(errorMessage(e)))}
-        className="text-sm text-zinc-400 hover:text-zinc-100"
+        className="text-sm text-nc-muted hover:text-nc-text"
       >
         Обновить
       </button>
@@ -304,17 +304,17 @@ function BlockedList({
   blocks: { userId: number; username: string }[] | null;
   onAction: (p: Promise<void>) => void;
 }) {
-  if (blocks === null) return <p className="text-zinc-400">Загрузка…</p>;
-  if (blocks.length === 0) return <p className="text-zinc-400">Заблокированных нет.</p>;
+  if (blocks === null) return <p className="text-nc-muted">Загрузка…</p>;
+  if (blocks.length === 0) return <p className="text-nc-muted">Заблокированных нет.</p>;
   return (
     <ul className="space-y-1">
       {blocks.map((b) => (
-        <li key={b.userId} className="flex items-center gap-3 rounded px-3 py-2 hover:bg-zinc-900/50">
+        <li key={b.userId} className="flex items-center gap-3 rounded px-3 py-2 hover:bg-nc-surface/50">
           <span className="flex-1 truncate">{b.username}</span>
           <button
             type="button"
             onClick={() => onAction(unblockUser(b.userId))}
-            className="rounded px-2.5 py-1 text-sm text-zinc-300 hover:bg-zinc-700"
+            className="rounded px-2.5 py-1 text-sm text-nc-text-2 hover:bg-nc-hover"
           >
             Разблокировать
           </button>

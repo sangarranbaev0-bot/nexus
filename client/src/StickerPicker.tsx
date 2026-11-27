@@ -90,7 +90,7 @@ export function StickerPicker({
             <div className="flex items-center justify-center px-3 py-2 border-t divide-border">
                 <button
                     onClick={onClose}
-                    className="px-3 py-1 rounded-md text-sm font-medium text-zinc-400 hover:text-zinc-100 transition-colors"
+                    className="px-3 py-1 rounded-md text-sm font-medium text-nc-muted hover:text-nc-text transition-colors"
                 >
                     Закрыть
                 </button>

@@ -25,10 +25,10 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
   render() {
     if (this.state.hasError) {
       return (
-        <div className="fixed inset-0 flex items-center justify-center bg-zinc-900/90 backdrop-blur-sm p-6 text-center">
-          <div className="max-w-2xl bg-zinc-800 rounded-xl p-8 border border-zinc-700 shadow-2xl">
+        <div className="fixed inset-0 flex items-center justify-center bg-nc-surface/90 backdrop-blur-sm p-6 text-center">
+          <div className="max-w-2xl bg-nc-elevated rounded-xl p-8 border border-nc-line-strong shadow-2xl">
             <h1 className="text-3xl font-bold text-red-400 mb-4">Ошибка приложения</h1>
-            <p className="text-zinc-300 mb-6">Произошла непредвиденная ошибка. Пожалуйста, перезагрузите страницу.</p>
+            <p className="text-nc-text-2 mb-6">Произошла непредвиденная ошибка. Пожалуйста, перезагрузите страницу.</p>
             <button
               onClick={() => window.location.reload()}
               className="btn-primary text-lg py-3 px-6 rounded-lg font-medium transition-colors"
@@ -67,7 +67,7 @@ registerSW({
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const status = useSession((s) => s.status);
-  if (status === 'loading') return <div className="grid h-dvh place-items-center text-zinc-400">Загрузка…</div>;
+  if (status === 'loading') return <div className="grid h-dvh place-items-center text-nc-muted">Загрузка…</div>;
   return status === 'authed' ? children : <Navigate to="/login" replace />;
 }
 

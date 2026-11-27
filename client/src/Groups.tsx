@@ -10,7 +10,7 @@ export function GroupHeader({ dm }: { dm: DmChannel }) {
     <>
       <span aria-hidden>👥</span>
       <span className="truncate">{dmTitle(dm)}</span>
-      <span className="hidden truncate text-sm font-normal text-zinc-400 md:inline">
+      <span className="hidden truncate text-sm font-normal text-nc-muted md:inline">
         — {dm.members.map((m) => m.username).join(', ')}
       </span>
     </>
@@ -24,7 +24,7 @@ export function GroupActions({ dm }: { dm: DmChannel }) {
     action()
       .then(() => loadDms())
       .catch((e) => alert(errorMessage(e)));
-  const btn = 'rounded px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100';
+  const btn = 'rounded px-2 py-1 text-sm text-nc-muted hover:bg-nc-hover hover:text-nc-text';
   return (
     <>
       <button

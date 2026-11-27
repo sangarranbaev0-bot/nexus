@@ -69,7 +69,7 @@ export function NotificationCenter() {
         aria-expanded={open}
         aria-label={unread ? `Уведомления, непрочитанных: ${unread}` : 'Уведомления'}
         title="Уведомления"
-        className="relative rounded px-2 py-1 text-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+        className="relative rounded px-2 py-1 text-lg text-nc-muted hover:bg-nc-hover hover:text-nc-text"
       >
         🔔
         {unread > 0 && (
@@ -85,9 +85,9 @@ export function NotificationCenter() {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 z-30 mt-1 w-96 max-w-[calc(100vw-2rem)] rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
+          className="absolute right-0 z-30 mt-1 w-96 max-w-[calc(100vw-2rem)] rounded-lg border border-nc-line-strong bg-nc-surface shadow-xl"
         >
-          <div className="flex items-center gap-1 border-b border-zinc-800 p-2">
+          <div className="flex items-center gap-1 border-b border-nc-line p-2">
             {(
               [
                 ['all', 'Все'],
@@ -100,8 +100,8 @@ export function NotificationCenter() {
                 onClick={() => setFilter(key)}
                 className={`rounded px-2 py-1 text-sm ${
                   filter === key
-                    ? 'bg-zinc-700 text-white'
-                    : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                    ? 'bg-nc-hover text-white'
+                    : 'text-nc-muted hover:bg-nc-elevated hover:text-nc-text-2'
                 }`}
               >
                 {label}
@@ -110,7 +110,7 @@ export function NotificationCenter() {
             <button
               onClick={() => void markNotificationRead().catch((e) => setError(errorMessage(e)))}
               disabled={unread === 0}
-              className="ml-auto rounded px-2 py-1 text-sm text-zinc-400 hover:text-zinc-100 disabled:opacity-40"
+              className="ml-auto rounded px-2 py-1 text-sm text-nc-muted hover:text-nc-text disabled:opacity-40"
             >
               Прочитать всё
             </button>
@@ -124,21 +124,21 @@ export function NotificationCenter() {
 
           <ul className="max-h-96 overflow-y-auto">
             {items.length === 0 && (
-              <li className="px-3 py-6 text-center text-sm text-zinc-500">Уведомлений нет.</li>
+              <li className="px-3 py-6 text-center text-sm text-nc-faint">Уведомлений нет.</li>
             )}
             {items.map((n) => (
               <li key={n.id}>
                 <button
                   onClick={() => openItem(n)}
-                  className={`flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-zinc-800 ${
+                  className={`flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-nc-elevated ${
                     n.read ? 'opacity-60' : ''
                   }`}
                 >
                   <span className="flex items-center gap-2 text-sm">
-                    {!n.read && <span className="size-2 shrink-0 rounded-full bg-indigo-400" />}
-                    <span className="font-medium text-zinc-100">{n.actorUsername}</span>
-                    <span className="text-xs text-zinc-400">{kindLabel[n.kind]}</span>
-                    <span className="ml-auto shrink-0 text-xs text-zinc-500">
+                    {!n.read && <span className="size-2 shrink-0 rounded-full bg-nc-accent" />}
+                    <span className="font-medium text-nc-text">{n.actorUsername}</span>
+                    <span className="text-xs text-nc-muted">{kindLabel[n.kind]}</span>
+                    <span className="ml-auto shrink-0 text-xs text-nc-faint">
                       {new Date(n.createdAt).toLocaleString('ru-RU', {
                         day: 'numeric',
                         month: 'short',
@@ -147,8 +147,8 @@ export function NotificationCenter() {
                       })}
                     </span>
                   </span>
-                  <span className="truncate text-sm text-zinc-300">{n.preview || '📎 вложение'}</span>
-                  {n.location && <span className="truncate text-xs text-zinc-500">{n.location}</span>}
+                  <span className="truncate text-sm text-nc-text-2">{n.preview || '📎 вложение'}</span>
+                  {n.location && <span className="truncate text-xs text-nc-faint">{n.location}</span>}
                 </button>
               </li>
             ))}

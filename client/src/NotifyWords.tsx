@@ -49,7 +49,7 @@ export function NotifyWordsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title="Слова-триггеры" onClose={onClose}>
-      <p className="text-sm text-zinc-400">
+      <p className="text-sm text-nc-muted">
         Присылать уведомление, когда чужое сообщение содержит это слово.
       </p>
       <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
@@ -61,7 +61,7 @@ export function NotifyWordsDialog({ onClose }: { onClose: () => void }) {
           aria-label="Новое слово"
           className={`${inputClass} flex-1`}
         />
-        <label className="flex items-center gap-1.5 text-sm text-zinc-300">
+        <label className="flex items-center gap-1.5 text-sm text-nc-text-2">
           <input
             type="checkbox"
             checked={caseSensitive}
@@ -82,20 +82,20 @@ export function NotifyWordsDialog({ onClose }: { onClose: () => void }) {
       )}
 
       {words === null ? (
-        <p className="text-sm text-zinc-400">Загрузка…</p>
+        <p className="text-sm text-nc-muted">Загрузка…</p>
       ) : words.length === 0 ? (
-        <p className="text-sm text-zinc-500">Слов пока нет.</p>
+        <p className="text-sm text-nc-faint">Слов пока нет.</p>
       ) : (
-        <ul className="divide-y divide-zinc-700">
+        <ul className="divide-y divide-nc-line-strong">
           {words.map((w) => (
             <li key={w.word} className="flex items-center gap-2 py-2">
               <span className="flex-1 truncate">{w.word}</span>
-              {w.caseSensitive && <span className="text-xs text-zinc-500">Aa</span>}
+              {w.caseSensitive && <span className="text-xs text-nc-faint">Aa</span>}
               <button
                 type="button"
                 onClick={() => remove(w.word)}
                 aria-label={`Удалить слово ${w.word}`}
-                className="rounded px-2 text-zinc-400 hover:text-red-400"
+                className="rounded px-2 text-nc-muted hover:text-red-400"
               >
                 ×
               </button>

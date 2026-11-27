@@ -116,17 +116,17 @@ export function SearchPalette({ onClose }: Props) {
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] px-4">
       {/* Затемнение фона: ловит клик за пределами палитры. */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl rounded-xl border border-zinc-700 bg-zinc-800 shadow-2xl">
+      <div className="relative w-full max-w-2xl rounded-xl border border-nc-line-strong bg-nc-elevated shadow-2xl">
         {/* Поле поиска с иконкой */}
-        <div className="flex items-center gap-2 border-b border-zinc-700 px-4 py-3">
-          <Search size={18} className="shrink-0 text-zinc-400" />
+        <div className="flex items-center gap-2 border-b border-nc-line-strong px-4 py-3">
+          <Search size={18} className="shrink-0 text-nc-muted" />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder="Поиск по всем серверам…  (Esc — закрыть)"
-            className="flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
+            className="flex-1 bg-transparent text-sm text-nc-text outline-none placeholder:text-nc-faint"
           />
           <button onClick={onClose} className={primaryButton}>Esc</button>
         </div>
@@ -138,21 +138,21 @@ export function SearchPalette({ onClose }: Props) {
               {/* Быстрая навигация по серверам */}
               {servers.length > 0 && (
                 <div className="px-4 py-2">
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Серверы</p>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-nc-faint">Серверы</p>
                   {servers.map((srv) => (
                     <button
                       key={srv.id}
                       onClick={() => { navigate(`/channels/${srv.id}`); onClose(); }}
-                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-zinc-700"
+                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-nc-hover"
                     >
-                      <span className="size-7 grid place-items-center rounded-full bg-zinc-700 text-xs font-bold text-indigo-300">
+                      <span className="size-7 grid place-items-center rounded-full bg-nc-hover text-xs font-bold text-nc-accent-text">
                         {srv.name.charAt(0).toUpperCase()}
                       </span>
-                      <span className="truncate font-medium text-zinc-200">{srv.name}</span>
+                      <span className="truncate font-medium text-nc-text-2">{srv.name}</span>
                       {srv.unreadCount > 0 && (
                         <span className="ml-auto rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">{srv.unreadCount}</span>
                       )}
-                      <ArrowRight size={14} className="ml-auto shrink-0 text-zinc-500" />
+                      <ArrowRight size={14} className="ml-auto shrink-0 text-nc-faint" />
                     </button>
                   ))}
                 </div>
@@ -160,15 +160,15 @@ export function SearchPalette({ onClose }: Props) {
               {/* ДМ */}
               {dms.length > 0 && (
                 <div className="px-4 py-2">
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Личные сообщения</p>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-nc-faint">Личные сообщения</p>
                   {dms.slice(0, 10).map((dm) => (
                     <button
                       key={dm.id}
                       onClick={() => { navigate(`/channels/@me/${dm.id}`); onClose(); }}
-                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-zinc-700"
+                      className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-nc-hover"
                     >
                       <StatusDot userId={dm.userId} fallback={dm.status} />
-                      <span className="flex-1 truncate text-zinc-200">{dmTitle(dm)}</span>
+                      <span className="flex-1 truncate text-nc-text-2">{dmTitle(dm)}</span>
                       {dm.unreadCount > 0 && (
                         <span className="rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">{dm.unreadCount}</span>
                       )}
@@ -176,7 +176,7 @@ export function SearchPalette({ onClose }: Props) {
                   ))}
                 </div>
               )}
-              <p className="px-4 py-3 text-xs text-zinc-500">Введите текст для поиска сообщений по всем серверам.</p>
+              <p className="px-4 py-3 text-xs text-nc-faint">Введите текст для поиска сообщений по всем серверам.</p>
             </>
           )}
 
@@ -184,12 +184,12 @@ export function SearchPalette({ onClose }: Props) {
             <p role="alert" className="px-4 py-2 text-sm text-red-400">{error}</p>
           )}
           {loading && (
-            <p className="px-4 py-3 text-sm text-zinc-400">Поиск…</p>
+            <p className="px-4 py-3 text-sm text-nc-muted">Поиск…</p>
           )}
 
           {/* Результаты поиска */}
           {!loading && !error && q && results.length === 0 && (
-            <p className="px-4 py-3 text-sm text-zinc-400">Нет результатов по запросу «{query}».</p>
+            <p className="px-4 py-3 text-sm text-nc-muted">Нет результатов по запросу «{query}».</p>
           )}
           {!loading && !error && results.length > 0 && (
             <ul className="pb-2">
@@ -200,20 +200,20 @@ export function SearchPalette({ onClose }: Props) {
                     onClick={() => jumpTo(hit)}
                     onMouseEnter={() => setHighlightedIdx(idx)}
                     className={`flex w-full flex-col gap-0.5 px-4 py-2 text-left ${
-                      idx === highlightedIdx ? 'bg-zinc-700/50' : ''
-                    } hover:bg-zinc-700`}
+                      idx === highlightedIdx ? 'bg-nc-hover/50' : ''
+                    } hover:bg-nc-hover`}
                   >
-                    <div className="flex items-center gap-2 text-xs text-zinc-500">
-                      <span className="font-medium text-zinc-300">{hit.message.authorUsername}</span>
+                    <div className="flex items-center gap-2 text-xs text-nc-faint">
+                      <span className="font-medium text-nc-text-2">{hit.message.authorUsername}</span>
                       <span>·</span>
-                      <span className="text-indigo-300">#{hit.channelName}</span>
+                      <span className="text-nc-accent-text">#{hit.channelName}</span>
                       <span>·</span>
-                      <span className="text-zinc-500">{hit.serverName}</span>
-                      <span className="ml-auto shrink-0 text-zinc-500">
+                      <span className="text-nc-faint">{hit.serverName}</span>
+                      <span className="ml-auto shrink-0 text-nc-faint">
                         {new Date(hit.message.createdAt).toLocaleString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <div className="truncate text-sm text-zinc-300">
+                    <div className="truncate text-sm text-nc-text-2">
                       <Markdown text={hit.message.content} />
                     </div>
                   </button>

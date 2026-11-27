@@ -34,42 +34,75 @@ html.nexus-fs-16 { font-size: 16px; }
 html.nexus-fs-18 { font-size: 18px; }
 html.nexus-compact { gap: 0.3rem; }
 
-/* ── Тёмная тема (по умолчанию, соответствует дизайну) ── */
-html.nexus-dark, html.nexus-dark body {
-  background-color: var(--nc-bg-primary) !important;
-  color: var(--nc-text-primary) !important;
+/* ── Темы: значения токенов. Компоненты используют только классы nc-* из @theme ниже ── */
+:root, html.nexus-dark {
+  --nc-bg-primary: #0d0d0d;   /* фон приложения */
+  --nc-bg-secondary: #121212; /* сайдбары, карточки */
+  --nc-bg-tertiary: #181818;  /* панели */
+  --nc-bg-elevated: #1e1e1e;  /* поля ввода, поповеры */
+  --nc-bg-hover: #242424;
+  --nc-bg-active: #2c2c2c;
+  --nc-bg-strong: #3f3f46;
+  --nc-border: #1e1e1e;
+  --nc-border-light: #242424;
+  --nc-border-medium: #2c2c2c;
+  --nc-border-strong: #3f3f46;
+  --nc-text-primary: #e5e7eb;
+  --nc-text-secondary: #d1d5db;
+  --nc-text-muted: #9ca3af;
+  --nc-text-faint: #8b919c;
+  --nc-accent: #6366f1;        /* полоски, кольца фокуса, выделение */
+  --nc-accent-strong: #4f46e5; /* кнопки с белым текстом (контраст 6.3:1) */
+  --nc-accent-hover: #4338ca;
+  --nc-accent-light: #a5b4fc;  /* ссылки и акцентный текст */
+  --nc-accent-lighter: #c7d2fe;
 }
-html.nexus-dark .bg-zinc-950 { background-color: var(--nc-bg-primary) !important; }
-html.nexus-dark .bg-zinc-900 { background-color: var(--nc-bg-secondary) !important; }
-html.nexus-dark .bg-zinc-800 { background-color: var(--nc-bg-hover) !important; }
-html.nexus-dark .text-zinc-100 { color: var(--nc-text-primary) !important; }
-html.nexus-dark .text-zinc-200 { color: var(--nc-text-secondary) !important; }
-html.nexus-dark .text-zinc-300 { color: var(--nc-text-muted) !important; }
-html.nexus-dark .text-zinc-400 { color: var(--nc-text-muted) !important; }
-html.nexus-dark .text-zinc-500 { color: var(--nc-text-faint) !important; }
-html.nexus-dark .border-zinc-800 { border-color: var(--nc-border-light) !important; }
-html.nexus-dark .border-zinc-700 { border-color: var(--nc-border-medium) !important; }
-html.nexus-dark .hover\:bg-zinc-800:hover { background-color: var(--nc-bg-hover) !important; }
-html.nexus-dark .hover\:bg-zinc-700:hover { background-color: var(--nc-bg-active) !important; }
-html.nexus-dark .hover\:bg-indigo-500:hover { background-color: var(--nc-accent) !important; }
-html.nexus-dark .focus-visible\:outline-indigo-500:focus-visible { outline-color: rgba(99,102,241,.6) !important; }
+html.nexus-light {
+  --nc-bg-primary: #ffffff;
+  --nc-bg-secondary: #f4f4f5;
+  --nc-bg-tertiary: #ececee;
+  --nc-bg-elevated: #ffffff;
+  --nc-bg-hover: #e4e4e7;
+  --nc-bg-active: #d4d4d8;
+  --nc-bg-strong: #a1a1aa;
+  --nc-border: #e4e4e7;
+  --nc-border-light: #d4d4d8;
+  --nc-border-medium: #c4c4ca;
+  --nc-border-strong: #a1a1aa;
+  --nc-text-primary: #18181b;
+  --nc-text-secondary: #27272a;
+  --nc-text-muted: #52525b;
+  --nc-text-faint: #63636b;
+  --nc-accent: #6366f1;
+  --nc-accent-strong: #4f46e5;
+  --nc-accent-hover: #4338ca;
+  --nc-accent-light: #4338ca;
+  --nc-accent-lighter: #3730a3;
+}
+html, body { background-color: var(--nc-bg-primary); color: var(--nc-text-primary); }
 
-/* ── Светлая тема ── */
-html.nexus-light, html.nexus-light body {
-  background-color: #f4f4f5 !important;
-  color: #18181b !important;
+@theme inline {
+  --color-nc-base: var(--nc-bg-primary);
+  --color-nc-surface: var(--nc-bg-secondary);
+  --color-nc-panel: var(--nc-bg-tertiary);
+  --color-nc-elevated: var(--nc-bg-elevated);
+  --color-nc-hover: var(--nc-bg-hover);
+  --color-nc-active: var(--nc-bg-active);
+  --color-nc-strong: var(--nc-bg-strong);
+  --color-nc-line-soft: var(--nc-border);
+  --color-nc-line: var(--nc-border-light);
+  --color-nc-line-strong: var(--nc-border-medium);
+  --color-nc-line-max: var(--nc-border-strong);
+  --color-nc-text: var(--nc-text-primary);
+  --color-nc-text-2: var(--nc-text-secondary);
+  --color-nc-muted: var(--nc-text-muted);
+  --color-nc-faint: var(--nc-text-faint);
+  --color-nc-accent: var(--nc-accent);
+  --color-nc-accent-strong: var(--nc-accent-strong);
+  --color-nc-accent-hover: var(--nc-accent-hover);
+  --color-nc-accent-text: var(--nc-accent-light);
+  --color-nc-accent-text-2: var(--nc-accent-lighter);
 }
-html.nexus-light .bg-zinc-950 { background-color: #ffffff !important; }
-html.nexus-light .bg-zinc-900 { background-color: #f4f4f5 !important; }
-html.nexus-light .bg-zinc-800 { background-color: #e4e4e7 !important; }
-html.nexus-light .text-zinc-100 { color: #18181b !important; }
-html.nexus-light .text-zinc-400 { color: #71717a !important; }
-html.nexus-light .text-zinc-500 { color: #a1a1aa !important; }
-html.nexus-light .border-zinc-800 { border-color: #d4d4d8 !important; }
-html.nexus-light .border-zinc-700 { border-color: #a1a1aa !important; }
-html.nexus-light .hover\:bg-zinc-800:hover { background-color: #e4e4e7 !important; }
-html.nexus-light .hover\:bg-zinc-700:hover { background-color: #d4d4d8 !important; }
-html.nexus-light .hover\:bg-indigo-500:hover { background-color: #6366f1 !important; }
 
 /* ── Системные стили ── */
 body {

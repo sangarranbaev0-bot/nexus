@@ -191,7 +191,7 @@ function blocks(text: string, me?: string, emoji?: EmojiLookup, messageId?: numb
       while (i < lines.length && !lines[i].startsWith('```')) code.push(lines[i++]);
       if (i < lines.length) i++;
       out.push(
-        <pre key={key++} className="overflow-x-auto rounded bg-zinc-900 p-2 text-sm">
+        <pre key={key++} className="overflow-x-auto rounded bg-nc-surface p-2 text-sm">
           <code>{code.join('\n')}</code>
         </pre>,
       );
@@ -225,7 +225,7 @@ function blocks(text: string, me?: string, emoji?: EmojiLookup, messageId?: numb
         i++;
       }
       out.push(
-        <blockquote key={key++} className="border-l-2 border-zinc-600 pl-2 text-zinc-300">
+        <blockquote key={key++} className="border-l-2 border-nc-line-max pl-2 text-nc-text-2">
           {inline(quote.join('\n'), me, emoji)}
         </blockquote>,
       );
@@ -298,7 +298,7 @@ function TaskItem({ messageId, idx, checked: initialChecked, text }: { messageId
         aria-checked={done}
         role="checkbox"
         className={`mt-0.5 h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors ${
-          done ? 'bg-indigo-500 border-indigo-500' : 'border-zinc-500 hover:border-zinc-300'
+          done ? 'bg-nc-accent-strong border-nc-accent' : 'border-nc-line-max hover:border-nc-line-max'
         }`}
       >
         {done && (
@@ -307,7 +307,7 @@ function TaskItem({ messageId, idx, checked: initialChecked, text }: { messageId
           </svg>
         )}
       </button>
-      <span className={`text-sm leading-relaxed ${done ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>
+      <span className={`text-sm leading-relaxed ${done ? 'text-nc-faint line-through' : 'text-nc-text-2'}`}>
         {inline(text)}
       </span>
     </li>
@@ -351,7 +351,7 @@ function inline(text: string, me?: string, emoji?: EmojiLookup): ReactNode[] {
       if (end > i + 1) {
         flush();
         nodes.push(
-          <code key={key++} className="rounded bg-zinc-900 px-1 text-sm">
+          <code key={key++} className="rounded bg-nc-surface px-1 text-sm">
             {text.slice(i + 1, end)}
           </code>,
         );
@@ -406,8 +406,8 @@ const ts = /^<t:(\d+)(?::([tTdDfFR]))?>/.exec(rest);
                 special
                   ? 'rounded bg-amber-500/25 px-0.5 text-amber-200'
                   : self
-                    ? 'rounded bg-indigo-500 px-0.5 font-medium text-white'
-                    : 'rounded bg-indigo-500/30 px-0.5 text-indigo-200'
+                    ? 'rounded bg-nc-accent-strong px-0.5 font-medium text-white'
+                    : 'rounded bg-nc-accent-strong/30 px-0.5 text-nc-accent-text-2'
               }
             >
               @{name}
@@ -415,7 +415,7 @@ const ts = /^<t:(\d+)(?::([tTdDfFR]))?>/.exec(rest);
           );
         } else {
           nodes.push(
-            <span key={key++} className="rounded bg-indigo-500/20 px-0.5 text-indigo-300">
+            <span key={key++} className="rounded bg-nc-accent-strong/20 px-0.5 text-nc-accent-text">
               #{name}
             </span>,
           );
@@ -491,8 +491,8 @@ function Spoiler({ children }: { children: ReactNode }) {
       onKeyDown={(e) => e.key === 'Enter' && setOpen(true)}
       className={
         open
-          ? 'rounded bg-zinc-700/60 px-0.5'
-          : 'cursor-pointer rounded bg-zinc-600 px-0.5 text-transparent select-none hover:bg-zinc-500'
+          ? 'rounded bg-nc-hover/60 px-0.5'
+          : 'cursor-pointer rounded bg-nc-active px-0.5 text-transparent select-none hover:bg-nc-strong'
       }
     >
       {children}
@@ -534,7 +534,7 @@ function Timestamp({ ms, style }: { ms: number; style?: string }) {
     <time
       dateTime={date.toISOString()}
       title={date.toLocaleString('ru')}
-      className="rounded bg-zinc-700/60 px-1 text-xs text-zinc-200"
+      className="rounded bg-nc-hover/60 px-1 text-xs text-nc-text-2"
     >
       {text}
     </time>

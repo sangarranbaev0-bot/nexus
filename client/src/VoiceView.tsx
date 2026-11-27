@@ -41,7 +41,7 @@ function Avatar({
   return (
     <span
       aria-hidden
-      className={`grid shrink-0 place-items-center rounded-full bg-indigo-500 font-semibold text-white ${size} ${
+      className={`grid shrink-0 place-items-center rounded-full bg-nc-accent-strong font-semibold text-white ${size} ${
         speaking ? "ring-2 ring-emerald-400" : ""
       }`}
     >
@@ -63,7 +63,7 @@ export function VoiceRoster({ channelId }: { channelId: number }) {
       {room.map((p) => (
         <li
           key={p.userId}
-          className="flex items-center gap-2 px-2 py-0.5 text-sm text-zinc-300"
+          className="flex items-center gap-2 px-2 py-0.5 text-sm text-nc-text-2"
         >
           <Avatar name={p.username} speaking={!!speaking[p.userId]} />
           <span className="truncate">{p.username}</span>
@@ -161,7 +161,7 @@ export function VoiceStage({
   return (
     <section
       aria-label={`Звонок ${label}`}
-      className={`flex flex-col gap-3 bg-zinc-950 p-3 ${compact ? "max-h-[45dvh]" : "min-h-0 flex-1"}`}
+      className={`flex flex-col gap-3 bg-nc-base p-3 ${compact ? "max-h-[45dvh]" : "min-h-0 flex-1"}`}
     >
       {error && (
         <p role="alert" className="text-sm text-red-400">
@@ -250,7 +250,7 @@ export function VoiceStage({
     const isMe = p.userId === me;
     return (
       <div
-        className={`relative grid aspect-video place-items-center overflow-hidden rounded-lg bg-zinc-800 ${
+        className={`relative grid aspect-video place-items-center overflow-hidden rounded-lg bg-nc-elevated ${
           big ? "h-full w-full" : ""
         } ${speaking && tile.kind !== "screen" ? "ring-2 ring-emerald-400" : ""}`}
       >
@@ -309,12 +309,12 @@ export function VoicePanel({ label }: { label: string }) {
       active
         ? danger
           ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-          : "bg-zinc-700 text-white hover:bg-zinc-600"
-        : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+          : "bg-nc-hover text-white hover:bg-nc-active"
+        : "text-nc-muted hover:bg-nc-elevated hover:text-nc-text-2"
     }`;
 
   return (
-    <div className="border-t border-zinc-800 bg-zinc-950/80 px-3 py-2">
+    <div className="border-t border-nc-line bg-nc-base/80 px-3 py-2">
       <div className="flex items-center gap-2 text-sm">
         <span
           className={`size-2.5 shrink-0 rounded-full transition-colors ${
@@ -327,7 +327,7 @@ export function VoicePanel({ label }: { label: string }) {
             <Phone size={13} strokeWidth={2} />
             <span>Голос подключён</span>
           </div>
-          <div className="truncate text-xs text-zinc-400">
+          <div className="truncate text-xs text-nc-muted">
             {label} ·{" "}
             {settings.micMode === "ptt"
               ? `по кнопке ${keyName(settings.pttKey)}`
@@ -427,7 +427,7 @@ function VoiceSettings({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Настройки голоса" onClose={onClose}>
       <fieldset className="space-y-2">
-        <legend className="mb-1 text-xs font-semibold uppercase text-zinc-400">
+        <legend className="mb-1 text-xs font-semibold uppercase text-nc-muted">
           Режим микрофона
         </legend>
         {(
@@ -442,7 +442,7 @@ function VoiceSettings({ onClose }: { onClose: () => void }) {
         ).map(([mode, title, hint]) => (
           <label
             key={mode}
-            className="flex cursor-pointer items-start gap-3 rounded bg-zinc-900 p-3"
+            className="flex cursor-pointer items-start gap-3 rounded bg-nc-surface p-3"
           >
             <input
               type="radio"
@@ -453,26 +453,26 @@ function VoiceSettings({ onClose }: { onClose: () => void }) {
             />
             <span>
               <span className="block font-medium">{title}</span>
-              <span className="text-sm text-zinc-400">{hint}</span>
+              <span className="text-sm text-nc-muted">{hint}</span>
             </span>
           </label>
         ))}
       </fieldset>
       {settings.micMode === "ptt" && (
         <div className="flex items-center gap-3">
-          <span className="text-sm text-zinc-300">Клавиша:</span>
-          <kbd className="rounded bg-zinc-900 px-2 py-1 font-mono">
+          <span className="text-sm text-nc-text-2">Клавиша:</span>
+          <kbd className="rounded bg-nc-surface px-2 py-1 font-mono">
             {capturing ? "нажмите клавишу…" : keyName(settings.pttKey)}
           </kbd>
           <button
             onClick={() => setCapturing(true)}
-            className="text-sm text-indigo-400 hover:underline"
+            className="text-sm text-nc-accent-text hover:underline"
           >
             Изменить
           </button>
         </div>
       )}
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-nc-faint">
         Клавиша работает, пока окно NexusChat активно. В полях ввода она
         печатает текст, а не включает микрофон.
       </p>

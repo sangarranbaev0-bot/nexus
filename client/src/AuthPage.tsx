@@ -76,7 +76,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               autoComplete="one-time-code"
               placeholder="Введите код из приложения"
               required={show2fa}
-              className="w-full rounded-md border border-[#242424] bg-[#1e1e1e] px-3 py-2 outline-none transition-colors duration-150 focus:ring-2 focus:ring-indigo-500/50"
+              className="w-full rounded-md border border-[#242424] bg-[#1e1e1e] px-3 py-2 outline-none transition-colors duration-150 focus:ring-2 focus:ring-nc-accent/50"
             />
           </label>
         )}
@@ -109,7 +109,7 @@ function Field({ label, ...input }: { label: string } & React.InputHTMLAttribute
   return (
     <label className="block">
       <span className="mb-1.5 block text-xs font-semibold uppercase text-[#9ca3af]">{label}</span>
-      <input required {...input} className="w-full rounded-md border border-[#242424] bg-[#1e1e1e] px-3 py-2 outline-none transition-colors duration-150 focus:ring-2 focus:ring-indigo-500/50" />
+      <input required {...input} className="w-full rounded-md border border-[#242424] bg-[#1e1e1e] px-3 py-2 outline-none transition-colors duration-150 focus:ring-2 focus:ring-nc-accent/50" />
     </label>
   );
 }
