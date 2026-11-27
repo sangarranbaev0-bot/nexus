@@ -88,6 +88,11 @@ diesel::allow_tables_to_appear_in_same_query!(
     automod_rules,
     sticker_packs,
     stickers,
+    server_boosts,
+    webhooks,
+    oauth_apps,
+    drafts,
+    scheduled_messages,
 );
 
 diesel::table! {
@@ -117,8 +122,21 @@ diesel::table! {
         rules -> Text,
         banner_url -> Text,
         announcement_channel_id -> Nullable<Int8>,
+        boost_count -> Int4,
+        boost_level -> Int4,
     }
 }
+
+diesel::table! {
+    server_boosts (server_id, user_id) {
+        server_id -> Int8,
+        user_id -> Int8,
+        boosted_at -> Timestamptz,
+    }
+}
+
+diesel::joinable!(server_boosts -> servers (server_id));
+diesel::joinable!(server_boosts -> users (user_id));
 
 diesel::table! {
     members (server_id, user_id) {
@@ -528,6 +546,56 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    webhooks (id) {
+        id -> Int8,
+        channel_id -> Int8,
+        name -> Text,
+        avatar_url -> Text,
+        token -> Text,
+        created_by -> Int8,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    oauth_apps (id) {
+        id -> Int8,
+        owner_id -> Int8,
+        name -> Text,
+        client_id -> Text,
+        client_secret_hash -> Text,
+        scopes -> Array<Text>,
+        redirect_uris -> Array<Text>,
+        created_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    drafts (id) {
+        id -> Int8,
+        user_id -> Int8,
+        channel_id -> Int8,
+        content -> Text,
+        created_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    scheduled_messages (id) {
+        id -> Int8,
+        author_id -> Int8,
+        channel_id -> Int8,
+        content -> Text,
+        scheduled_at -> Timestamptz,
+        status -> Text,
+        sent_at -> Nullable<Timestamptz>,
+        error_msg -> Nullable<Text>,
+        created_at -> Timestamptz,
+    }
+}
+
 diesel::joinable!(roles -> servers (server_id));
 diesel::joinable!(member_roles -> roles (role_id));
 diesel::joinable!(categories -> servers (server_id));
@@ -541,3 +609,10 @@ diesel::joinable!(automod_rules -> servers (server_id));
 diesel::joinable!(sticker_packs -> servers (server_id));
 diesel::joinable!(sticker_packs -> users (created_by));
 diesel::joinable!(stickers -> sticker_packs (pack_id));
+diesel::joinable!(webhooks -> channels (channel_id));
+diesel::joinable!(webhooks -> users (created_by));
+diesel::joinable!(oauth_apps -> users (owner_id));
+diesel::joinable!(drafts -> users (user_id));
+diesel::joinable!(drafts -> channels (channel_id));
+diesel::joinable!(scheduled_messages -> users (author_id));
+diesel::joinable!(scheduled_messages -> channels (channel_id));

@@ -155,6 +155,8 @@ pub async fn servers_with_unread(
             rules: r.rules,
             banner_url: r.banner_url,
             announcement_channel_id: r.announcement_channel_id,
+            boost_count: 0,
+            boost_level: 0,
         });
     }
     Ok(servers)

@@ -1,1 +1,1 @@
-﻿DROP TABLE bans;
+DROP TABLE bans;

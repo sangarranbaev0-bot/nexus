@@ -879,6 +879,30 @@ pub struct Server {
     /// Канал объявлений; `null` — не задан.
     #[ts(type = "number | null")]
     pub announcement_channel_id: Option<i64>,
+    pub boost_count: i32,
+    pub boost_level: i32,
+}
+
+/// Бустер сервера (кто и когда бустнул).
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct BoostEntry {
+    #[ts(type = "number")]
+    pub user_id: i64,
+    pub username: String,
+    #[ts(type = "number")]
+    pub boosted_at: i64,
+}
+
+/// Информация о системе бустов сервера.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ServerBoostInfo {
+    pub level: i32,
+    pub count: i32,
+    pub boosters: Vec<BoostEntry>,
 }
 
 /// Частичное обновление настроек сервера (только owner/admin).
@@ -1587,4 +1611,139 @@ pub struct CreateAutoModRuleRequest {
     pub action: String,
     #[serde(default)]
     pub note: Option<String>,
+}
+
+/// Вебхук канала.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Webhook {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub name: String,
+    pub avatar_url: String,
+    #[ts(type = "number")]
+    pub channel_id: i64,
+    /// Токен только при создании; в списке — красится на `***`.
+    pub token: Option<String>,
+    #[ts(type = "number")]
+    pub created_at: i64,
+}
+
+/// Запрос создания вебхука.
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateWebhookRequest {
+    pub name: String,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
+}
+
+/// OAuth-приложение (упрощённая регистрация).
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct OAuthApp {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub owner_id: i64,
+    pub name: String,
+    pub client_id: String,
+    pub scopes: Vec<String>,
+    pub redirect_uris: Vec<String>,
+    #[ts(type = "number")]
+    pub created_at: i64,
+}
+
+/// Запрос регистрации OAuth-приложения.
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateOAuthAppRequest {
+    pub name: String,
+    #[serde(default)]
+    pub scopes: Vec<String>,
+    #[serde(default)]
+    pub redirect_uris: Vec<String>,
+}
+
+/// Ответ на создание OAuth-приложения (однократно возвращается secret).
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateOAuthAppResponse {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub owner_id: i64,
+    pub name: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub scopes: Vec<String>,
+    pub redirect_uris: Vec<String>,
+    #[ts(type = "number")]
+    pub created_at: i64,
+}
+
+/// Черновик сообщения.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Draft {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub user_id: i64,
+    #[ts(type = "number")]
+    pub channel_id: i64,
+    pub content: String,
+    #[ts(type = "number")]
+    pub created_at: i64,
+    #[ts(type = "number")]
+    pub updated_at: i64,
+}
+
+/// Запрос сохранения черновика.
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SaveDraftRequest {
+    pub content: String,
+}
+
+/// Состояние запланированного сообщения.
+#[derive(Serialize, Deserialize, TS, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ScheduledMessage {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub author_id: i64,
+    #[ts(type = "number")]
+    pub channel_id: i64,
+    pub content: String,
+    #[ts(type = "number")]
+    pub scheduled_at: i64,
+    pub status: String,
+    #[ts(type = "number")]
+    pub sent_at: Option<i64>,
+    pub error_msg: Option<String>,
+    #[ts(type = "number")]
+    pub created_at: i64,
+}
+
+/// Запрос создания запланированного сообщения.
+#[derive(Deserialize, TS, Debug)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CreateScheduledMessageRequest {
+    #[ts(type = "number")]
+    pub channel_id: i64,
+    pub content: String,
+    /// Unix timestamp (ms) когда отправить.
+    #[ts(type = "number")]
+    pub scheduled_for: i64,
 }

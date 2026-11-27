@@ -41,16 +41,22 @@ pub type Storage = object_store::aws::AmazonS3;
 /// S3-совместимое хранилище из переменных окружения (локально — MinIO из docker-compose).
 pub fn storage_from_env() -> anyhow::Result<Storage> {
     let var = |name: &str| std::env::var(name).map_err(|_| anyhow::anyhow!("{name} is not set"));
+    eprintln!("S3_ENDPOINT={:?} BUCKET={:?} KEY={:?}", var("S3_ENDPOINT").ok(), var("S3_BUCKET").ok(), var("S3_ACCESS_KEY").ok());
     let endpoint = var("S3_ENDPOINT")?;
-    Ok(AmazonS3Builder::new()
+    let result = AmazonS3Builder::new()
         .with_allow_http(endpoint.starts_with("http://"))
-        .with_endpoint(endpoint)
+        .with_endpoint(&endpoint)
         .with_bucket_name(var("S3_BUCKET")?)
         .with_access_key_id(var("S3_ACCESS_KEY")?)
         .with_secret_access_key(var("S3_SECRET_KEY")?)
         .with_region(std::env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".into()))
         .with_virtual_hosted_style_request(false)
-        .build()?)
+        .build();
+    match &result {
+        Ok(s) => eprintln!("S3 builder OK: {:?}", s),
+        Err(e) => eprintln!("S3 build error: {:?}", e),
+    }
+    Ok(result?)
 }
 
 pub fn routes() -> Router<AppState> {

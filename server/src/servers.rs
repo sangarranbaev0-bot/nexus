@@ -16,12 +16,16 @@ use crate::{
     permissions,
     presence::STATUS_SQL,
     protocol::{
-        BanInfo, BanRequest, Channel, ChannelKind, CreateChannelRequest, CreateInviteRequest,
-        CreateServerRequest, Invite, Member, MemberSearchParams, MemberSearchResponse,
-        Presence, Role, Server, Ticket, TimeoutRequest, UpdateMemberRequest, UpdateServerRequest,
+        BanInfo, BanRequest, BoostEntry, Channel, ChannelKind, CreateChannelRequest,
+        CreateInviteRequest, CreateServerRequest, Invite, Member, MemberSearchParams,
+        MemberSearchResponse, Presence, Role, Server, ServerBoostInfo, Ticket, TimeoutRequest,
+        UpdateMemberRequest, UpdateServerRequest,
     },
     reads,
-    schema::{bans, channels, dm_participants, invites, members, roles, servers, tickets, users},
+    schema::{
+        bans, channels, dm_participants, invites, members, roles, servers, server_boosts, tickets,
+        users,
+    },
 };
 
 const DEFAULT_CHANNEL: &str = "общий";
@@ -36,6 +40,7 @@ type TicketRow = (
     DateTime<Utc>,
     Option<DateTime<Utc>>,
 );
+type InviteRow = (String, i64, Option<DateTime<Utc>>, Option<i32>, i32);
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -76,9 +81,13 @@ pub fn routes() -> Router<AppState> {
               "/api/servers/{id}/tickets/{ticket_id}",
               patch(update_ticket),
           )
-          .route("/api/channels/{id}", delete(delete_channel))
-          .route(
-              "/api/invites/{code}/join", post(join_by_invite))
+        .route("/api/channels/{id}", delete(delete_channel))
+        .route(
+            "/api/invites/{code}/join", post(join_by_invite),
+        )
+        .route(
+            "/api/servers/{id}/boosts", get(list_boosts).post(boost_server),
+        )
 }
 
 /// Роль пользователя на сервере. Не-участнику 404: не раскрываем, что сервер существует.
@@ -284,6 +293,8 @@ async fn create_server(
                 rules: String::new(),
                 banner_url: String::new(),
                 announcement_channel_id: None,
+                boost_count: 0,
+                boost_level: 0,
             })
         })
         .await?;
@@ -582,6 +593,16 @@ struct MemberRow {
     avatar_url: String,
 }
 
+#[derive(diesel::QueryableByName)]
+struct BoostEntryRow {
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    user_id: i64,
+    #[diesel(sql_type = diesel::sql_types::Text)]
+    username: String,
+    #[diesel(sql_type = diesel::sql_types::BigInt)]
+    boosted_at: i64,
+}
+
 async fn list_members(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
@@ -787,7 +808,7 @@ async fn list_invites(
     let mut conn = state.pool.get().await?;
     permissions::require_permission(&mut conn, server_id, user_id, permissions::CREATE_INVITE)
         .await?;
-    let rows: Vec<(String, i64, Option<chrono::DateTime<Utc>>, Option<i32>, i32)> =
+    let rows: Vec<InviteRow> =
         invites::table
             .filter(invites::server_id.eq(server_id))
             .select((
@@ -928,6 +949,8 @@ async fn join_by_invite(
         rules: String::new(),
         banner_url: String::new(),
         announcement_channel_id: None,
+        boost_count: 0,
+        boost_level: 0,
     }))
 }
 
@@ -1204,8 +1227,129 @@ async fn list_bans(
                 created_at: created_at.timestamp_millis(),
             })
             .collect(),
-    ))
+            ))
 }
+
+/// Уровни бустов: [1, 3, 7] бустов = уровни 1, 2, 3 соответственно.
+const BOOST_THRESHOLDS: &[i32] = &[1, 3, 7];
+
+fn calc_boost_level(count: i32) -> i32 {
+    for (i, &threshold) in BOOST_THRESHOLDS.iter().enumerate() {
+        if count < threshold {
+            return i as i32;
+        }
+    }
+    (BOOST_THRESHOLDS.len() - 1) as i32
+}
+
+/// Получить или создать буст пользователя на сервере; убрать — если уже бустит.
+async fn toggle_boost(
+    conn: &mut AsyncPgConnection,
+    server_id: i64,
+    user_id: i64,
+) -> AppResult<i32> {
+    use diesel::insert_into;
+    let existing: Option<i64> = server_boosts::table
+        .filter(server_boosts::server_id.eq(server_id))
+        .filter(server_boosts::user_id.eq(user_id))
+        .select(server_boosts::server_id)
+        .first(conn)
+        .await
+        .optional()?;
+    if existing.is_some() {
+        // Убираем буст
+        diesel::delete(
+            server_boosts::table.filter(
+                server_boosts::server_id.eq(server_id).and(server_boosts::user_id.eq(user_id)),
+            ),
+        )
+        .execute(conn)
+        .await?;
+    } else {
+        // Ставим буст
+        insert_into(server_boosts::table)
+            .values((
+                server_boosts::server_id.eq(server_id),
+                server_boosts::user_id.eq(user_id),
+                server_boosts::boosted_at.eq(Utc::now()),
+            ))
+            .on_conflict((server_boosts::server_id, server_boosts::user_id))
+            .do_nothing()
+            .execute(conn)
+            .await?;
+    }
+    let count: i64 = server_boosts::table
+        .filter(server_boosts::server_id.eq(server_id))
+        .count()
+        .get_result(conn)
+        .await?;
+    diesel::update(servers::table.find(server_id))
+        .set((
+            servers::boost_count.eq(count as i32),
+            servers::boost_level.eq(calc_boost_level(count as i32)),
+        ))
+        .execute(conn)
+        .await?;
+    Ok(count as i32)
+}
+
+async fn list_boosts(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(server_id): Path<i64>,
+) -> AppResult<Json<Vec<BoostEntry>>> {
+    let mut conn = state.pool.get().await?;
+    role_in(&mut conn, server_id, user_id).await?;
+    let rows: Vec<BoostEntryRow> = diesel::sql_query(
+        "SELECT b.user_id, u.username, extract(epoch from b.boosted_at)::bigint AS boosted_at
+         FROM server_boosts b
+         JOIN users u ON u.id = b.user_id
+         WHERE b.server_id = $1
+         ORDER BY b.boosted_at DESC",
+    )
+    .bind::<diesel::sql_types::BigInt, _>(server_id)
+    .load(&mut conn)
+    .await?;
+    Ok(Json(rows.into_iter().map(|r| BoostEntry {
+        user_id: r.user_id,
+        username: r.username,
+        boosted_at: r.boosted_at,
+    }).collect()))
+}
+
+async fn boost_server(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(server_id): Path<i64>,
+) -> AppResult<Json<ServerBoostInfo>> {
+    let mut conn = state.pool.get().await?;
+    role_in(&mut conn, server_id, user_id).await?;
+    let new_count = toggle_boost(&mut conn, server_id, user_id).await?;
+    let row: (i32, i32) = servers::table
+        .find(server_id)
+        .select((servers::boost_level, servers::boost_count))
+        .first(&mut conn)
+        .await?;
+    let level = row.0;
+    // Загрузим список бустеров
+    let rows: Vec<BoostEntryRow> = diesel::sql_query(
+        "SELECT b.user_id, u.username, extract(epoch from b.boosted_at)::bigint AS boosted_at
+         FROM server_boosts b
+         JOIN users u ON u.id = b.user_id
+         WHERE b.server_id = $1
+         ORDER BY b.boosted_at DESC",
+    )
+    .bind::<diesel::sql_types::BigInt, _>(server_id)
+    .load(&mut conn)
+    .await?;
+    let boosters = rows.into_iter().map(|r| BoostEntry {
+        user_id: r.user_id,
+        username: r.username,
+        boosted_at: r.boosted_at,
+    }).collect();
+    Ok(Json(ServerBoostInfo { level, count: new_count, boosters }))
+}
+
 mod tests {
     // Allow unused-imports here: super::* brings normalize_channel_name, Role,
     // invite_code and INVITE_CODE_LEN into scope for the unit tests below.

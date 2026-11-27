@@ -614,6 +614,7 @@ async fn template_create(
             id, name, owner_id: user_id, my_role: crate::protocol::Role::Owner,
             my_permissions: permissions::ALL, unread_count: 0, system_channel_id: system,
             afk_channel_id: None, description: t.description, rules: t.rules, banner_url: t.banner_url, announcement_channel_id: None,
+            boost_count: 0, boost_level: 0,
         })
     }).await?;
     Ok((StatusCode::CREATED, Json(server)))

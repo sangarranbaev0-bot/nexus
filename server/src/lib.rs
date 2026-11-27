@@ -23,6 +23,9 @@ pub mod voice;
 mod ws;
 mod automod;
 mod stickers;
+mod integrations;
+mod drafts;
+pub mod scheduled_messages;
 
 use std::sync::Arc;
 
@@ -146,6 +149,9 @@ pub fn app(state: AppState) -> Router {
         .merge(voice::routes())
         .merge(automod::routes())
         .merge(stickers::routes())
+        .merge(integrations::routes())
+        .merge(drafts::routes())
+        .merge(scheduled_messages::routes())
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn(add_security_headers))
@@ -173,6 +179,19 @@ async fn add_security_headers(
         axum::http::header::REFERRER_POLICY,
         axum::http::HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
+    // Content-Security-Policy: блокируем inline-скрипты, разрешаем только свои скрипты и media с своего хоста.
+    resp.headers_mut().insert(
+        axum::http::header::CONTENT_SECURITY_POLICY,
+        axum::http::HeaderValue::from_static(
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' wss: ws:; media-src 'self' https:; object-src 'none'; frame-ancestors 'none'",
+        ),
+    );
+    if std::env::var("HTTPS_ONLY").is_ok() {
+        resp.headers_mut().insert(
+            axum::http::header::STRICT_TRANSPORT_SECURITY,
+            axum::http::HeaderValue::from_static("max-age=31536000; includeSubDomains"),
+        );
+    }
     resp
 }
 

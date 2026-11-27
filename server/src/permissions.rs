@@ -43,9 +43,10 @@ pub const PRIORITY_SPEAKER: i64 = 1 << 23;
 pub const STREAM: i64 = 1 << 24;
 pub const ADMINISTRATOR: i64 = 1 << 25;
 pub const PIN_MESSAGES: i64 = 1 << 26;
+pub const MANAGE_WEBHOOKS: i64 = 1 << 27;
 
 /// Все описанные биты.
-pub const ALL: i64 = (1 << 27) - 1;
+pub const ALL: i64 = (1 << 28) - 1;
 
 /// Права обычного участника сервера.
 pub const MEMBER_BASE: i64 = VIEW_CHANNEL
