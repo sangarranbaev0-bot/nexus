@@ -41,7 +41,7 @@ fn main() {
         .register_uri_scheme_protocol("splash", |_ctx, _req| {
             tauri::http::Response::builder()
                 .header("Content-Type", "text/html; charset=utf-8")
-                .body(SPLASH_HTML.as_bytes().into())
+                .body(SPLASH_HTML.as_bytes())
                 .expect("splash response")
         })
         .setup(|app| {
