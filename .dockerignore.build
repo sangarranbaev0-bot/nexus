@@ -1,0 +1,11 @@
+**/node_modules
+**/target
+desktop
+.git
+.env
+deploy/.env
+server/stderr.log
+server/run_dev.ps1
+server/test_diesel.rs
+certs/
+build.prev.log

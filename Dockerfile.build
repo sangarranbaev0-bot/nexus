@@ -1,0 +1,16 @@
+# NexusChat: Rust server + React client.
+# docker build --iidfile=id.txt -f Dockerfile.build .
+
+FROM nexuschat-rust AS server
+
+FROM curlimages/curl:8.14.1 AS ca-certs
+
+FROM debian:trixie-slim
+COPY --from=ca-certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+RUN useradd --system --uid 10001 nexus
+COPY --from=server /app/server/target/release/nexus-server /usr/local/bin/nexus-server
+COPY client/dist /app/client
+ENV CLIENT_DIST=/app/client PORT=3001
+USER nexus
+EXPOSE 3001
+CMD ["nexus-server"]
