@@ -13,7 +13,12 @@
 
 use std::time::{Duration, Instant};
 
-use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+#[cfg(target_os = "windows")]
+use tauri::image::Image;
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::{Update, UpdaterExt};
 use tokio::sync::mpsc;
@@ -27,6 +32,23 @@ const SPLASH_MIN: Duration = Duration::from_millis(1200);
 
 const SPLASH_HTML: &str = include_str!("../splash.html");
 
+/// С этим аргументом Windows запускает приложение при входе: окно не показываем, только значок в трее.
+const AUTOSTART_ARG: &str = "--autostart";
+
+/// Красные значки с числом непрочитанных для иконки в панели задач (1–9 и «9+»).
+const BADGES: [&[u8]; 10] = [
+    include_bytes!("../icons/badges/1.png"),
+    include_bytes!("../icons/badges/2.png"),
+    include_bytes!("../icons/badges/3.png"),
+    include_bytes!("../icons/badges/4.png"),
+    include_bytes!("../icons/badges/5.png"),
+    include_bytes!("../icons/badges/6.png"),
+    include_bytes!("../icons/badges/7.png"),
+    include_bytes!("../icons/badges/8.png"),
+    include_bytes!("../icons/badges/9.png"),
+    include_bytes!("../icons/badges/10.png"),
+];
+
 #[derive(Clone, Copy, PartialEq)]
 enum Action {
     Update,
@@ -36,6 +58,12 @@ enum Action {
 
 fn main() {
     tauri::Builder::default()
+        // Второй запуск (ярлык, автозапуск) не открывает вторую копию, а показывает уже открытую.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec![AUTOSTART_ARG]),
+        ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .register_uri_scheme_protocol("splash", |_ctx, _req| {
@@ -46,13 +74,23 @@ fn main() {
         })
         .setup(|app| {
             let app = app.handle().clone();
+            create_main(&app)?;
+            first_run_autostart(&app);
+            setup_tray(&app)?;
+
+            let autostarted = std::env::args().any(|a| a == AUTOSTART_ARG);
             let (tx, rx) = mpsc::unbounded_channel::<Action>();
-            let splash = match open_splash(&app, tx) {
-                Ok(w) => Some(w),
-                Err(e) => {
-                    eprintln!("splash failed: {e}");
-                    show_main(&app);
-                    None
+            // При автозапуске заставку не показываем: приложение тихо ждёт в трее.
+            let splash = if autostarted {
+                None
+            } else {
+                match open_splash(&app, tx) {
+                    Ok(w) => Some(w),
+                    Err(e) => {
+                        eprintln!("splash failed: {e}");
+                        show_main(&app);
+                        None
+                    }
                 }
             };
             tauri::async_runtime::spawn(async move {
@@ -69,6 +107,15 @@ fn main() {
                 }
             });
             Ok(())
+        })
+        // Крестик прячет окно в трей, как в Discord. Выйти — через меню значка в трее.
+        .on_window_event(|window, event| {
+            if window.label() == "main"
+                && let WindowEvent::CloseRequested { api, .. } = event
+            {
+                api.prevent_close();
+                let _ = window.hide();
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running NexusChat");
@@ -198,8 +245,123 @@ async fn install(splash: &WebviewWindow, update: &Update) -> bool {
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
+        let _ = w.unminimize();
         let _ = w.set_focus();
     }
+}
+
+/// Главное окно создаём сами (в tauri.conf.json у него "create": false),
+/// чтобы следить за заголовком страницы: клиент пишет туда «(3) NexusChat».
+fn create_main(app: &AppHandle) -> tauri::Result<()> {
+    let config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == "main")
+        .cloned()
+        .expect("main window in tauri.conf.json");
+    WebviewWindowBuilder::from_config(app, &config)?
+        .on_document_title_changed(|window, title| on_title_changed(&window, &title))
+        .build()?;
+    Ok(())
+}
+
+/// Число из заголовка вида «(3) NexusChat»; без скобок — 0.
+fn unread_from_title(title: &str) -> u32 {
+    title
+        .strip_prefix('(')
+        .and_then(|rest| rest.split_once(')'))
+        .and_then(|(n, _)| n.trim().parse().ok())
+        .unwrap_or(0)
+}
+
+/// Заголовок окна, значок непрочитанного на панели задач и подсказка у значка в трее.
+fn on_title_changed(window: &WebviewWindow, title: &str) {
+    let _ = window.set_title(title);
+    let unread = unread_from_title(title);
+    #[cfg(target_os = "windows")]
+    {
+        let badge = match unread {
+            0 => None,
+            n => Image::from_bytes(BADGES[(n.min(10) - 1) as usize]).ok(),
+        };
+        let _ = window.set_overlay_icon(badge);
+        if unread > 0 && !window.is_focused().unwrap_or(true) {
+            // Мигнуть кнопкой на панели задач, как при новом сообщении в Discord.
+            let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = &BADGES;
+    if let Some(tray) = window.app_handle().tray_by_id("main") {
+        let tip = if unread > 0 {
+            format!("NexusChat — непрочитанных: {unread}")
+        } else {
+            "NexusChat".to_string()
+        };
+        let _ = tray.set_tooltip(Some(tip));
+    }
+}
+
+/// При первом запуске включаем запуск вместе с Windows, как Discord. Отключается в меню трея.
+fn first_run_autostart(app: &AppHandle) {
+    let Ok(dir) = app.path().app_data_dir() else { return };
+    let marker = dir.join("autostart-initialized");
+    if marker.exists() {
+        return;
+    }
+    let _ = std::fs::create_dir_all(&dir);
+    if app.autolaunch().enable().is_ok() {
+        let _ = std::fs::write(&marker, b"1");
+    }
+}
+
+/// Значок в трее: левый клик открывает окно, правый — меню.
+fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
+    let open = MenuItem::with_id(app, "open", "Открыть NexusChat", true, None::<&str>)?;
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        "Запускать вместе с Windows",
+        true,
+        app.autolaunch().is_enabled().unwrap_or(false),
+        None::<&str>,
+    )?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let quit = MenuItem::with_id(app, "quit", "Выйти", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &autostart, &separator, &quit])?;
+
+    let mut tray = TrayIconBuilder::with_id("main")
+        .tooltip("NexusChat")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(move |app, event| match event.id().as_ref() {
+            "open" => show_main(app),
+            "autostart" => {
+                let launcher = app.autolaunch();
+                let was_on = launcher.is_enabled().unwrap_or(false);
+                let _ = if was_on { launcher.disable() } else { launcher.enable() };
+                let _ = autostart.set_checked(launcher.is_enabled().unwrap_or(!was_on));
+            }
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main(tray.app_handle());
+            }
+        });
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(app)?;
+    Ok(())
 }
 
 /// Проверка во время работы: заставки уже нет, поэтому спрашиваем обычным окном.
