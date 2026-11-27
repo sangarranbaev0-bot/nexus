@@ -17,3 +17,4 @@ certs/
 build.prev.log
 Dockerfile.orig.head
 backups/
+build-server.log

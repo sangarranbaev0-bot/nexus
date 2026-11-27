@@ -5,8 +5,8 @@ CREATE TABLE scheduled_messages (
     content      TEXT NOT NULL,
     scheduled_at TIMESTAMPTZ NOT NULL,
     status       TEXT NOT NULL DEFAULT 'pending',
-    sent_at      Nullable<Timestamptz>,
-    error_msg    Nullable<Text>,
+    sent_at      TIMESTAMPTZ,
+    error_msg    TEXT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

@@ -1,0 +1,11 @@
+# Образ с собранным сервером NexusChat (nexuschat-rust), из него берёт бинарник основной Dockerfile.
+# Сборка: docker build -t nexuschat-rust -f Dockerfile.rust .
+FROM rust:1.89-slim
+WORKDIR /app/server
+COPY server/ ./
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/server/target,id=nexus-target \
+    cargo build --release && mkdir -p /out && cp target/release/nexus-server /out/
+# Основной Dockerfile ждёт бинарник по этому пути.
+RUN mkdir -p target/release && cp /out/nexus-server target/release/nexus-server

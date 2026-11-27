@@ -407,8 +407,8 @@ async fn search(
     if has_link {
         query = query.filter(messages::content.ilike("%http%"));
     }
-    for term in terms {
-        query = query.filter(messages::content.ilike(format!("%{}%", term)));
+    for term in &terms {
+        query = query.filter(content_matches(term));
     }
     if let Some(before) = params.before {
         query = query.filter(messages::id.lt(before));
@@ -521,7 +521,7 @@ async fn server_search(
         query = query.filter(messages::content.ilike("%http%"));
     }
     for term in &terms {
-        query = query.filter(messages::content.ilike(format!("%{}%", term)));
+        query = query.filter(content_matches(term));
     }
 
     let mut rows: Vec<Row> = query.limit(limit + 1).load(&mut conn).await?;
@@ -1207,6 +1207,17 @@ async fn embed_preview(
         }
     }
     Ok(Json(None))
+}
+
+/// Условие поиска одного слова в тексте сообщения: полнотекстовый поиск с русской морфологией
+/// («сообщения» находит «сообщение», индекс messages_content_fts_idx) или подстрока, как раньше.
+fn content_matches(term: &str) -> diesel::expression::SqlLiteral<diesel::sql_types::Bool, impl diesel::query_builder::QueryFragment<diesel::pg::Pg> + Send> {
+    let escaped = term.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+    diesel::dsl::sql::<diesel::sql_types::Bool>("(to_tsvector('russian', messages.content) @@ plainto_tsquery('russian', ")
+        .bind::<Text, _>(term.to_string())
+        .sql(") OR messages.content ILIKE ")
+        .bind::<Text, _>(format!("%{escaped}%"))
+        .sql(")")
 }
 
 #[cfg(test)]
