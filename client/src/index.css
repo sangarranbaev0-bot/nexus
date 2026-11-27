@@ -1,65 +1,363 @@
 @import 'tailwindcss';
 
-html.nexus-fs-14 { font-size: 14px; }
+/* ── Design tokens (из Main.dc.html / Animations.dc.html) ── */
+:root {
+  --nc-bg-primary: #0d0d0d;
+  --nc-bg-secondary: #121212;
+  --nc-bg-tertiary: #181818;
+  --nc-bg-hover: #242424;
+  --nc-bg-active: #2c2c2c;
+  --nc-border: #1e1e1e;
+  --nc-border-light: #242424;
+  --nc-border-medium: #2c2c2c;
+  --nc-text-primary: #e5e7eb;
+  --nc-text-secondary: #d1d5db;
+  --nc-text-muted: #9ca3af;
+  --nc-text-faint: #8b919c;
+  --nc-accent: #6366f1;
+  --nc-accent-light: #a5b4fc;
+  --nc-accent-red: #dc2626;
+  --nc-accent-green: #22c55e;
+  --nc-accent-green-light: #4ade80;
+  --nc-accent-amber: #fbbf24;
+  --nc-font-size-base: 14px;
+  --nc-font-size-sm: 13px;
+  --nc-font-size-xs: 12px;
+  --nc-avatar-size: 40px;
+  --nc-avatar-size-sm: 24px;
+  --nc-pill-radius: 16px;
+  --nc-pill-radius-sm: 14px;
+}
+
+html.nexus-fs-14 { font-size: var(--nc-font-size-base); }
 html.nexus-fs-16 { font-size: 16px; }
 html.nexus-fs-18 { font-size: 18px; }
-html.nexus-compact { gap: 0.5rem; }
+html.nexus-compact { gap: 0.3rem; }
 
-html.nexus-dark, html.nexus-dark body { background-color: #09090b; color: #e4e4e7; }
-html.nexus-dark .bg-zinc-950 { background-color: #09090b; }
-html.nexus-dark .bg-zinc-900 { background-color: #18181b; }
-html.nexus-dark .bg-zinc-800 { background-color: #27272a; }
-html.nexus-dark .text-zinc-100 { color: #f4f4f5; }
-html.nexus-dark .text-zinc-400 { color: #a1a1aa; }
-html.nexus-dark .text-zinc-500 { color: #71717a; }
-html.nexus-dark .text-white { color: #f4f4f5; }
-html.nexus-dark .border-zinc-800 { border-color: #3f3f46; }
-html.nexus-dark .border-zinc-700 { border-color: #52525b; }
-html.nexus-dark .hover\:bg-zinc-800:hover { background-color: #27272a; }
-html.nexus-dark .hover\:bg-zinc-700:hover { background-color: #3f3f46; }
-html.nexus-dark .hover\:bg-indigo-500:hover { background-color: #6366f1; }
+/* ── Тёмная тема (по умолчанию, соответствует дизайну) ── */
+html.nexus-dark, html.nexus-dark body {
+  background-color: var(--nc-bg-primary) !important;
+  color: var(--nc-text-primary) !important;
+}
+html.nexus-dark .bg-zinc-950 { background-color: var(--nc-bg-primary) !important; }
+html.nexus-dark .bg-zinc-900 { background-color: var(--nc-bg-secondary) !important; }
+html.nexus-dark .bg-zinc-800 { background-color: var(--nc-bg-hover) !important; }
+html.nexus-dark .text-zinc-100 { color: var(--nc-text-primary) !important; }
+html.nexus-dark .text-zinc-200 { color: var(--nc-text-secondary) !important; }
+html.nexus-dark .text-zinc-300 { color: var(--nc-text-muted) !important; }
+html.nexus-dark .text-zinc-400 { color: var(--nc-text-muted) !important; }
+html.nexus-dark .text-zinc-500 { color: var(--nc-text-faint) !important; }
+html.nexus-dark .border-zinc-800 { border-color: var(--nc-border-light) !important; }
+html.nexus-dark .border-zinc-700 { border-color: var(--nc-border-medium) !important; }
+html.nexus-dark .hover\:bg-zinc-800:hover { background-color: var(--nc-bg-hover) !important; }
+html.nexus-dark .hover\:bg-zinc-700:hover { background-color: var(--nc-bg-active) !important; }
+html.nexus-dark .hover\:bg-indigo-500:hover { background-color: var(--nc-accent) !important; }
+html.nexus-dark .focus-visible\:outline-indigo-500:focus-visible { outline-color: rgba(99,102,241,.6) !important; }
 
-/* Светлая тема: зеркальный набор правил для корректного отображения без .nexus-dark. */
-html.nexus-light, html.nexus-light body { background-color: #ffffff; color: #18181b; }
-html.nexus-light .bg-zinc-950 { background-color: #ffffff; }
-html.nexus-light .bg-zinc-900 { background-color: #f4f4f5; }
-html.nexus-light .bg-zinc-800 { background-color: #e4e4e7; }
-html.nexus-light .text-zinc-100 { color: #18181b; }
-html.nexus-light .text-zinc-400 { color: #71717a; }
-html.nexus-light .text-zinc-500 { color: #a1a1aa; }
-html.nexus-light .text-white { color: #18181b; }
-html.nexus-light .border-zinc-800 { border-color: #d4d4d8; }
-html.nexus-light .border-zinc-700 { border-color: #a1a1aa; }
-html.nexus-light .hover\:bg-zinc-800:hover { background-color: #e4e4e7; }
-html.nexus-light .hover\:bg-zinc-700:hover { background-color: #d4d4d8; }
-html.nexus-light .hover\:bg-indigo-500:hover { background-color: #6366f1; }
+/* ── Светлая тема ── */
+html.nexus-light, html.nexus-light body {
+  background-color: #f4f4f5 !important;
+  color: #18181b !important;
+}
+html.nexus-light .bg-zinc-950 { background-color: #ffffff !important; }
+html.nexus-light .bg-zinc-900 { background-color: #f4f4f5 !important; }
+html.nexus-light .bg-zinc-800 { background-color: #e4e4e7 !important; }
+html.nexus-light .text-zinc-100 { color: #18181b !important; }
+html.nexus-light .text-zinc-400 { color: #71717a !important; }
+html.nexus-light .text-zinc-500 { color: #a1a1aa !important; }
+html.nexus-light .border-zinc-800 { border-color: #d4d4d8 !important; }
+html.nexus-light .border-zinc-700 { border-color: #a1a1aa !important; }
+html.nexus-light .hover\:bg-zinc-800:hover { background-color: #e4e4e7 !important; }
+html.nexus-light .hover\:bg-zinc-700:hover { background-color: #d4d4d8 !important; }
+html.nexus-light .hover\:bg-indigo-500:hover { background-color: #6366f1 !important; }
 
-/* Видимый фокус для клавиатуры; мышь и касание его не вызывают. */
-:focus-visible {
-  outline: 2px solid var(--color-indigo-400);
+/* ── Системные стили ── */
+body {
+  margin: 0;
+  background: var(--nc-bg-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a { color: var(--nc-accent-light); }
+a:hover { color: #c7d2fe; }
+
+button {
+  font-family: inherit;
+  transition: background-color 150ms ease-in-out, color 150ms ease-in-out, border-color 150ms ease-in-out;
+}
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible {
+  outline: 2px solid rgba(99,102,241,.6);
   outline-offset: 2px;
 }
 
-/* Анимация перехода между каналами */
-.fade-in {
-  animation: nexus-fade-in 0.18s ease-out;
+/* ── Icon buttons ── */
+.nc-ib {
+  width: 36px; height: 36px;
+  border: 0; border-radius: 8px;
+  background: transparent;
+  color: var(--nc-text-muted);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; padding: 0;
 }
-@keyframes nexus-fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+.nc-ib:hover { background: var(--nc-bg-hover); color: var(--nc-text-primary); }
+.nc-ib--lg { width: 44px; height: 44px; border-radius: 10px; }
+
+/* ── Channel rows ── */
+.nc-ch {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; border: 0; background: transparent;
+  color: var(--nc-text-muted); font-size: var(--nc-font-size-sm);
+  padding: 7px 8px; border-radius: 6px;
+  cursor: pointer; text-align: left;
+}
+.nc-ch:hover { background: var(--nc-bg-hover); color: var(--nc-text-primary); }
+.nc-ch[aria-current="page"] { background: var(--nc-bg-hover); color: var(--nc-text-primary); }
+.nc-ch[aria-current="page"]:hover { background: var(--nc-bg-active); }
+
+/* ── Message row ── */
+.nc-msg {
+  display: flex; gap: 16px;
+  padding: 6px 20px;
+  position: relative;
+}
+.nc-msg:hover { background: #151515; }
+
+/* ── Avatar ── */
+.nc-av {
+  width: var(--nc-avatar-size); height: var(--nc-avatar-size);
+  border-radius: 50%;
+  flex: 0 0 var(--nc-avatar-size);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 15px; color: var(--nc-bg-primary);
+  position: relative;
+}
+.nc-av--sm {
+  width: var(--nc-avatar-size-sm); height: var(--nc-avatar-size-sm);
+  flex: 0 0 var(--nc-avatar-size-sm); font-size: 12px;
+}
+.nc-dot {
+  position: absolute; right: -2px; bottom: -2px;
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 3px solid var(--nc-bg-secondary);
+}
+.nc-dot--online { background: var(--nc-accent-green); }
+.nc-dot--idle { background: var(--nc-accent-amber); }
+.nc-dot--dnd { background: var(--nc-accent-red); }
+.nc-dot--offline { background: #71717a; }
+
+/* ── Reaction pills ── */
+.nc-rx {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 8px;
+  border-radius: 8px;
+  background: var(--nc-bg-tertiary);
+  border: 1px solid var(--nc-border-medium);
+  color: var(--nc-text-secondary);
+  font-size: var(--nc-font-size-sm);
+  cursor: pointer;
+}
+.nc-rx:hover { border-color: #3f3f46; }
+.nc-rx--accent {
+  background: rgba(99,102,241,.15);
+  border-color: var(--nc-accent);
+  color: var(--nc-accent-light);
 }
 
-/* Плавные переходы для интерактивных элементов */
-.channel-row, .server-pill, .dm-item {
-  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+/* ── Member row ── */
+.nc-mem {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 8px; border-radius: 6px;
+  border: 0; background: transparent;
+  width: 100%; text-align: left;
+  cursor: pointer;
 }
-.nav-link:hover {
-  transform: translateX(2px);
+.nc-mem:hover { background: var(--nc-bg-hover); }
+
+/* ── Server pill ── */
+.nc-srv {
+  width: 48px; height: 48px;
+  border-radius: var(--nc-pill-radius); border: 0;
+  background: var(--nc-bg-tertiary);
+  color: var(--nc-text-primary);
+  font-weight: 600; font-size: 15px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-radius 150ms ease-in-out, background-color 150ms ease-in-out;
 }
-button:active {
-  transform: scale(0.97);
+.nc-srv:hover { border-radius: var(--nc-pill-radius-sm); background: var(--nc-bg-active); }
+.nc-srv--active { border-radius: var(--nc-pill-radius-sm); background: var(--nc-bg-active); box-shadow: inset 0 0 0 2px var(--nc-accent); }
+.nc-srv--pill { border-radius: 12px; background: var(--nc-accent); color: #fff; }
+.nc-srv--folder { border-radius: 12px; background: #422006; color: var(--nc-accent-amber); }
+.nc-srv--add { color: var(--nc-accent-green-light); background: var(--nc-bg-hover); }
+
+/* ── Pill indicator ── */
+.nc-pill-indicator {
+  position: absolute; left: -12px;
+  width: 4px; height: 40px;
+  border-radius: 0 4px 4px 0;
+  background: var(--nc-text-primary);
 }
-.hover-lift:hover {
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
-  transform: translateY(-1px);
+
+/* ── Badge ── */
+.nc-badge {
+  position: absolute; right: -4px; bottom: -4px;
+  min-width: 18px; height: 18px;
+  padding: 0 5px; box-sizing: border-box;
+  border-radius: 9px;
+  background: var(--nc-accent-red);
+  color: #fff; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  border: 3px solid var(--nc-bg-primary);
 }
+
+/* ── Section label ── */
+.nc-section-label {
+  font-size: 12px; font-weight: 600;
+  color: var(--nc-text-faint);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 8px 8px 4px;
+}
+
+/* ── Voice panel ── */
+.nc-voice-panel {
+  background: var(--nc-bg-tertiary);
+  border-top: 1px solid var(--nc-bg-primary);
+  padding: 10px 8px 8px 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.nc-voice-status {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--nc-font-size-sm);
+}
+.nc-voice-label {
+  color: var(--nc-accent-green-light); font-weight: 600; font-size: 13px;
+}
+.nc-voice-sublabel {
+  color: var(--nc-text-muted); font-size: 12px;
+}
+
+/* ── Header ── */
+.nc-header {
+  height: 52px;
+  flex: 0 0 52px;
+  border-bottom: 1px solid var(--nc-bg-primary);
+  background: transparent;
+  display: flex; align-items: center;
+  padding: 0 16px; gap: 4px;
+}
+.nc-header-title {
+  font-weight: 600; font-size: 15px; color: var(--nc-text-primary);
+}
+.nc-header-icon {
+  color: var(--nc-text-muted); font-size: 18px;
+}
+
+/* ── Settings nav items ── */
+.nc-settings-nav {
+  display: block; width: 100%; text-align: left;
+  border: 0; background: transparent;
+  color: var(--nc-text-muted); font-size: 14px;
+  padding: 8px 10px; border-radius: 6px;
+  cursor: pointer;
+}
+.nc-settings-nav:hover { background: var(--nc-bg-hover); color: var(--nc-text-primary); }
+.nc-settings-nav[aria-current="page"] { background: var(--nc-bg-hover); color: var(--nc-text-primary); }
+
+/* ── Mobile tab bar ── */
+.nc-tab {
+  flex: 1; height: 56px;
+  border: 0; background: transparent;
+  color: var(--nc-text-muted);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 3px;
+  font-family: inherit; font-size: 11px;
+}
+.nc-tab[aria-current="page"] { color: var(--nc-text-primary); }
+
+/* ── Animations (из Animations.dc.html) ── */
+@keyframes nc-modal-in {
+  0%,15% { opacity:0; transform:scale(.95) }
+  25%,75% { opacity:1; transform:scale(1) }
+  85%,100% { opacity:0; transform:scale(.95) }
+}
+@keyframes nc-backdrop-in {
+  0%,15% { opacity:0 }
+  25%,75% { opacity:1 }
+  85%,100% { opacity:0 }
+}
+@keyframes nc-toast-in {
+  0%,10% { opacity:0; transform:translateY(24px) }
+  18%,78% { opacity:1; transform:none }
+  88%,100% { opacity:0; transform:translateY(24px) }
+}
+@keyframes nc-toastbar-in {
+  0%,18% { transform:scaleX(1) }
+  78%,100% { transform:scaleX(0) }
+}
+@keyframes nc-side-in {
+  0%,15% { transform:translateX(100%) }
+  28%,72% { transform:none }
+  85%,100% { transform:translateX(100%) }
+}
+@keyframes nc-dot-bounce {
+  0%,60%,100% { transform:translateY(0); opacity:.4 }
+  30% { transform:translateY(-5px); opacity:1 }
+}
+@keyframes nc-speak {
+  0%,100% { box-shadow:0 0 0 2px var(--nc-accent-green),0 0 0 2px rgba(34,197,94,.4) }
+  50% { box-shadow:0 0 0 2px var(--nc-accent-green),0 0 0 8px rgba(34,197,94,0) }
+}
+@keyframes nc-send {
+  0%,10% { opacity:0; transform:translateY(8px) }
+  20%,45% { opacity:.5; transform:none }
+  55%,85% { opacity:1 }
+  95%,100% { opacity:0 }
+}
+@keyframes nc-shimmer {
+  0% { background-position:-200px 0 }
+  100% { background-position:200px 0 }
+}
+@keyframes nc-pop {
+  0%,20% { transform:scale(1) }
+  28% { transform:scale(1.25) }
+  36%,100% { transform:scale(1) }
+}
+@keyframes nc-count-in {
+  0%,26% { opacity:0 }
+  30%,100% { opacity:1 }
+}
+@keyframes nc-fade-in {
+  from { opacity:0; transform:translateY(4px) }
+  to { opacity:1; transform:translateY(0) }
+}
+
+.nc-anim-modal { animation: nc-modal-in 3s ease-in-out infinite; }
+.nc-anim-backdrop { animation: nc-backdrop-in 3s ease-in-out infinite; }
+.nc-anim-toast { animation: nc-toast-in 4s ease-in-out infinite; }
+.nc-anim-toastbar { animation: nc-toastbar-in 4s linear infinite; }
+.nc-anim-side { animation: nc-side-in 3.4s ease-in-out infinite; }
+.nc-anim-dot { animation: nc-dot-bounce 1.2s ease-in-out infinite; }
+.nc-anim-speaker { animation: nc-speak 1.1s ease-out infinite; }
+.nc-anim-send { animation: nc-send 4s ease-in-out infinite; }
+.nc-anim-shimmer {
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--nc-bg-tertiary) 0, #2a2a2a 50%, var(--nc-bg-tertiary) 100%);
+  background-size: 400px 100%;
+  animation: nc-shimmer 1.4s linear infinite;
+}
+.nc-anim-pop { animation: nc-pop 3s ease-in-out infinite; display: inline-block; }
+.nc-anim-count { animation: nc-count-in 3s step-end infinite; }
+.nc-anim-fade-in { animation: nc-fade-in 0.18s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0s !important; animation-iteration-count: 1 !important; transition: none !important; }
+}
+
+/* ── Общие переходы ── */
+.nc-btn, .nc-link, .nc-channel-row {
+  transition: background-color 150ms ease, color 150ms ease, transform 100ms ease;
+}
+.nc-btn:active, button:active { transform: scale(.97); }

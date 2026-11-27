@@ -48,6 +48,8 @@ import {
   banMember,
   unbanMember,
   kickMember,
+  timeoutMember,
+  unTimeoutMember,
   createSticker,
   createStickerPack,
   deleteSticker,
@@ -57,6 +59,8 @@ import {
   listAutoModRules,
   createAutoModRule,
   deleteAutoModRule,
+  getServerBoosts,
+  toggleServerBoost,
 } from "./guilds";
 import type { BanInfo } from "./generated/BanInfo";
 import type { AutoModRule } from "./generated/AutoModRule";
@@ -92,7 +96,8 @@ type Tab =
   | "notify"
   | "tickets"
   | "moderation"
-  | "automod";
+  | "automod"
+  | "boosts";
 
 const tabLabel: Record<Tab, string> = {
   general: "Общее",
@@ -110,6 +115,7 @@ const tabLabel: Record<Tab, string> = {
   tickets: "Тикеты",
   moderation: "Модерация",
   automod: "Автомод",
+  boosts: "Бусты",
 };
 
 export function ServerSettingsDialog({
@@ -133,7 +139,7 @@ export function ServerSettingsDialog({
   if (hasPerm(server.myPermissions, P.MANAGE_CHANNELS))
     tabs.push("stickers");
   if (hasPerm(server.myPermissions, P.VIEW_AUDIT_LOG)) tabs.push("audit");
-  tabs.push("notify", "tickets");
+  tabs.push("notify", "tickets", "boosts");
   return (
     <Modal title={`Настройки «${server.name}»`} onClose={onClose}>
       <div role="tablist" className="flex gap-1 border-b border-zinc-700 pb-2">
@@ -165,6 +171,7 @@ export function ServerSettingsDialog({
         {tab === "templates" && <TemplatesTab server={server} />}
         {tab === "audit" && <AuditTab server={server} />}
         {tab === "tickets" && <TicketsTab server={server} />}
+        {tab === "boosts" && <BoostsTab server={server} />}
         {tab === "moderation" && <ModerationTab server={server} />}
         {tab === "automod" && <AutoModTab server={server} />}
         {tab === "notify" && (
@@ -793,6 +800,11 @@ const actionLabel: Record<string, string> = {
   "channel.update": "Изменён канал",
   "channel.overwrite": "Изменены права канала",
   "channel.overwrite.delete": "Сброшены права канала",
+  "member.ban": "Забанен участник",
+  "member.unban": "Разбанен участник",
+  "member.kick": "Кикнут участник",
+  "member.timeout": "Временная блокировка участника",
+  "member.timeout.clear": "Снята временная блокировка",
 };
 
 function TicketsTab({ server }: { server: Server }) {
@@ -1243,6 +1255,7 @@ function ModerationTab({ server }: { server: Server }) {
   const [pending, setPending] = useState(false);
   const [targetUserId, setTargetUserId] = useState(0);
   const [targetReason, setTargetReason] = useState("");
+  const [timeoutSeconds, setTimeoutSeconds] = useState(60);
   const reload = () => void listBans(server.id).then(setBans, (e) => setError(errorMessage(e)));
   useEffect(() => { void reload(); }, [server.id]);
 
@@ -1278,11 +1291,30 @@ function ModerationTab({ server }: { server: Server }) {
     } catch (err) { setError(errorMessage(err)); } finally { setPending(false); }
   };
 
+  const doTimeout = async () => {
+    if (!targetUserId) return;
+    setPending(true);
+    setError(null);
+    try {
+      await timeoutMember(server.id, targetUserId, timeoutSeconds);
+      await reload();
+    } catch (err) { setError(errorMessage(err)); } finally { setPending(false); }
+  };
+
+  const doClearTimeout = async (userId: number) => {
+    setPending(true);
+    setError(null);
+    try {
+      await unTimeoutMember(server.id, userId);
+    } catch (err) { setError(errorMessage(err)); } finally { setPending(false); }
+  };
+
+  const durationOptions = [10, 30, 60, 300, 600, 1800, 3600, 21600, 86400];
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center gap-2 border-b border-zinc-700 pb-2">
-        <span className="text-sm font-semibold uppercase text-zinc-400">Баны</span>
-        <span className="text-xs text-zinc-500 capitalize">{bans?.length ?? 0} активных</span>
+        <span className="text-sm font-semibold uppercase text-zinc-400">Управление участниками</span>
       </div>
 
       {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
@@ -1304,12 +1336,12 @@ function ModerationTab({ server }: { server: Server }) {
             value={targetReason}
             onChange={(e) => setTargetReason(e.target.value)}
             className={inputClass}
-            placeholder="Причина бана"
+            placeholder="Причина действия"
           />
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <button disabled={pending} className={primaryButton} onClick={doBan}>
           {pending ? "Блокировка…" : "Забанить"}
         </button>
@@ -1319,29 +1351,50 @@ function ModerationTab({ server }: { server: Server }) {
         <button disabled={pending} className={primaryButton} onClick={doKick}>
           {pending ? "Кик…" : "Кикнуть"}
         </button>
+        <div className="flex items-center gap-2 ml-auto">
+          <label className="text-sm text-zinc-400">Таймаут (сек):</label>
+          <select
+            value={timeoutSeconds}
+            onChange={(e) => setTimeoutSeconds(Number(e.target.value))}
+            className={inputClass}
+          >
+            {durationOptions.map((s) => (
+              <option key={s} value={s}>{s >= 60 ? `${s / 60} мин` : `${s} сек`}</option>
+            ))}
+            <option value={0}>Снять</option>
+          </select>
+          <button disabled={pending} className={primaryButton} onClick={doTimeout}>
+            Применить таймаут
+          </button>
+        </div>
       </div>
 
-      <p className="text-sm text-zinc-500 mt-2">Список банов:</p>
-      {bans === null ? (
-        <p className="text-sm text-zinc-400">Загрузка…</p>
-      ) : bans.length === 0 ? (
-        <p className="text-sm text-zinc-500">Активных банов нет.</p>
-      ) : (
-        <ul className="divide-y divide-zinc-700 text-sm">
-          {bans.map((ban) => (
-            <li key={ban.id} className="flex items-center gap-2 py-2">
-              <span className="flex-1 truncate">:{ban.username}: {ban.actorUsername} — {new Date(ban.createdAt).toLocaleString("ru-RU")}</span>
-              <button
-                onClick={() => void doUnban(ban.userId)}
-                className="text-xs text-red-400 hover:underline"
-                aria-label={`Разбан @${ban.username}`}
-              >
-                Разбан
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <div>
+        <div className="flex items-center gap-2 border-b border-zinc-700 pb-2 mb-2">
+          <span className="text-sm font-semibold uppercase text-zinc-400">Активные баны</span>
+          <span className="text-xs text-zinc-500 capitalize">{bans?.length ?? 0} шт.</span>
+        </div>
+        {bans === null ? (
+          <p className="text-sm text-zinc-400">Загрузка…</p>
+        ) : bans.length === 0 ? (
+          <p className="text-sm text-zinc-500">Активных банов нет.</p>
+        ) : (
+          <ul className="divide-y divide-zinc-700 text-sm">
+            {bans.map((ban) => (
+              <li key={ban.id} className="flex items-center gap-2 py-2">
+                <span className="flex-1 truncate">:{ban.username}: — {ban.actorUsername} — {new Date(ban.createdAt).toLocaleString("ru-RU")}</span>
+                <button
+                  onClick={() => void doUnban(ban.userId)}
+                  className="text-xs text-red-400 hover:underline"
+                  aria-label={`Разбан @${ban.username}`}
+                >
+                  Разбан
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
@@ -1770,6 +1823,93 @@ function AutoModTab({ server }: { server: Server }) {
         ))}
         {rules.length === 0 && <li className="text-sm text-zinc-500 py-2">Нет правил.</li>}
       </ul>
+    </div>
+  );
+}
+
+const BOOST_THRESHOLDS = [1, 3, 7];
+const BOOST_NAMES = ["Нет бустов", "Уровень 1", "Уровень 2", "Уровень 3"];
+
+function BoostsTab({ server }: { server: Server }) {
+  const [info, setInfo] = useState<{ level: number; count: number; boosters: Array<{ user_id: number; username: string; boosted_at: number }> } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [boosting, setBoosting] = useState(false);
+  const reload = () => getServerBoosts(server.id).then(setInfo, (e) => setError(errorMessage(e))).finally(() => setLoading(false));
+  useEffect(() => { void reload(); }, [server.id]);
+
+  const doBoost = async () => {
+    setBoosting(true);
+    try { await toggleServerBoost(server.id); await reload(); }
+    catch (err) { setError(errorMessage(err)); }
+    finally { setBoosting(false); }
+  };
+
+  if (loading) return <p className="text-sm text-zinc-400 py-4">Загрузка…</p>;
+  if (error) return <p role="alert" className="text-sm text-red-400 py-4">{error}</p>;
+
+  const hasBoosted = info!.count > 0;
+  const nextThreshold = BOOST_THRESHOLDS[info!.level] ?? Infinity;
+  const progress = info!.count / nextThreshold;
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-zinc-800 rounded-lg p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🚀</span>
+          <div>
+            <p className="font-semibold text-base">{BOOST_NAMES[Math.min(info!.level, BOOST_NAMES.length - 1)]}</p>
+            <p className="text-xs text-zinc-400">{info!.count} буст{info!.count === 1 ? "" : info!.count < 5 ? "а" : "ов"}</p>
+          </div>
+        </div>
+        <div>
+          <div className="flex justify-between text-xs text-zinc-400 mb-1">
+            <span>Прогресс до следующего уровня</span>
+            <span>{Math.min(Math.round(progress * 100), 100)}%</span>
+          </div>
+          <div className="h-2 bg-zinc-700 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-400 transition-all" style={{ width: `${Math.min(progress * 100, 100)}%` }} />
+          </div>
+          {nextThreshold !== Infinity && <p className="text-xs text-zinc-500 mt-1">Следующий уровень: ещё {nextThreshold - info!.count} буст{nextThreshold - info!.count === 1 ? "" : nextThreshold - info!.count < 5 ? "а" : "ов"}</p>}
+          {nextThreshold === Infinity && <p className="text-xs text-zinc-500 mt-1">Максимальный уровень достигнут!</p>}
+        </div>
+        <button onClick={() => void doBoost()} disabled={boosting} className={`w-full py-2 rounded text-sm font-medium ${hasBoosted ? "bg-violet-600 hover:bg-violet-500 text-white" : "bg-zinc-700 hover:bg-zinc-600 text-zinc-200"}`}>
+          {boosting ? "…" : hasBoosted ? "Убрать буст" : "Бустнуть сервер 🚀"}
+        </button>
+      </div>
+      <div>
+        <p className="text-xs text-zinc-400 uppercase tracking-wide mb-2">Бустеры ({info!.boosters.length})</p>
+        {info!.boosters.length === 0
+          ? <p className="text-sm text-zinc-500">Пока нет бустеров.</p>
+          : <ul className="space-y-1">
+              {info!.boosters.map((b) => (
+                <li key={b.user_id} className="flex items-center gap-2 text-sm py-1.5 px-2 rounded hover:bg-zinc-800">
+                  <span>🚀</span>
+                  <span className="flex-1 truncate">{b.username}</span>
+                  <span className="text-xs text-zinc-500">
+                    {new Date(b.boosted_at * 1000).toLocaleDateString("ru-RU")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+        }
+      </div>
+      <div className="border-t border-zinc-700 pt-4">
+        <p className="text-xs text-zinc-400 uppercase tracking-wide mb-2">Бонусы по уровням</p>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          {[
+            ["0", "0 бустов", "Стандартные лимиты"],
+            ["1", "1 буст", "+100 эмодзи, +50 слотов ролей"],
+            ["2", "3 буста", "+250 эмодзи, +200 слотов ролей"],
+            ["3", "7 бустов", "Макс. лимиты"],
+          ].map(([lvl, label, perk]) => (
+            <div key={lvl} className={`p-2 rounded ${parseInt(lvl) <= (info?.level ?? 0) ? "bg-violet-900/20 border border-violet-700/40" : "bg-zinc-800 opacity-50"}`}>
+              <p className="font-medium text-zinc-200">{label}</p>
+              <p className="text-zinc-400">{perk}</p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

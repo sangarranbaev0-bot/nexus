@@ -51,9 +51,19 @@ document.documentElement.classList.toggle('nexus-dark', initialDark);
 document.documentElement.classList.toggle('nexus-light', !initialDark);
 
 void restoreSession();
-if ("serviceWorker" in navigator) {
-  void navigator.serviceWorker.register("/nexus/service-worker.js");
-}
+
+// PWA регистрация с виртуального модуля vite-plugin-pwa
+import { registerSW } from 'virtual:pwa-register';
+
+registerSW({
+  immediate: true,
+  onRegisteredSW(swScriptUrl, registration) {
+    console.debug('SW registered:', swScriptUrl, registration);
+  },
+  onRegisterError(error) {
+    console.error('SW registration error:', error);
+  },
+});
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const status = useSession((s) => s.status);

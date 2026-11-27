@@ -5,14 +5,15 @@ import { ChannelSettingsDialog } from "./ChannelSettings";
 import {
   AddServerDialog,
   CreateChannelDialog,
-    InviteDialog,
+  InviteDialog,
   InviteListDialog,
-    MembersDialog,
+  MembersDialog,
   NewDmDialog,
   OnboardingDialog,
   EventsDialog,
   StatusDot,
 } from "./Dialogs";
+import { Menu, BellOff, LinkIcon, Search, MessageCircle, Settings, Users, ClipboardList, CalendarDays, Mail } from "lucide-react";
 import { clearDmUnread, dmTitle, loadDms, useDms } from "./dms";
 import { FriendsPage } from "./FriendsPage";
 import { GroupActions, GroupHeader } from "./Groups";
@@ -196,24 +197,24 @@ export function AppLayout() {
         </aside>
       </div>
 
-      <main className="flex min-w-0 flex-1 flex-col bg-zinc-900">
+      <main className="flex min-w-0 flex-1 flex-col bg-[var(--nc-bg-primary)]">
         {loadError && (
           <p role="alert" className="bg-red-900/60 px-4 py-2 text-sm">
             {loadError}
           </p>
         )}
-        <header className="flex h-12 items-center gap-2 border-b border-zinc-700 px-4 font-semibold">
+        <header className="nc-header">
           <button
             onClick={() => setNavOpen(true)}
             aria-label="Открыть меню"
             aria-expanded={navOpen}
-            className="-ml-2 rounded px-2 text-xl text-zinc-400 hover:text-zinc-100 md:hidden"
+            className="nc-ib md:hidden"
           >
-            ☰
+            <Menu size={18} />
           </button>
           {channel && (
             <>
-              <span className="text-zinc-500">
+              <span className="nc-header-icon">
                 {channel.kind === "stage" ? "🎤" : channel.kind === "voice" ? "🔊" : "#"}
               </span>
               {channel.name}
@@ -228,7 +229,7 @@ export function AppLayout() {
           )}
           {dm && !dm.isGroup && (
             <>
-              <span className="text-zinc-500">@</span>
+         <span className="text-[var(--nc-text-muted)]">@</span>
               {dm.username}
               <StatusDot userId={dm.userId} fallback={dm.status} />
               <DmCallButton dm={dm} />
@@ -243,25 +244,25 @@ export function AppLayout() {
                   onClick={() => setDialog("notify")}
                   title="Настройки уведомлений"
                   aria-label="Настройки уведомлений канала"
-                  className="rounded px-2 py-1 text-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+                  className="nc-ib"
                 >
-                  🔕
+                  <BellOff size={16} />
                 </button>
                 <button
                   onClick={() => setDialog("inviteList")}
                   title="Список приглашений"
                   aria-label="Приглашения"
-                  className="rounded px-2 py-1 text-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+                  className="nc-ib"
                 >
-                  🔗
+                  <LinkIcon size={16} />
                 </button>
                 <button
                   onClick={() => setDialog("search")}
                   title="Поиск по серверу (Ctrl+G)"
                   aria-label="Глобальный поиск"
-                  className="rounded px-2 py-1 text-lg text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+                  className="nc-ib"
                 >
-                  🔍
+                  <Search size={16} />
                 </button>
               </>
             )}
@@ -274,7 +275,7 @@ export function AppLayout() {
             className="h-24 w-full object-cover opacity-80"
           />
         )}
-        <div className={`flex min-h-0 flex-1 flex-col ${server && channel ? 'fade-in' : ''}`}>
+        <div className={`flex min-h-0 flex-1 ${server && channel ? 'nc-anim-fade-in' : ''}`}>
         {server && channel?.kind === "voice" ? (
           <div className="flex min-h-0 flex-1">
             <VoiceStage
@@ -288,7 +289,7 @@ export function AppLayout() {
                 ?? channels?.find((c) => c.kind === 'text');
               if (!chatChannel) return null;
               return (
-                <aside className="hidden w-80 shrink-0 border-l border-zinc-800 lg:block" aria-label="Чат голосового канала">
+                <aside className="hidden w-80 shrink-0 border-l border-[var(--nc-border-light)] lg:block" aria-label="Чат голосового канала">
                   <ChatView
                     key={chatChannel.id}
                     channel={{ id: chatChannel.id, label: `#${chatChannel.name}` }}
@@ -380,25 +381,25 @@ export function AppLayout() {
 function DmList({ dms, onNew }: { dms: DmChannel[]; onNew: () => void }) {
   return (
     <>
-      <header className="flex h-12 items-center border-b border-zinc-700 px-3">
+      <header className="nc-header">
         <h2 className="flex-1 truncate font-semibold">Личные сообщения</h2>
         <button
           onClick={onNew}
           title="Написать сообщение"
           aria-label="Написать сообщение"
-          className="rounded px-1.5 text-lg text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+          className="nc-ib"
         >
           +
         </button>
       </header>
-      <ul className="flex-1 space-y-0.5 overflow-y-auto p-2">
+      <ul className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {dms.length === 0 && (
           <li className="px-2 py-1.5 text-sm text-zinc-500">
             Диалогов пока нет.
           </li>
         )}
         {dms.map((d) => (
-          <li key={d.id} className="hover-lift">
+          <li key={d.id}>
             <NavLink
               to={`/channels/@me/${d.id}`}
               aria-label={
@@ -407,12 +408,12 @@ function DmList({ dms, onNew }: { dms: DmChannel[]; onNew: () => void }) {
                   : undefined
               }
               className={({ isActive }) =>
-                `flex items-center gap-2 rounded px-2 py-1.5 ${
+                `nc-ch flex items-center gap-2 ${
                   isActive
-                    ? "bg-zinc-700/60 text-white"
+                    ? "text-white"
                     : d.unreadCount > 0
-                      ? "font-semibold text-white hover:bg-zinc-900"
-                      : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                      ? "font-semibold text-white"
+                      : "text-[var(--nc-text-muted)]"
                 }`
               }
             >
@@ -422,7 +423,7 @@ function DmList({ dms, onNew }: { dms: DmChannel[]; onNew: () => void }) {
               {d.unreadCount > 0 && (
                 <span
                   aria-hidden
-                  className="rounded-full bg-red-500 px-1.5 text-xs font-bold text-white"
+                  className="nc-badge"
                 >
                   {formatBadge(d.unreadCount)}
                 </span>
@@ -456,7 +457,7 @@ function ServerRail({
   dmUnread: number;
   onAdd: () => void;
 }) {
-  const pill = "grid size-12 place-items-center font-semibold transition-all hover-lift";
+  const pill = "grid size-12 place-items-center font-semibold transition-all";
   const [folders, setFolders] = useState<Record<string, number[]>>(() => {
     try { return JSON.parse(localStorage.getItem('nexus-folders') ?? '{}'); } catch { return {}; }
   });
@@ -545,16 +546,12 @@ function ServerRail({
         title={s.name}
         aria-label={s.unreadCount ? `${s.name}, непрочитанных: ${formatBadge(s.unreadCount)}` : s.name}
         aria-current={s.id === activeId ? "page" : undefined}
-        className={`${pill} ${
-          s.id === activeId
-            ? "rounded-2xl bg-indigo-500"
-            : "rounded-3xl bg-zinc-900 hover:rounded-2xl hover:bg-indigo-500"
-        }`}
+        className={`nc-srv ${s.id === activeId ? 'nc-srv--active' : ''}`}
       >
         {initials(s.name)}
       </Link>
       {s.unreadCount > 0 && (
-        <span aria-hidden className="absolute -right-1 -bottom-1 rounded-full border-4 border-zinc-700 bg-red-500 px-1.5 text-xs font-bold">
+        <span aria-hidden className="nc-badge">
           {formatBadge(s.unreadCount)}
         </span>
       )}
@@ -564,7 +561,7 @@ function ServerRail({
   return (
     <nav
       aria-label="Серверы"
-      className="flex w-[72px] flex-col items-center gap-2 overflow-y-auto bg-black/5 border-r border-zinc-700 py-3"
+      className="flex w-[72px] flex-col items-center gap-2 overflow-y-auto bg-[var(--nc-bg-primary)] border-r border-[var(--nc-border-light)] py-3"
     >
       <div className="relative">
         <Link
@@ -572,17 +569,17 @@ function ServerRail({
           title="Личные сообщения"
           aria-label={dmUnread ? `Личные сообщения, непрочитанных: ${formatBadge(dmUnread)}` : "Личные сообщения"}
           aria-current={homeActive ? "page" : undefined}
-          className={`${pill} text-xl ${homeActive ? "rounded-2xl bg-indigo-500" : "rounded-3xl bg-zinc-900 hover:rounded-2xl hover:bg-indigo-500"}`}
+          className={`nc-srv ${homeActive ? 'nc-srv--active' : ''}`}
         >
-          💬
+          <MessageCircle size={22} />
         </Link>
         {dmUnread > 0 && (
-          <span aria-hidden className="absolute -right-1 -bottom-1 rounded-full border-4 border-zinc-700 bg-red-500 px-1.5 text-xs font-bold">
+          <span aria-hidden className="nc-badge">
             {formatBadge(dmUnread)}
           </span>
         )}
       </div>
-      <hr className="w-8 border-zinc-800" />
+      <div className="w-8 h-[2px] bg-[var(--nc-bg-hover)] rounded" />
       {Object.entries(folders).map(([name, ids]) => (
         <div
           key={name}
@@ -590,7 +587,7 @@ function ServerRail({
           onContextMenu={(e) => { e.preventDefault(); setCtx({ x: e.clientX, y: e.clientY, kind: 'folder', name }); }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); dropInto(name); }}
-          className={`${pill} rounded-2xl bg-zinc-900 text-xl text-amber-400`}
+          className="nc-srv nc-srv--folder"
         >
           📁
         </div>
@@ -607,7 +604,7 @@ function ServerRail({
         onClick={onAdd}
         title="Добавить сервер"
         aria-label="Добавить сервер"
-        className={`${pill} rounded-3xl bg-zinc-900 text-2xl text-emerald-500 hover:rounded-2xl hover:bg-emerald-600 hover:text-white`}
+        className="nc-srv nc-srv--add"
       >
         +
       </button>
@@ -664,8 +661,7 @@ function ChannelList({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
-  const iconButton =
-    "rounded px-1.5 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100";
+  const iconButton = "nc-ib";
 
   const remove = async (c: Channel) => {
     if (!confirm(`Удалить канал #${c.name}? Это необратимо.`)) return;
@@ -697,109 +693,109 @@ function ChannelList({
     byCategory.get(key)!.push(channel);
   }
 
-  return (
-    <>
-      <header className="flex h-12 items-center gap-1 border-b border-zinc-700 px-3">
-        <h2 className="flex-1 truncate font-semibold">{server.name}</h2>
-        {canSettings && (
-          <button
-            className={iconButton}
-            title="Настройки сервера"
-            aria-label="Настройки сервера"
-            onClick={() => onDialog("settings")}
-          >
-            ⚙️
-          </button>
-        )}
-        <button
-          className={iconButton}
-          title="Участники"
-          aria-label="Участники"
-          onClick={() => onDialog("members")}
-        >
-          👥
-        </button>
-        <button
-          className={iconButton}
-          title="Онбординг"
-          aria-label="Онбординг"
-          onClick={() => onDialog("onboarding")}
-        >
-          📋
-        </button>
-        <button
-          className={iconButton}
-          title="События"
-          aria-label="События"
-          onClick={() => onDialog("events")}
-        >
-          📅
-        </button>
-        <button
-          className={iconButton}
-          title="Пригласить"
-          aria-label="Пригласить"
-          onClick={() => onDialog("invite")}
-        >
-          ✉️
-        </button>
-      </header>
-      {channels.length > 0 && (
-        <input
-          ref={searchRef}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск каналов"
-          aria-label="Поиск каналов"
-          className="mb-1 w-full rounded bg-zinc-900 px-2 py-1.5 text-sm outline-none placeholder:text-zinc-500"
-        />
-      )}
-      <div className="flex-1 overflow-y-auto px-2 pb-3">
-        {channels.length === 0 && (
-          <p className="px-2 py-3 text-sm text-zinc-500">Каналов пока нет.</p>
-        )}
-        <div className="space-y-0.5">
-          {(byCategory.get(null) ?? []).map((channel) => (
-            <ChannelRow
-              key={channel.id}
-              serverId={server.id}
-              channel={channel}
-              manage={manage}
-              onDelete={remove}
-              onSettings={setEditingChannel}
-              onContextMenu={(e) => setCtx({ x: e.clientX, y: e.clientY, channel })}
-            />
-          ))}
-        </div>
-        {sortedCategories.map((category) => (
-          <section key={category.id} className="mt-3">
-            <h3 className="truncate px-2 pt-2 pb-1 text-xs font-semibold uppercase text-zinc-400">
-              {category.name}
-            </h3>
-            <div className="space-y-0.5">
-              {(byCategory.get(category.id) ?? []).map((channel) => (
-                <ChannelRow
-                  key={channel.id}
-                  serverId={server.id}
-                  channel={channel}
-                  manage={manage}
-                  onDelete={remove}
-                  onSettings={setEditingChannel}
-                  onContextMenu={(e) => setCtx({ x: e.clientX, y: e.clientY, channel })}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
-        {manage && (
-          <button
-            onClick={() => onDialog("createChannel")}
-            className="mt-3 w-full rounded px-2 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
-          >
-            + Создать канал
-          </button>
-        )}
-      </div>
+   return (
+     <>
+       <header className="nc-header">
+         <h2 className="flex-1 truncate font-semibold">{server.name}</h2>
+         {canSettings && (
+           <button
+             className="nc-ib"
+             title="Настройки сервера"
+             aria-label="Настройки сервера"
+             onClick={() => onDialog("settings")}
+           >
+             <Settings size={16} />
+           </button>
+         )}
+         <button
+           className="nc-ib"
+           title="Участники"
+           aria-label="Участники"
+           onClick={() => onDialog("members")}
+         >
+           <Users size={16} />
+         </button>
+         <button
+           className="nc-ib"
+           title="Онбординг"
+           aria-label="Онбординг"
+           onClick={() => onDialog("onboarding")}
+         >
+           <ClipboardList size={16} />
+         </button>
+         <button
+           className="nc-ib"
+           title="События"
+           aria-label="События"
+           onClick={() => onDialog("events")}
+         >
+           <CalendarDays size={16} />
+         </button>
+         <button
+           className="nc-ib"
+           title="Пригласить"
+           aria-label="Пригласить"
+           onClick={() => onDialog("invite")}
+         >
+           <Mail size={16} />
+         </button>
+       </header>
+       {channels.length > 0 && (
+         <input
+           ref={searchRef}
+           value={search}
+           onChange={(e) => setSearch(e.target.value)}
+           placeholder="Поиск каналов"
+           aria-label="Поиск каналов"
+           className="mb-1 w-full rounded bg-[var(--nc-bg-tertiary)] px-2 py-1.5 text-sm outline-none placeholder:text-[var(--nc-text-muted)]"
+         />
+       )}
+       <div className="flex-1 overflow-y-auto px-2 pb-3">
+         {channels.length === 0 && (
+           <p className="px-2 py-3 text-sm text-[var(--nc-text-muted)]">Каналов пока нет.</p>
+         )}
+         <div className="space-y-0.5">
+           {(byCategory.get(null) ?? []).map((channel) => (
+             <ChannelRow
+               key={channel.id}
+               serverId={server.id}
+               channel={channel}
+               manage={manage}
+               onDelete={remove}
+               onSettings={setEditingChannel}
+               onContextMenu={(e) => setCtx({ x: e.clientX, y: e.clientY, channel })}
+             />
+           ))}
+         </div>
+         {sortedCategories.map((category) => (
+           <section key={category.id} className="mt-3">
+             <h3 className="nc-section-label">
+               {category.name}
+             </h3>
+             <div className="space-y-0.5">
+               {(byCategory.get(category.id) ?? []).map((channel) => (
+                 <ChannelRow
+                   key={channel.id}
+                   serverId={server.id}
+                   channel={channel}
+                   manage={manage}
+                   onDelete={remove}
+                   onSettings={setEditingChannel}
+                   onContextMenu={(e) => setCtx({ x: e.clientX, y: e.clientY, channel })}
+                 />
+               ))}
+             </div>
+           </section>
+         ))}
+         {manage && (
+           <button
+             onClick={() => onDialog("createChannel")}
+             className="mt-3 w-full rounded px-2 py-1.5 text-left text-sm text-[var(--nc-text-muted)] hover:bg-[var(--nc-bg-hover)] hover:text-[var(--nc-text-primary)]"
+           >
+             + Создать канал
+           </button>
+         )}
+       </div>
       {ctx && (
         <ContextMenu
           x={ctx.x}
@@ -991,22 +987,22 @@ function ConnectionStatus({ onSettings }: { onSettings: () => void }) {
     useSession.setState({ status: "authed", user: account.user });
   };
   return (
-    <footer className="flex items-center gap-2 bg-black/10 px-3 py-2 text-sm">
+    <footer className="flex items-center gap-2 bg-[var(--nc-bg-secondary)] px-3 py-2 text-sm">
       <span
         className={`size-2.5 shrink-0 rounded-full ${view.dot}`}
         aria-hidden
       />
       <div className="min-w-0 flex-1" role="status">
         <div className="truncate font-medium">{user?.username}</div>
-        <div className="text-xs text-zinc-400">
+        <div className="text-xs text-[var(--nc-text-muted)]">
           {view.label}
           {latencyMs !== null && ` · ${latencyMs} мс`}
         </div>
         {user?.statusText && (
-          <div className="text-xs text-zinc-400">{user.statusEmoji} {user.statusText}</div>
+          <div className="text-xs text-[var(--nc-text-muted)]">{user.statusEmoji} {user.statusText}</div>
         )}
         {user?.activityName && (
-          <div className="text-xs text-zinc-400" title={user.activityType}>
+          <div className="text-xs text-[var(--nc-text-muted)]" title={user.activityType}>
             {ACTIVITY_ICONS[user.activityType] ?? ""} {user.activityName}
           </div>
         )}
@@ -1016,7 +1012,7 @@ function ConnectionStatus({ onSettings }: { onSettings: () => void }) {
           onClick={() => switchAccount(other)}
           title="Аккаунты"
           aria-label="Аккаунты"
-          className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+          className="nc-ib"
         >
           {other.user.username}
         </button>
@@ -1025,21 +1021,21 @@ function ConnectionStatus({ onSettings }: { onSettings: () => void }) {
         onClick={onSettings}
         title="Настройки пользователя"
         aria-label="Настройки пользователя"
-        className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+        className="nc-ib"
       >
-        ⚙
+        <Settings size={16} />
       </button>
       <button
         onClick={() => setWordsOpen(true)}
         title="Слова-триггеры"
         aria-label="Слова-триггеры"
-        className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+        className="nc-ib"
       >
         Aa
       </button>
       <button
         onClick={() => void logout()}
-        className="rounded px-2 py-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+        className="nc-ib"
       >
         Выйти
       </button>

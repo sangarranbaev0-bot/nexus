@@ -36,4 +36,4 @@ bannerUrl: string,
 /**
  * Канал объявлений; `null` — не задан.
  */
-announcementChannelId: number | null, };
+announcementChannelId: number | null, boostCount: number, boostLevel: number, };

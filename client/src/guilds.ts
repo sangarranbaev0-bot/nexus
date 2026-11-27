@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from './api';
+import { hasPerm } from './permissions';
 import type { AuditEntry } from './generated/AuditEntry';
 import type { CreateReactionRoleRequest } from './generated/CreateReactionRoleRequest';
 import type { CreateOnboardingQuestionRequest } from './generated/CreateOnboardingQuestionRequest';
@@ -32,8 +33,6 @@ import type { UpsertOverwriteRequest } from './generated/UpsertOverwriteRequest'
 import type { BanInfo } from './generated/BanInfo';
 import type { BanRequest } from './generated/BanRequest';
 import type { EmbedPreview } from './generated/EmbedPreview';
-
-import { P, hasPerm } from './permissions';
 import type { StickerPack } from './generated/StickerPack';
 import type { Sticker } from './generated/Sticker';
 import type { CreateStickerPackRequest } from './generated/CreateStickerPackRequest';
@@ -47,6 +46,7 @@ interface GuildsState {
   channels: Record<number, Channel[] | undefined>;
   categories: Record<number, Category[] | undefined>;
   roles: Record<number, RoleInfo[] | undefined>;
+  members: Record<number, Member[]>;
 }
 
 export const useGuilds = create<GuildsState>(() => ({
@@ -54,6 +54,7 @@ export const useGuilds = create<GuildsState>(() => ({
   channels: {},
   categories: {},
   roles: {},
+  members: {},
 }));
 
 const rank: Record<Role, number> = { member: 0, admin: 1, owner: 2 };
@@ -144,6 +145,60 @@ export const listAudit = (serverId: number) =>
 
 export const listOverwrites = (channelId: number) =>
   api<Overwrite[]>(`/api/channels/${channelId}/overwrites`);
+
+export const listMembers = (serverId: number) =>
+  api<Member[]>(`/api/servers/${serverId}/members`);
+
+export async function loadMembers(serverId: number) {
+  const members = await listMembers(serverId);
+  useGuilds.setState((s) => ({ members: { ...s.members, [serverId]: members } }));
+}
+
+/** Owner меняет роль участника (admin/member). */
+export function setMemberRole(serverId: number, userId: number, role: string) {
+  return api(`/api/servers/${serverId}/members/${userId}`, {
+    method: 'PATCH',
+    body: { role },
+  });
+}
+
+/** Волна всем участникам сервера. */
+export function wave(serverId: number) {
+  return api(`/api/servers/${serverId}/wave`, { method: 'POST' });
+}
+
+export const listBans = (serverId: number) => api<BanInfo[]>(`/api/servers/${serverId}/bans`);
+
+export function banMember(serverId: number, userId: number, body: BanRequest) {
+  return api(`/api/servers/${serverId}/members/${userId}/ban`, {
+    method: 'POST',
+    body,
+  });
+}
+
+export function unbanMember(serverId: number, userId: number) {
+  return api(`/api/servers/${serverId}/members/${userId}/ban`, { method: 'DELETE' });
+}
+
+export function kickMember(serverId: number, userId: number, body: BanRequest) {
+  return api(`/api/servers/${serverId}/members/${userId}/kick`, {
+    method: 'POST',
+    body,
+  });
+}
+
+export function timeoutMember(serverId: number, userId: number, seconds: number) {
+  return api(`/api/servers/${serverId}/members/${userId}/timeout`, {
+    method: 'PATCH',
+    body: { seconds },
+  });
+}
+
+export function unTimeoutMember(serverId: number, userId: number) {
+  return api(`/api/servers/${serverId}/members/${userId}/timeout`, {
+    method: 'DELETE',
+  });
+}
 
 export const upsertOverwrite = (channelId: number, req: UpsertOverwriteRequest) =>
   api(`/api/channels/${channelId}/overwrites`, { method: 'PUT', body: req });
@@ -246,11 +301,9 @@ export async function searchMembers(serverId: number, q: string) {
 export async function listTickets(serverId: number) {
   return api<Ticket[]>(`/api/servers/${serverId}/tickets`);
 }
-
 export async function createTicket(serverId: number, title: string) {
   return api<Ticket>(`/api/servers/${serverId}/tickets`, { method: 'POST', body: { title } });
 }
-
 export async function updateTicket(serverId: number, ticketId: number, body: { status?: string; title?: string }) {
   return api<Ticket>(`/api/servers/${serverId}/tickets/${ticketId}`, { method: 'PATCH', body });
 }
@@ -296,32 +349,8 @@ export const listInvites = (serverId: number) => api<Invite[]>(`/api/servers/${s
 export const deleteInvite = (code: string) =>
   api<void>(`/api/invites/${encodeURIComponent(code)}`, { method: 'DELETE' });
 
-export const listMembers = (serverId: number) => api<Member[]>(`/api/servers/${serverId}/members`);
+// --- Server/channel lookup helpers ---
 
-export async function listBans(serverId: number) {
-  return api<BanInfo[]>(`/api/servers/${serverId}/bans`);
-}
-
-export async function banMember(serverId: number, userId: number, req: BanRequest) {
-  await api(`/api/servers/${serverId}/members/${userId}/ban`, { method: 'POST', body: req });
-}
-
-export async function unbanMember(serverId: number, userId: number) {
-  await api(`/api/servers/${serverId}/members/${userId}/ban`, { method: 'DELETE' });
-}
-
-export async function kickMember(serverId: number, userId: number, req: BanRequest) {
-  await api(`/api/servers/${serverId}/members/${userId}/kick`, { method: 'POST', body: req });
-}
-
-/** «Помахать» — короткое событие в системный канал сервера. */
-export const wave = (serverId: number) =>
-  api(`/api/servers/${serverId}/wave`, { method: 'POST' });
-
-export const setMemberRole = (serverId: number, userId: number, role: Role) =>
-  api(`/api/servers/${serverId}/members/${userId}`, { method: 'PATCH', body: { role } });
-
-/** Найти сервер канала среди загруженных списков каналов. */
 export function serverOfChannel(channelId: number): number | undefined {
   for (const [serverId, list] of Object.entries(useGuilds.getState().channels)) {
     if (list?.some((c) => c.id === channelId)) return Number(serverId);
@@ -356,86 +385,97 @@ export function bumpUnread(channelId: number) {
 
 /** Канал прочитан (здесь или в другой вкладке). */
 export function clearUnread(serverId: number, channelId: number) {
-    const channel = useGuilds.getState().channels[serverId]?.find((c) => c.id === channelId);
-    if (!channel) return reloadServersSoon();
-    if (channel.unreadCount === 0) return;
-    useGuilds.setState((s) => ({
-        channels: {
-            ...s.channels,
-            [serverId]: s.channels[serverId]?.map((c) => (c.id === channelId ? { ...c, unreadCount: 0 } : c)),
-        },
-        servers:
-            s.servers?.map((x) =>
-                x.id === serverId ? { ...x, unreadCount: Math.max(0, x.unreadCount - channel.unreadCount) } : x,
-            ) ?? null,
-    }));
+  const channel = useGuilds.getState().channels[serverId]?.find((c) => c.id === channelId);
+  if (!channel) return reloadServersSoon();
+  if (channel.unreadCount === 0) return;
+  useGuilds.setState((s) => ({
+    channels: {
+      ...s.channels,
+      [serverId]: s.channels[serverId]?.map((c) => (c.id === channelId ? { ...c, unreadCount: 0 } : c)),
+    },
+    servers:
+      s.servers?.map((x) =>
+        x.id === serverId ? { ...x, unreadCount: Math.max(0, x.unreadCount - channel.unreadCount) } : x,
+      ) ?? null,
+  }));
 }
 
 export async function loadEmbed(messageId: number) {
-    return api<EmbedPreview | null>(`/api/messages/${messageId}/embed`);
+  return api<EmbedPreview | null>(`/api/messages/${messageId}/embed`);
 }
 
 export const formatBadge = (n: number) => (n >= 100 ? '99+' : String(n));
 
 export async function listStickerPacks(serverId: number) {
-    return api<StickerPack[]>(`/api/servers/${serverId}/stickers/packages`);
+  return api<StickerPack[]>(`/api/servers/${serverId}/stickers/packages`);
 }
 
 export async function createStickerPack(serverId: number, req: CreateStickerPackRequest) {
-    return api<StickerPack>(`/api/servers/${serverId}/stickers/packages`, { method: 'POST', body: JSON.stringify(req) });
+  return api<StickerPack>(`/api/servers/${serverId}/stickers/packages`, { method: 'POST', body: JSON.stringify(req) });
 }
 
 export async function getStickerPack(serverId: number, packId: number) {
-    return api<StickerPack>(`/api/servers/${serverId}/stickers/packages/${packId}`);
+  return api<StickerPack>(`/api/servers/${serverId}/stickers/packages/${packId}`);
 }
 
 export async function deleteStickerPack(serverId: number, packId: number) {
-    return api<void>(`/api/servers/${serverId}/stickers/packages/${packId}`, { method: 'DELETE' });
+  return api<void>(`/api/servers/${serverId}/stickers/packages/${packId}`, { method: 'DELETE' });
 }
 
 export async function createSticker(serverId: number, packId: number, req: CreateStickerRequest) {
-    return api<Sticker>(`/api/servers/${serverId}/stickers/packages/${packId}/stickers`, { method: 'POST', body: JSON.stringify(req) });
+  return api<Sticker>(`/api/servers/${serverId}/stickers/packages/${packId}/stickers`, { method: 'POST', body: JSON.stringify(req) });
 }
 
 export async function deleteSticker(serverId: number, stickerId: number) {
-    return api<void>(`/api/servers/${serverId}/stickers/${stickerId}`, { method: 'DELETE' });
+  return api<void>(`/api/servers/${serverId}/stickers/${stickerId}`, { method: 'DELETE' });
 }
 
 export async function listChannelStickers(channelId: number) {
-    return api<Sticker[]>(`/api/channels/${channelId}/stickers`);
+  return api<Sticker[]>(`/api/channels/${channelId}/stickers`);
 }
 
 export async function listPackStickers(serverId: number, packId: number) {
-    return api<Sticker[]>(`/api/servers/${serverId}/stickers/packages/${packId}/stickers`);
+  return api<Sticker[]>(`/api/servers/${serverId}/stickers/packages/${packId}/stickers`);
 }
 
 export interface ServerSearchResult {
-    messageId: number;
-    channelId: number;
-    channelName: string;
-    message: Message;
+  messageId: number;
+  channelId: number;
+  channelName: string;
+  message: Message;
 }
 
 export interface ServerSearchParams {
-    q: string;
-    channelId?: number;
-    limit?: number;
+  q: string;
+  channelId?: number;
+  limit?: number;
 }
 
 export async function searchServerMessages(serverId: number, params: ServerSearchParams) {
-    const qs = new URLSearchParams({ q: params.q });
-    if (params.channelId) qs.set('channelId', String(params.channelId));
-    if (params.limit) qs.set('limit', String(params.limit));
-    return api<{ results: ServerSearchResult[]; hasMore: boolean }>(
-        `/api/servers/${serverId}/messages/search?${qs}`,
-    );
+  const qs = new URLSearchParams({ q: params.q });
+  if (params.channelId) qs.set('channelId', String(params.channelId));
+  if (params.limit) qs.set('limit', String(params.limit));
+  return api<{ results: ServerSearchResult[]; hasMore: boolean }>(
+    `/api/servers/${serverId}/messages/search?${qs}`,
+  );
 }
 
 export const listAutoModRules = (serverId: number) =>
-    api<AutoModRule[]>(`/api/servers/${serverId}/automod`);
+  api<AutoModRule[]>(`/api/servers/${serverId}/automod`);
 
 export const createAutoModRule = (serverId: number, req: CreateAutoModRuleRequest) =>
-    api<AutoModRule>(`/api/servers/${serverId}/automod`, { method: 'POST', body: req });
+  api<AutoModRule>(`/api/servers/${serverId}/automod`, { method: 'POST', body: req });
 
 export const deleteAutoModRule = (serverId: number, ruleId: number) =>
-    api<void>(`/api/servers/${serverId}/automod/${ruleId}`, { method: 'DELETE' });
+  api<void>(`/api/servers/${serverId}/automod/${ruleId}`, { method: 'DELETE' });
+
+export const getServerBoosts = (serverId: number) =>
+  api<{ level: number; count: number; boosters: Array<{ user_id: number; username: string; boosted_at: number }> }>(
+    `/api/servers/${serverId}/boosts`,
+  );
+
+export const toggleServerBoost = (serverId: number) =>
+  api<{ level: number; count: number; boosters: Array<{ user_id: number; username: string; boosted_at: number }> }>(
+    `/api/servers/${serverId}/boosts`,
+    { method: 'POST' },
+  );

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111827" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="NexusChat" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>NexusChat</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { background: #09090b; color: #e4e4e7; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+      .card { text-align: center; max-width: 320px; padding: 2rem; }
+      .icon { width: 64px; height: 64px; margin: 0 auto 1rem; opacity: 0.5; }
+      h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+      p { color: #a1a1aa; margin-bottom: 1.5rem; }
+      button { background: #6366f1; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-size: 1rem; cursor: pointer; }
+      button:hover { background: #4f46e5; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+      </svg>
+      <h1>Нет подключения к сети</h1>
+      <p>Проверьте интернет и попробуйте снова. Кэш приложения сохраняет последние сообщения.</p>
+      <button onclick="location.reload()">Перезагрузить</button>
+    </div>
+  </body>
+</html>

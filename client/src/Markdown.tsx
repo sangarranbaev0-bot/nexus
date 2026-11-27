@@ -1,13 +1,15 @@
 import { useState, type ReactNode } from 'react';
 import { useSession } from './session';
 import { useEmojis } from './emojis';
+import { useTodos } from './todos';
 
 /**
  * Безопасный рендер Discord-подобного Markdown: без HTML и dangerouslySetInnerHTML.
  * Поддерживает **жирный**, *курсив*, __подчёркнутый__, ~~зачёркнутый~~,
- * ||спойлер||, `код`, блоки кода, цитаты, списки, заголовки и <t:unix:R>.
+ * ||спойлер||, `код`, блоки кода, цитаты, списки, заголовки, <t:unix:R>
+ * и чеклисты: - [ ] задача / - [x] выполнено.
  */
-export function Markdown({ text }: { text: string }) {
+export function Markdown({ text, messageId }: { text: string; messageId?: number }) {
   const me = useSession((s) => s.user?.username);
   const byServer = useEmojis((s) => s.byServer);
   const lookup = (name: string) => {
@@ -17,12 +19,158 @@ export function Markdown({ text }: { text: string }) {
     }
     return undefined;
   };
-  return <div className="space-y-1 break-words whitespace-pre-wrap">{blocks(text, me, lookup)}</div>;
+  return <div className="space-y-1 break-words whitespace-pre-wrap">{blocks(text, me, lookup, messageId)}</div>;
 }
 
 type EmojiLookup = (name: string) => string | undefined;
 
-function blocks(text: string, me?: string, emoji?: EmojiLookup): ReactNode[] {
+const STOCK_EMOJI: Record<string, string> = {
+  // reactions
+  thumbsup: '👍', thumbup: '👍', '+1': '👍',
+  thumbsdown: '👎', thumbdown: '👎', '-1': '👎',
+  OK_hand: '👌', peace: '✌️', v: '✌️',
+  praying_hands: '🙏', clap: '👏', wave: '👋',
+  muscle: '💪', flex: '💪',
+  hands: '👐', open_hands: '👐',
+  point_up: '☝️', point_down: '👇', point_left: '👈', point_right: '👉',
+  crossed_fingers: '🤞', love_you_gesture: '🤟',
+  metal: '🤘', sign_of_the_horns: '🤘',
+  writing_hand: '✍️', selfie: '🤳',
+  nail_polish: '💅', raising_hand: '🙋',
+  person_raising_hand: '🙋', bow: '🙇',
+  face_palm: '🤦', shrug: '🤷',
+  // faces
+  grinning: '😀', smiley: '😃', smile: '😄',
+  grin: '😁', laughing: '😆', sweat_smile: '😅',
+  roasted: '🤣', joyful: '😂', wink: '😉',
+  blown_kiss: '😘', kissing_heart: '😘',
+  kissing: '😗', kissing_smiling_eyes: '😙',
+  kissing_face: '😚', relaxing: '😊',
+  blush: '🙂', subtle_smile: '🙂',
+  upside_down: '🙃', melted: '🫠',
+  yum: '😋', stuck_out_tongue: '😛',
+  stuck_out_tongue_winking_eye: '😜',
+  zany_face: '🤪', money_mouth: '🤑',
+  hugging: '🤗', hand_over_mouth: '🤭',
+  shushing: '🤫', thinking: '🤔',
+  raised_eyebrows: '🤨', sunglasses: '😎',
+  star_struck: '🤩', partying: '🥳',
+  woozy: '🥴', hot_face: '🥵', cold_face: '🥶',
+  nauseated: '🤢', vomiting: '🤮', sneezing: '🤧',
+  dizzy_face: '😵', exploding_head: '🤯',
+  flushed: '😳', disappointed: '😞', worried: '😟',
+  angry: '😠', rage: '😡', imp: '👿',
+  skull: '💀', ghost: '👻', alien: '👽',
+  robot: '🤖', poi: '🤡', crown: '👑',
+  woomh: '🧐', smiling_imp: '😈',
+   // emotions
+   heart: '❤️', orange_heart: '🧡', yellow_heart: '💛',
+   green_heart: '💚', blue_heart: '💙', purple_heart: '💜',
+   black_heart: '🖤', white_heart: '🤍', broken_heart: '💔',
+   two_hearts: '💕', revolving_hearts: '💞',
+   beating_heart: '💓', heartbeat: '💓',
+   heartpulse: '💗', sparkling_heart: '💖',
+   cupid: '💘', gift_heart: '💝', love_letter: '💌',
+   zzz: '💤', dash: '💨', sweat: '😓',
+   sweat_drops: '💦', breath: '🌬️',
+   fire: '🔥', sparkles: '✨', star: '⭐',
+   stars: '🌟', shiny_spoon: '🥄', gem: '💎',
+   guitar: '🎸', drum: '🥁',
+  headphones: '🎧', microphone: '🎤', camera: '📷',
+  video_camera: '📹', movie_camera: '🎥',
+  computer: '💻', keyboard: '⌨️', phone: '📱',
+  telephone: '☎️', bell: '🔔', clock: '🕐',
+  lock: '🔒', unlock: '🔓', key: '🔑',
+  hammer: '🔨', wrench: '🔧', screwdriver: '🪛',
+  box: '📦', package: '📦', gift: '🎁',
+  envelope: '✉️', mail: '📧', inbox: '📥',
+  book: '📖', books: '📚', notebook: '📓',
+  pencil: '✏️', pen: '🖊️', paintbrush: '🖌️',
+  crayon: '🖍️', memo: '📝', briefcase: '💼',
+  file_folder: '📁', open_file_folder: '📂',
+  calendar: '📅', date: '📆', trash: '🗑️',
+  locked: '🔒', unlocked: '🔓', pencil2: '✏️',
+  mag: '🔍', mag_right: '🔎', globe_with_meridians: '🌐',
+  bulb: '💡', anchor: '⚓', helicopter: '🚁',
+  airplane: '✈️', rocket: '🚀', flying_saucer: '🛸',
+  bike: '🚲', bus: '🚌', car: '🚗', taxi: '🚕',
+  train: '🚆', ship: '🚢', sailboat: '⛵',
+  // food
+  pizza: '🍕', burger: '🍔', fries: '🍟',
+  hotdog: '🌭', sandwich: '🥪', taco: '🌮',
+  burrito: '🌯', salad: '🥗', popcorn: '🍿',
+  bread: '🍞', croissant: '🥐', baguette: '🥖',
+  pancake: '🥞', cheese: '🧀', egg: '🥚',
+  bacon: '🥓', lettuce: '🥬', tomato: '🍅',
+  avocado: '🥑', cucumber: '🥒', carrot: '🥕',
+  corn: '🌽', chili: '🌶️', broccoli: '🥦',
+  mushroom: '🍄', peanut: '🥜', honey_pot: '🍯',
+  butter: '🧈', cake: '🍰', birthday: '🎂',
+  cupcake: '🧁', pie: '🥧', chocolate_bar: '🍫',
+  candy: '🍬', lollipop: '🍭', cookie: '🍪',
+  milk: '🥛', baby_bottle: '🍼', coffee: '☕',
+  tea: '🍵', sake: '🍶', beer: '🍺', beers: '🍻',
+  champagne: '🍾', wine_glass: '🍷', cocktail: '🍸',
+  tropical: '🍹', drink: '🍹', tumbler_glass: '🥃',
+  chopsticks: '🥢', fork_and_knife: '🍴', plate_with_cutlery: '🍽️',
+  sushi: '🍣', bento: '🍱', ramen: '🍜',
+  curry: '🍛', rice: '🍚', rice_ball: '🍙',
+  rice_cracker: '🍘', fish_cake: '🍥', dango: '🍡',
+  // nature
+  snowflake: '❄️', cloud: '☁️', rainbow: '🌈',
+  sunny: '☀️', partly_sunny: '⛅', thunder_cloud_rain: '🌩️',
+  moon: '🌙', new_moon: '🌑', full_moon: '🌕',
+  galaxy: '🌌', volcano: '🌋', milky_way: '🌌',
+  bridge_at_night: '🌉', hotsprings: '♨️',
+  tent: '⛺', camping: '🏕️', beach_umbrella: '🏖️',
+  motorway: '🛣️', railway_track: '🛤️',
+  sunrise: '🌅', sunrise_over_mountains: '🌄',
+   star2: '🌟', shells: '🐚',
+  bamboo: '🎍', leaves: '🍃', herb: '🌿',
+  four_leaf_clover: '🍀', seedling: '🌱',
+  palm_tree: '🌴', cactus: '🌵', evergreen_tree: '🌲',
+  deciduous_tree: '🌳', tree: '🌳', maple_leaf: '🍁',
+  fallen_leaf: '🍂', flower: '🌸', tulip: '🌷',
+  rose: '🌹', sunflower: '🌻', hibiscus: '🌺',
+  cherry_blossom: '🌸', bouqet: '💐', chrysanthemum: '🌼',
+  // animals
+  cat: '🐱', dog: '🐶', mouse: '🐭', hamster: '🐹',
+  rabbit: '🐰', fox: '🦊', bear: '🐻',
+  panda: '🐼', koala: '🐨', tiger: '🐯',
+  lion: '🦁', cow: '🐮', pig: '🐷',
+  frog: '🐸', monkey_face: '🐒', chicken: '🐔',
+  penguin: '🐧', bird: '🐦', baby_chick: '🐤',
+  hatching_chick: '🐣', hatched: '🐥', duck: '🦆',
+  eagle: '🦅', owl: '🦉', bat: '🦇', wolf: '🐺',
+  boar: '🐗', horse: '🐴', unicorn: '🦄',
+  hedgehog: '🦔', sheep: '🐑', goat: '🐐',
+  llama: '🦙', giraffe: '🦒', zebra: '🦓',
+  elephant: '🐘', rhino: '🦏', giraffe_face: '🦒',
+  moose: '🫎', donkey: '🫏', hippo: '🦛',
+  monkey: '🐵', gorilla: '🦍', orangutan: '🦧',
+  snake: '🐍', lizard: '🦎', turtle: '🐢',
+  tortoise: '🐢', bug: '🐛', butterfly: '🦋',
+  snail: '🐌', beetle: '🪲', ant: '🐜',
+  bee: '🐝', lady_beetle: '🐞', crickets: '🦗',
+  mosquito: '🦟', microbe: '🦠', lobster: '🦞',
+  mussel: '🦪', shrimp: '🦐', squid: '🦑',
+  octopus: '🐙', shell: '🐚', coral: '🪸',
+  // sports
+  soccer: '⚽', basketball: '🏀', football: '🏈',
+  baseball: '⚾', tennis: '🎾', volleyball: '🏐',
+  rugby_football: '🏉', ping_pong: '🏓', badminton: '🏸',
+  golf: '⛳', hockey: '🏒', field_hockey: '🏑',
+  lacrosse: '🥍', cricket: '🏏', boxing: '🥊',
+  martial_arts: '🥋', ice_hockey: '🏒', skiing: '⛷️',
+  snowboarder: '🏂', weight_lifting: '🏋️',
+  bicyclist: '🚴', mountain_bicyclist: '🚵',
+  horse_racing: '🏇', surf: '🏄', swimming: '🏊',
+  water_polo: '🤽', rowing: '🚣', dart: '🎯',
+  bowling: '🎳', golf_course: '⛳', sled: '🛷',
+  curling_stone: '🥌',
+};
+
+function blocks(text: string, me?: string, emoji?: EmojiLookup, messageId?: number): ReactNode[] {
   const lines = text.split('\n');
   const out: ReactNode[] = [];
   let i = 0;
@@ -87,8 +235,24 @@ function blocks(text: string, me?: string, emoji?: EmojiLookup): ReactNode[] {
     const unordered = /^\s*[-*]\s+/.test(line);
     const ordered = /^\s*\d+\.\s+/.test(line);
     if (unordered || ordered) {
-      const items: string[] = [];
       const re = unordered ? /^\s*[-*]\s+/ : /^\s*\d+\.\s+/;
+      // Проверяем, является ли строка чеклистом: - [ ] задача / - [x] задача
+      const taskMatch = /^\s*[-*]\s+\[[ xX]\]\s+(.*)$/.exec(line);
+      if (taskMatch !== null && messageId !== undefined) {
+        // Группа чеклистов: собираем подряд идущие задачи
+        const tasks: { checked: boolean; content: string }[] = [];
+        while (i < lines.length && /^\s*[-*]\s+\[[ xX]\]\s+/.test(lines[i])) {
+          const m = /^\s*[-*]\s+\[([ xX])\]\s+(.*)$/.exec(lines[i]);
+          if (m) tasks.push({ checked: m[1] !== ' ', content: m[2] });
+          i++;
+        }
+        const items = tasks.map((t, n) => (
+          <TaskItem key={n} messageId={messageId} idx={n} checked={t.checked} text={t.content} />
+        ));
+        out.push(<ul key={key++} className="list-none pl-1 space-y-0.5">{items}</ul>);
+        continue;
+      }
+      const items: string[] = [];
       while (i < lines.length && re.test(lines[i])) {
         items.push(lines[i].replace(re, ''));
         i++;
@@ -120,6 +284,34 @@ function blocks(text: string, me?: string, emoji?: EmojiLookup): ReactNode[] {
   }
 
   return out;
+}
+
+function TaskItem({ messageId, idx, checked: initialChecked, text }: { messageId: number; idx: number; checked: boolean; text: string }) {
+  const toggle = useTodos((s) => s.toggle);
+  const done = useTodos((s) => s.done[`${messageId}-${idx}`] ?? initialChecked);
+  const onClick = () => toggle(messageId, idx);
+  return (
+    <li className="flex items-start gap-2 group/task">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-checked={done}
+        role="checkbox"
+        className={`mt-0.5 h-4 w-4 shrink-0 rounded border flex items-center justify-center transition-colors ${
+          done ? 'bg-indigo-500 border-indigo-500' : 'border-zinc-500 hover:border-zinc-300'
+        }`}
+      >
+        {done && (
+          <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3 stroke-white stroke-[2.5]">
+            <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </button>
+      <span className={`text-sm leading-relaxed ${done ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>
+        {inline(text)}
+      </span>
+    </li>
+  );
 }
 
 function isBlockStart(line: string) {
@@ -250,6 +442,16 @@ const ts = /^<t:(\d+)(?::([tTdDfFR]))?>/.exec(rest);
         );
         i += custom[0].length;
         continue;
+      }
+      // Стоковые эмодзи: неизвестный кастомный шорткод → Unicode символ
+      if (custom) {
+        const stock = STOCK_EMOJI[custom[1]];
+        if (stock) {
+          flush();
+          nodes.push(<span key={key++}>{stock}</span>);
+          i += custom[0].length;
+          continue;
+        }
       }
     }
 

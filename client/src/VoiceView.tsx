@@ -1,3 +1,14 @@
+import {
+  Headphones,
+  Mic,
+  MicOff,
+  Monitor,
+  Phone,
+  Video as VideoIcon,
+  VideoOff,
+  Settings as SettingsIcon,
+  LogOut,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { VoiceParticipant } from "./generated/VoiceParticipant";
 import { Modal, primaryButton } from "./Modal";
@@ -188,7 +199,7 @@ export function VoiceStage({
         ))}
       </div>
       {!inCall && (
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-3">
           <button
             onClick={() => void joinVoice(channelId, serverId)}
             className={primaryButton}
@@ -204,7 +215,20 @@ export function VoiceStage({
         </div>
       )}
       {inCall && (
-        <p className="sr-only">Вы в звонке. Управление — внизу слева.</p>
+        <>
+          <p className="sr-only">Вы в звонке. Управление — внизу слева.</p>
+          <div className="flex justify-end">
+            <button
+              onClick={() => void leaveVoice()}
+              title="Покинуть звонок"
+              aria-label="Покинуть звонок"
+              className="flex items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10 border border-red-500/20"
+            >
+              <LogOut size={14} strokeWidth={2} />
+              Покинуть звонок
+            </button>
+          </div>
+        </>
       )}
     </section>
   );
@@ -280,24 +304,29 @@ export function VoicePanel({ label }: { label: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   if (!current) return null;
 
-  const btn = (on: boolean, danger = false) =>
-    `grid size-9 place-items-center rounded text-lg ${
-      on
+  const btn = (active?: boolean, danger = false) =>
+    `grid size-9 place-items-center rounded transition-colors ${
+      active
         ? danger
-          ? "bg-red-500/20 text-red-400"
-          : "bg-zinc-700 text-white"
-        : "text-zinc-300 hover:bg-zinc-800"
+          ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+          : "bg-zinc-700 text-white hover:bg-zinc-600"
+        : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
     }`;
 
   return (
-    <div className="border-t border-zinc-800 bg-zinc-950/60 px-3 py-2">
+    <div className="border-t border-zinc-800 bg-zinc-950/80 px-3 py-2">
       <div className="flex items-center gap-2 text-sm">
         <span
-          className={`size-2.5 rounded-full ${transmitting ? "bg-emerald-400" : "bg-emerald-700"}`}
+          className={`size-2.5 shrink-0 rounded-full transition-colors ${
+            transmitting ? "bg-emerald-400 animate-pulse" : "bg-emerald-700"
+          }`}
           aria-hidden
         />
         <div className="min-w-0 flex-1">
-          <div className="font-medium text-emerald-400">Голос подключён</div>
+          <div className="flex items-center gap-1.5 font-medium text-emerald-400">
+            <Phone size={13} strokeWidth={2} />
+            <span>Голос подключён</span>
+          </div>
           <div className="truncate text-xs text-zinc-400">
             {label} ·{" "}
             {settings.micMode === "ptt"
@@ -307,11 +336,12 @@ export function VoicePanel({ label }: { label: string }) {
         </div>
         <button
           onClick={leaveVoice}
-          title="Отключиться"
-          aria-label="Отключиться"
-          className={btn(false) + " hover:text-red-400"}
+          title="Покинуть звонок"
+          aria-label="Покинуть звонок"
+          className="flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/15"
         >
-          📴
+          <LogOut size={14} strokeWidth={2} />
+          <span>Выйти</span>
         </button>
       </div>
       <div
@@ -323,45 +353,45 @@ export function VoicePanel({ label }: { label: string }) {
           onClick={toggleMute}
           aria-pressed={flags.muted}
           title={flags.muted ? "Включить микрофон" : "Выключить микрофон"}
-          aria-label="Микрофон"
+          aria-label={flags.muted ? "Микрофон выключен" : "Микрофон включён"}
           className={btn(flags.muted, true)}
         >
-          {flags.muted ? "🎙️✕" : "🎙️"}
+          {flags.muted ? <MicOff size={18} strokeWidth={2} /> : <Mic size={18} strokeWidth={2} />}
         </button>
         <button
           onClick={toggleDeafen}
           aria-pressed={flags.deafened}
           title={flags.deafened ? "Включить звук" : "Выключить звук"}
-          aria-label="Звук"
+          aria-label={flags.deafened ? "Звук выключен" : "Звук включён"}
           className={btn(flags.deafened, true)}
         >
-          {flags.deafened ? "🔇" : "🎧"}
+          <Headphones size={18} strokeWidth={2} />
         </button>
         <button
           onClick={() => void toggleCamera()}
           aria-pressed={!!localCamera}
-          title="Камера"
+          title={localCamera ? "Выключить камеру" : "Включить камеру"}
           aria-label="Камера"
           className={btn(!!localCamera)}
         >
-          📷
+          {localCamera ? <VideoIcon size={18} strokeWidth={2} /> : <VideoOff size={18} strokeWidth={2} />}
         </button>
         <button
           onClick={() => void toggleScreen()}
           aria-pressed={!!localScreen}
-          title="Демонстрация экрана"
+          title={localScreen ? "Остановить показ экрана" : "Демонстрация экрана"}
           aria-label="Демонстрация экрана"
           className={btn(!!localScreen)}
         >
-          🖥️
+          <Monitor size={18} strokeWidth={2} />
         </button>
         <button
           onClick={() => setSettingsOpen(true)}
           title="Настройки голоса"
           aria-label="Настройки голоса"
-          className={btn(false)}
+          className={btn()}
         >
-          ⚙️
+          <SettingsIcon size={18} strokeWidth={2} />
         </button>
       </div>
       {settingsOpen && <VoiceSettings onClose={() => setSettingsOpen(false)} />}

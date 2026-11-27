@@ -6,6 +6,8 @@ import type { MessageEdit } from './generated/MessageEdit';
 import type { SearchResponse } from './generated/SearchResponse';
 import type { SearchResult } from './generated/SearchResult';
 import type { Sticker } from './generated/Sticker';
+import type { Draft } from './generated/Draft';
+import type { CreateScheduledMessageRequest } from './generated/CreateScheduledMessageRequest';
 import { api, uploadFile } from './api';
 import { ContextMenu } from './ContextMenu';
 import {
@@ -28,6 +30,7 @@ import {
 import { Modal, errorMessage, ghostButton, inputClass, primaryButton } from './Modal';
 import { Markdown } from './Markdown';
 import { EmojiPicker } from './EmojiPicker';
+import { ArrowUpLeft, Pin, Smile } from 'lucide-react';
 import { StickerPicker } from './StickerPicker';
 import { useSession } from './session';
 import { sendTyping } from './socket';
@@ -78,9 +81,9 @@ export function ChatView({
   const [searchResults, setSearchResults] = useState<SearchHit[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [hasMoreSearch, setHasMoreSearch] = useState(false);
+   const [hasMoreSearch, setHasMoreSearch] = useState(false);
 
-  useEffect(() => {
+   useEffect(() => {
     setError(null);
     loadInitial(channel.id).catch((e) => setError(errorMessage(e)));
   }, [channel.id, log === undefined]);
@@ -203,9 +206,11 @@ export function ChatView({
           onClick={() => setShowPins(true)}
           title="Закреплённые сообщения"
           className="absolute top-1 right-4 z-10 rounded bg-zinc-900/80 px-2 py-1 text-xs text-zinc-300 backdrop-blur hover:bg-zinc-800"
-        >
-          📌 Закреплённые
-        </button>
+         >
+           <span className="flex items-center gap-1">
+             <Pin size={12} /> Закреплённые
+           </span>
+         </button>
         <button
           type="button"
           onClick={() => setShowUnreadOnly((v) => !v)}
@@ -261,11 +266,12 @@ function MessageList({
      showUnreadOnly: boolean;
      lastReadAt: number | null;
    }) {
-   const nearBottom = useRef(true);
-   const prev = useRef<{ first?: number; last?: number; height: number }>({ height: 0 });
-   const latest = useRef(items);
-   latest.current = items;
-   // Фильтруем только непрочитанные, если включён соответствующий режим.
+    const nearBottom = useRef(true);
+    const prev = useRef<{ first?: number; last?: number; height: number }>({ height: 0 });
+    const latest = useRef(items);
+    latest.current = items;
+    const [atBottom, setAtBottom] = useState(true);
+    // Фильтруем только непрочитанные, если включён соответствующий режим.
    const visibleItems =
      showUnreadOnly && lastReadAt !== null && items ? items.filter((m) => m.createdAt > lastReadAt) : items;
 
@@ -324,7 +330,7 @@ function MessageList({
     const firstUnread = unread > 0 && unread < (visibleItems || []).length ? (visibleItems || []).length - unread : -1;
 
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto py-4" role="log" aria-label={`Сообщения ${channel.label}`}>
+      <div className="min-h-0 flex-1 overflow-y-auto py-4" role="log" aria-label={`Сообщения ${channel.label}`} aria-live="polite">
         {visibleItems && !hasMore && (
           <div className="px-4 pb-4">
             <h3 className="text-2xl font-bold">Добро пожаловать в {channel.label}!</h3>
@@ -389,23 +395,34 @@ function MessageList({
              // Don't auto-scroll if user scrolled up
              return false;
            }}
-           atBottomStateChange={(atBottom: boolean) => {
-             nearBottom.current = atBottom;
-             if (atBottom) {
-               // User scrolled to bottom - mark as read
-               ackIfViewing();
-             }
-           }}
+            atBottomStateChange={(atBottom: boolean) => {
+              nearBottom.current = atBottom;
+              setAtBottom(atBottom);
+              if (atBottom) {
+                // User scrolled to bottom - mark as read
+                ackIfViewing();
+              }
+            }}
            endReached={(lastIndex: number) => {
              // Load older messages when reaching the end (top of the list)
              if (hasMore) {
                loadOlder(channel.id).catch((e) => onError(errorMessage(e)));
              }
            }}
-           alignToBottom={true}
-         />
-       </div>
-    );
+            alignToBottom={true}
+          />
+          {!atBottom && (
+            <button
+              onClick={() => nearBottom.current = true}
+              title="К началу"
+              aria-label="К началу"
+              className="fixed bottom-12 right-6 rounded-full bg-indigo-600/90 px-3 py-2 text-zinc-100 hover:bg-indigo-500 shadow-lg z-50 transition-opacity hover:opacity-100"
+            >
+              <ArrowUpLeft size={20} />
+            </button>
+          )}
+        </div>
+      );
   }
 
 const timeFmt = new Intl.DateTimeFormat('ru', { hour: '2-digit', minute: '2-digit' });
@@ -472,8 +489,8 @@ function MessageItem({
           {formatTime(m.createdAt)}
         </time>
         {m.pinned && (
-          <span title="Закреплено" className="text-xs text-amber-300">
-            📌
+          <span title="Закреплено">
+            <Pin size={12} className="text-amber-300" />
           </span>
         )}
         {m.editedAt !== null && (
@@ -489,7 +506,7 @@ function MessageItem({
       ) : (
         (m.content || m.editedAt !== null) && (
           <div className="break-words whitespace-pre-wrap text-zinc-100">
-            <Markdown text={m.content} />
+            <Markdown text={m.content} messageId={m.id} />
           </div>
         )
       )}
@@ -848,6 +865,7 @@ function ForwardDialog({
 
 function ReactionBar({ message, me, onError }: { message: Message; me?: number; onError: (e: string) => void }) {
   const [picker, setPicker] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const mine = (emoji: string) =>
     me !== undefined && message.reactions.some((r) => r.emoji === emoji && r.userIds.includes(me));
 
@@ -860,43 +878,74 @@ function ReactionBar({ message, me, onError }: { message: Message; me?: number; 
     }
   };
 
+  const quickReactions = ['👍', '❤️', '😂', '👀', '🔥'];
+
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-1">
-      {message.reactions.map((r) => {
-        const active = me !== undefined && r.userIds.includes(me);
-        return (
-          <button
-            key={r.emoji}
-            type="button"
-            onClick={() => toggle(r.emoji)}
-            title={active ? 'Снять реакцию' : 'Поставить реакцию'}
-            className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-sm ${
-              active ? 'bg-indigo-600/40 text-indigo-100' : 'bg-zinc-700/60 text-zinc-200'
-            } hover:bg-zinc-600`}
-          >
-            <span>{r.emoji}</span>
-            <span className="text-xs text-zinc-300">{r.userIds.length}</span>
-          </button>
-        );
-      })}
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setPicker((v) => !v)}
-          title="Добавить реакцию"
-          aria-label="Добавить реакцию"
-          className="rounded px-1.5 py-0.5 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
-        >
-          🙂+
-        </button>
-        {picker && (
-          <EmojiPicker
-            className="absolute bottom-full left-0 z-20 mb-1"
-            onPick={toggle}
-            onClose={() => setPicker(false)}
-          />
-        )}
-      </div>
+    <div
+      className="mt-1 flex flex-wrap items-center gap-1"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {hovered && (
+        <>
+          {quickReactions.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => toggle(emoji)}
+              title={`Поставить ${emoji}`}
+              className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-sm ${
+                mine(emoji) ? 'bg-indigo-600/40 text-indigo-100' : 'bg-zinc-700/60 text-zinc-200'
+              } hover:bg-zinc-600`}
+            >
+              <span>{emoji}</span>
+            </button>
+          ))}
+          <div className="flex items-center gap-1 rounded px-1.5 py-0.5 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100">
+            <span>+</span>
+            <span className="text-sm text-zinc-300">{quickReactions.length} реакций</span>
+          </div>
+        </>
+      )}
+      {!hovered && (
+        <>
+          {message.reactions.map((r) => {
+            const active = me !== undefined && r.userIds.includes(me);
+            return (
+              <button
+                key={r.emoji}
+                type="button"
+                onClick={() => toggle(r.emoji)}
+                title={active ? 'Снять реакцию' : 'Поставить реакцию'}
+                className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-sm ${
+                  active ? 'bg-indigo-600/40 text-indigo-100' : 'bg-zinc-700/60 text-zinc-200'
+                } hover:bg-zinc-600`}
+              >
+                <span>{r.emoji}</span>
+                <span className="text-xs text-zinc-300">{r.userIds.length}</span>
+              </button>
+            );
+          })}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setPicker((v) => !v)}
+              title="Добавить реакцию"
+              aria-label="Добавить реакцию"
+              className="rounded px-1.5 py-0.5 text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-100"
+            >
+              <Smile size={16} />
+            </button>
+            {picker && (
+              <EmojiPicker
+                className="absolute bottom-full left-0 z-20 mb-1"
+                onPick={toggle}
+                onClose={() => setPicker(false)}
+              />
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -968,9 +1017,23 @@ const [error, setError] = useState<string | null>(null);
 const [pending, setPending] = useState<Pending[]>([]);
 const [emojiOpen, setEmojiOpen] = useState(false);
 const [stickerOpen, setStickerOpen] = useState(false);
-  const lastTyping = useRef(0);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const textInput = useRef<HTMLTextAreaElement>(null);
+const [showScheduleModal, setShowScheduleModal] = useState(false);
+const [scheduleDraft, setScheduleDraft] = useState<Draft | null>(null);
+const lastTyping = useRef(0);
+const fileInput = useRef<HTMLInputElement>(null);
+const textInput = useRef<HTMLTextAreaElement>(null);
+const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+const hasScheduled = useRef(false);
+
+useEffect(() => {
+  setValue('');
+  setScheduleDraft(null);
+  if (saveTimer.current) clearTimeout(saveTimer.current);
+  api<Draft>(`/api/channels/${channel.id}/draft`).then((d) => {
+    setScheduleDraft(d);
+    if (d?.content) setValue(d.content);
+  }, () => {});
+}, [channel.id]);
 
   const insertEmoji = (emoji: string) => {
     const el = textInput.current;
@@ -1036,9 +1099,12 @@ const [stickerOpen, setStickerOpen] = useState(false);
     const ready = pending.filter((p) => p.attachment);
     if (uploading || (!text && ready.length === 0)) return;
     setError(null);
+    hasScheduled.current = false;
     try {
       await sendMessage(channel.id, text, ready.map((p) => p.attachment!.id), replyTo?.id);
       setValue('');
+      setScheduleDraft(null);
+      api<Draft>(`/api/channels/${channel.id}/draft`, { method: 'DELETE' }).catch(() => {});
       pending.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
       setPending([]);
       onCancelReply();
@@ -1074,6 +1140,10 @@ const [stickerOpen, setStickerOpen] = useState(false);
       lastTyping.current = now;
       sendTyping(channel.id);
     }
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      api<Draft>(`/api/channels/${channel.id}/draft`, { method: 'POST', body: { content: text } }).catch(() => {});
+    }, 800);
   };
 
   return (
@@ -1174,6 +1244,15 @@ const [stickerOpen, setStickerOpen] = useState(false);
           >
             📎
           </button>
+          <button
+            type="button"
+            onClick={() => setShowScheduleModal(true)}
+            title="Запланировать отправку"
+            aria-label="Запланировать отправку"
+            className="px-3 py-2.5 text-lg text-zinc-400 hover:text-zinc-100"
+          >
+            ⏰
+          </button>
           <input
             ref={fileInput}
             type="file"
@@ -1205,10 +1284,20 @@ const [stickerOpen, setStickerOpen] = useState(false);
         </div>
       </div>
       {uploading && <p className="pt-1 text-xs text-zinc-400">Файлы загружаются, отправка станет доступна после загрузки…</p>}
+      {scheduleDraft?.content && !value && (
+        <div className="flex items-center gap-2 px-4 pt-1 text-xs text-zinc-500">
+          <span>Есть сохранённый черновик.</span>
+          <button type="button" onClick={() => { setValue(scheduleDraft.content); setScheduleDraft(null); }} className="text-indigo-400 hover:text-indigo-200">Восстановить</button>
+          <button type="button" onClick={() => { api<Draft>(`/api/channels/${channel.id}/draft`, { method: 'DELETE' }).catch(() => {}); setScheduleDraft(null); }} className="text-red-400 hover:text-red-200">Удалить</button>
+        </div>
+      )}
       {error && (
         <p role="alert" className="pt-1 text-sm text-red-400">
           {error}
         </p>
+      )}
+      {showScheduleModal && (
+        <ScheduleModal channel={channel} value={value} onClose={() => setShowScheduleModal(false)} />
       )}
     </div>
   );
@@ -1454,7 +1543,7 @@ function ForumThreads({ channel, onError }: { channel: ChatTarget; onError: (e: 
                 <span className="text-zinc-600">· {replies.get(m.id)?.length ?? '…'} отв.</span>
               </div>
               <button onClick={() => void toggleThread(m.id)} className="mt-1 block w-full text-left text-sm">
-                <Markdown text={m.content} />
+            <Markdown text={m.content} messageId={m.id} />
               </button>
               {open === m.id && (
                 <>
@@ -1486,6 +1575,47 @@ function ForumThreads({ channel, onError }: { channel: ChatTarget; onError: (e: 
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Новая ветка в ${channel.label}`} className={inputClass} />
         <button className={primaryButton} disabled={!text.trim()}>Создать</button>
       </form>
+    </div>
+  );
+}
+
+function ScheduleModal({ channel, value, onClose }: { channel: ChatTarget; value: string; onClose: () => void }) {
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [pending, setPending] = useState(false);
+  const nowMs = Date.now();
+  const minDate = new Date(nowMs + 60_000).toISOString().slice(0, 16);
+  return (
+    <div role="dialog" aria-modal aria-label="Запланировать сообщение" className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="w-96 rounded-lg bg-zinc-800 p-4 text-sm text-zinc-100 shadow-xl">
+        <h2 className="mb-3 font-semibold">Запланировать отправку</h2>
+        <label className="mb-2 block text-xs text-zinc-400">Канал: #{channel.label}</label>
+        <label className="mb-2 block text-xs text-zinc-400">Текст: {value.slice(0, 60)}{value.length > 60 ? '…' : ''}</label>
+        <label className="mb-2 block text-xs text-zinc-400">Отправить в</label>
+        <input
+          type="datetime-local"
+          min={minDate}
+          value={scheduledAt}
+          onChange={(e) => setScheduledAt(e.target.value)}
+          className="mb-4 w-full rounded border border-zinc-600 bg-zinc-900 px-2 py-1 text-sm text-zinc-100 outline-none focus:border-indigo-400"
+        />
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className={ghostButton}>Отмена</button>
+          <button
+            onClick={() => {
+              if (!scheduledAt || pending) return;
+              setPending(true);
+              api<void>(`/api/scheduled-messages`, {
+                method: 'POST',
+                body: { channelId: channel.id, content: value, scheduledFor: new Date(scheduledAt).getTime() },
+              }).then(() => { onClose(); }, (e) => { alert(errorMessage(e)); setPending(false); });
+            }}
+            disabled={!scheduledAt || pending}
+            className={primaryButton}
+          >
+            {pending ? 'Отправка…' : 'Запланировать'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
