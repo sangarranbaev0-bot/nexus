@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>NexusChat</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #121212; color: #e5e7eb;
+    font-family: Inter, "Segoe UI", system-ui, sans-serif; user-select: none; overflow: hidden; }
+  body { display: flex; flex-direction: column; align-items: center; padding: 48px 24px 20px;
+    border: 1px solid #242424; -webkit-app-region: drag; }
+  button, a { -webkit-app-region: no-drag; font-family: inherit; }
+  .close { position: absolute; top: 8px; right: 8px; width: 32px; height: 32px; border: 0; border-radius: 6px;
+    background: transparent; color: #8b919c; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .close:hover { background: #242424; color: #e5e7eb; }
+  .logo { position: relative; width: 96px; height: 96px; }
+  .glow { position: absolute; inset: -14px; border-radius: 36px; background: #6366f1; filter: blur(18px);
+    animation: glow 1.6s ease-in-out infinite; }
+  .logo svg { position: relative; display: block; animation: bob 1.6s ease-in-out infinite; }
+  .eyes { transform-origin: 256px 258px; animation: blink 3s ease-in-out infinite; }
+  .status { margin-top: 28px; text-align: center; min-height: 44px; }
+  #title { font-size: 15px; font-weight: 600; animation: fadein 200ms ease-out both; }
+  #sub { font-size: 13px; color: #9ca3af; margin-top: 4px; }
+  .bar { width: 100%; height: 6px; border-radius: 3px; background: #242424; overflow: hidden; margin-top: 16px; }
+  .fill { height: 100%; border-radius: 3px; background: #6366f1; }
+  .indet .fill { width: 40%; animation: indet 1.2s ease-in-out infinite; }
+  .det .fill { transition: width 120ms linear; }
+  .actions { display: none; gap: 8px; width: 100%; margin-top: 16px; }
+  .actions a { flex: 1; height: 40px; border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none;
+    display: flex; align-items: center; justify-content: center; transition: background-color 150ms ease-in-out; }
+  .later { background: #242424; color: #e5e7eb; } .later:hover { background: #2c2c2c; }
+  .update { background: #4f46e5; color: #fff; font-weight: 600 !important; } .update:hover { background: #4338ca; }
+  a:focus-visible, button:focus-visible { outline: 2px solid rgba(99,102,241,.6); outline-offset: 2px; }
+  .tip { margin-top: auto; font-size: 12px; color: #8b919c; text-align: center; line-height: 1.5; }
+  kbd { font-family: inherit; background: #1e1e1e; border: 1px solid #2c2c2c; border-radius: 4px; padding: 0 4px; }
+  @keyframes bob { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-6px) scale(1.04); } }
+  @keyframes glow { 0%,100% { opacity: .25; transform: scale(.9); } 50% { opacity: .6; transform: scale(1.1); } }
+  @keyframes blink { 0%,92%,100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+  @keyframes indet { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
+</style>
+</head>
+<body>
+  <!-- Кнопки — ссылки на /action/...: Rust перехватывает переход, страница не получает доступа к Tauri. -->
+  <a class="close" href="/action/quit" aria-label="Закрыть">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </a>
+  <div class="logo">
+    <span class="glow"></span>
+    <svg width="96" height="96" viewBox="0 0 512 512" aria-hidden="true">
+      <rect width="512" height="512" rx="116" fill="#6366f1"/>
+      <path d="M256 150v-40M90 265h36M386 265h36" stroke="#fff" stroke-width="22" stroke-linecap="round"/>
+      <circle cx="256" cy="98" r="26" fill="#fff"/><circle cx="88" cy="265" r="24" fill="#fff"/><circle cx="424" cy="265" r="24" fill="#fff"/>
+      <rect x="126" y="150" width="260" height="230" rx="96" fill="#fff"/>
+      <g class="eyes"><ellipse cx="208" cy="258" rx="26" ry="34" fill="#6366f1"/><ellipse cx="304" cy="258" rx="26" ry="34" fill="#6366f1"/></g>
+      <path d="M226 318q30 22 60 0" fill="none" stroke="#6366f1" stroke-width="18" stroke-linecap="round"/>
+    </svg>
+  </div>
+  <div class="status" role="status" aria-live="polite">
+    <div id="title">Запуск…</div>
+    <div id="sub">Подключаемся к серверу</div>
+  </div>
+  <div id="bar" class="bar indet" role="progressbar" aria-label="Прогресс" aria-valuemin="0" aria-valuemax="100"><div id="fill" class="fill"></div></div>
+  <div id="actions" class="actions">
+    <a class="later" href="/action/later">Позже</a>
+    <a class="update" href="/action/update">Обновить</a>
+  </div>
+  <div class="tip">Совет: <kbd>Ctrl</kbd>+<kbd>K</kbd> — быстрый переход к каналу</div>
+<script>
+  // Вызывается из Rust через eval: nx('check'), nx('found', '0.7.0', '0.6.0'), nx('progress', 42, '48,2 МБ'), …
+  const $ = (id) => document.getElementById(id);
+  function show(title, sub) {
+    const t = $('title'); t.textContent = title; t.style.animation = 'none'; void t.offsetWidth; t.style.animation = '';
+    $('sub').textContent = sub || '';
+  }
+  function bar(mode, pct) {
+    const b = $('bar'); b.style.display = mode ? 'block' : 'none';
+    b.className = 'bar ' + (mode || '');
+    $('fill').style.width = mode === 'det' ? pct + '%' : '';
+    if (mode === 'det') b.setAttribute('aria-valuenow', String(pct)); else b.removeAttribute('aria-valuenow');
+  }
+  window.nx = function (phase, a, b) {
+    $('actions').style.display = phase === 'found' ? 'flex' : 'none';
+    if (phase === 'check')    { show('Проверка обновлений…', 'Это займёт пару секунд'); bar('indet'); }
+    if (phase === 'found')    { show('Доступна версия ' + a, 'У вас ' + b + '. Обновить сейчас?'); bar(null); document.querySelector('.update').focus(); }
+    if (phase === 'progress') { show('Загрузка обновления', a + '%' + (b ? ' из ' + b : '')); bar('det', a); }
+    if (phase === 'install')  { show('Установка…', 'Приложение перезапустится'); bar('indet'); }
+    if (phase === 'ready')    { show('Запуск NexusChat', 'Почти готово'); bar('indet'); }
+    if (phase === 'error')    { show('Не удалось обновиться', 'Запускаем текущую версию'); bar('indet'); }
+  };
+</script>
+</body>
+</html>
