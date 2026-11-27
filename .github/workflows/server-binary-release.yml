@@ -67,12 +67,12 @@ jobs:
           $Zip = "releases/nexus-server-windows-x64.zip"
           $Repo = "${{ github.repository }}"
           $Body = @"
-Сервер NexusChat для Windows (x64, без установщика).
+          Сервер NexusChat для Windows (x64, без установщика).
 
-Версия: $env:VERSION
+          Версия: $env:VERSION
 
-Запустите \`run.bat\` после настройки \` .env\`.
-"@
+          Запустите \`run.bat\` после настройки \` .env\`.
+          "@
           # Удаляем старый тег-релиз если есть
           try {
             Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/tags/$env:TAG" `
